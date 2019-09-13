@@ -1,6 +1,7 @@
 package logr
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/wiggin77/cfg"
@@ -27,25 +28,47 @@ type state struct {
 	exit    chan struct{}
 }
 
+// levelCacheEntry is stored in levelCache map.
+type levelCacheEntry struct {
+	enabled    bool
+	stacktrace bool
+}
+
+var (
+	logr       state
+	levelCache map[string]levelCacheEntry
+)
+
 // Configure creates a logger using the supplied
 // configuration.
-func Configure(config *cfg.Config) (*Logger, error) {
-	logger := &Logger{}
-	err := configLogger(config)
-	return logger, err
+func Configure(config *cfg.Config) error {
+	// TODO
+	return fmt.Errorf("not implemented yet")
 }
 
 // AddTarget adds a target to the logger which will receive
 // log records for outputting.
 func AddTarget(target Target) {
-	logger.mux.Lock()
-	defer logger.mux.Unlock()
+	logr.mux.Lock()
+	defer logr.mux.Unlock()
 
-	logger.targets = append(logger.targets, target)
-	if !logger.active {
-		logger.active = true
-		logger.start()
+	logr.targets = append(logr.targets, target)
+	if !logr.active {
+		logr.active = true
+		start()
 	}
+}
+
+// IsLevelEnabled returns true if at least one target has the specfified
+// level enabled. The result is cached
+func IsLevelEnabled(level Level) bool {
+
+}
+
+// ResetLevelCache resets the cached results of `IsLevelEnabled`. This is
+// called any time a Target is added or a target's level is changed.
+func ResetLevelCache() {
+
 }
 
 // start selects on incoming log records until exit channel signals.

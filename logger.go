@@ -42,7 +42,7 @@ func (logger *Logger) WithFields(fields Fields) *Logger {
 }
 
 func (logger *Logger) Log(level Level, args ...interface{}) {
-	if entry.Logger.IsLevelEnabled(level) {
+	if isLevelEnabled(level) {
 		entry.log(level, fmt.Sprint(args...))
 	}
 }
