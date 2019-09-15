@@ -1,10 +1,15 @@
 package logr
 
+import (
+	"fmt"
+)
+
 // Level provides a mechanism to enable/disable specific log lines.
 // A default implementation using "panic, fatal..." is provided, however
 // more flexible implementations are possible such as topic names.
 // TODO: create example using topic strings.
 type Level interface {
+	fmt.Stringer
 	IsEnabled(Level) bool
 }
 
@@ -42,7 +47,8 @@ func (level StdLevel) String() string {
 }
 
 const (
-	// PanicLevel is the highest level of severity. Logs the message and then panics.
+	// PanicLevel is the highest level of severity and the least verbose.
+	// Logs the message and then panics.
 	PanicLevel StdLevel = iota
 	// FatalLevel designates a catastrophic error. Logs the message and then calls
 	// `logger.Exit(1)`.
