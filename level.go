@@ -11,18 +11,31 @@ import (
 type Level interface {
 	fmt.Stringer
 	IsEnabled(Level) bool
+	IsStacktraceEnabled(Level) bool
 }
 
 // StdLevel represents the classic log levels provided by Stdlib, Logrus and others.
 type StdLevel uint32
 
-// IsEnabled returns true if the specifed Level is at or above this verbosity.
+// IsEnabled returns true if the specifed Level is at or above this verbosity. Also
+// determines if a stack trace is required.
 func (level StdLevel) IsEnabled(l Level) bool {
 	lvl, ok := l.(StdLevel)
 	if !ok {
 		return false
 	}
 	return lvl >= level
+}
+
+// IsStacktraceEnabled returns true if the specifed Level requires a stack trace.
+// For this implementation, anything more verbose than ErrorLevel will require a
+// stack trace.
+func (level StdLevel) IsStacktraceEnabled(l Level) bool {
+	lvl, ok := l.(StdLevel)
+	if !ok {
+		return false
+	}
+	return lvl < ErrorLevel
 }
 
 // String returns a string representation of this Level.

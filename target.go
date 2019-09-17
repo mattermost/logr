@@ -8,6 +8,9 @@ type Target interface {
 	// a stack trace is required.
 	IsLevelEnabled(Level) (enabled bool, stacktrace bool)
 
+	// Formatter returns the Formatter associated with this Target.
+	Formatter() Formatter
+
 	// Log outputs the log record to this targets destination.
 	Log(rec *LogRec)
 

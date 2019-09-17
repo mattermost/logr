@@ -11,7 +11,7 @@ import (
 // TODO:  pool these?  how to reliably know when targets are done with them?
 type LogRec struct {
 	mux  sync.RWMutex
-	Time time.Time
+	time time.Time
 
 	level  Level
 	logger *Logger
@@ -20,16 +20,17 @@ type LogRec struct {
 	newline  bool
 	args     []interface{}
 
-	msg string
-
 	stackPC    []uintptr
 	stackCount int
-	frames     []runtime.Frame
+
+	// remaining fields calculated by `prep`
+	msg    string
+	frames []runtime.Frame
 }
 
 // NewLogRec creates a new LogRec with the current time and optional stack trace.
 func NewLogRec(level Level, logger *Logger, template string, args []interface{}, incStacktrace bool) *LogRec {
-	rec := &LogRec{Time: time.Now(), logger: logger, level: level, template: template, args: args}
+	rec := &LogRec{time: time.Now(), logger: logger, level: level, template: template, args: args}
 	if incStacktrace {
 		rec.stackPC = make([]uintptr, MaxStackFrames)
 		rec.stackCount = runtime.Callers(2, rec.stackPC)
@@ -69,6 +70,60 @@ func (rec *LogRec) prep() {
 
 // Format returns a string representation of this log record using
 // the specified Formatter.
-func (rec *LogRec) Format(formatter Formatter) (string, error) {
+func (rec *LogRec) Format(formatter Formatter) ([]byte, error) {
 	return formatter.Format(rec)
+}
+
+// WithTime returns a shallow copy of the log record while replacing
+// the time. This can be used by targets and formatters to adjust
+// the time, or take ownership of the log record.
+func (rec *LogRec) WithTime(time time.Time) *LogRec {
+	rec.mux.RLock()
+	defer rec.mux.RUnlock()
+
+	return &LogRec{
+		time:       time,
+		level:      rec.level,
+		logger:     rec.logger,
+		template:   rec.template,
+		newline:    rec.newline,
+		args:       rec.args,
+		msg:        rec.msg,
+		stackPC:    rec.stackPC,
+		stackCount: rec.stackCount,
+		frames:     rec.frames,
+	}
+}
+
+// Time returns this log record's time stamp.
+func (rec *LogRec) Time() time.Time {
+	// no locking needed as this field is not mutated.
+	return rec.time
+}
+
+// Level returns this log record's Level.
+func (rec *LogRec) Level() Level {
+	// no locking needed as this field is not mutated.
+	return rec.level
+}
+
+// Fields returns this log record's Fields.
+func (rec *LogRec) Fields() Fields {
+	// no locking needed as this field is not mutated.
+	return rec.logger.fields
+}
+
+// Msg returns this log record's message text.
+func (rec *LogRec) Msg() string {
+	rec.mux.RLock()
+	defer rec.mux.RUnlock()
+	return rec.msg
+}
+
+// StackFrames returns this log record's stack frames or
+// nil if no stack trace was required.
+func (rec *LogRec) StackFrames() []runtime.Frame {
+	rec.mux.RLock()
+	defer rec.mux.RUnlock()
+	return rec.frames
 }
