@@ -68,12 +68,6 @@ func (rec *LogRec) prep() {
 	}
 }
 
-// Format returns a string representation of this log record using
-// the specified Formatter.
-func (rec *LogRec) Format(formatter Formatter) ([]byte, error) {
-	return formatter.Format(rec)
-}
-
 // WithTime returns a shallow copy of the log record while replacing
 // the time. This can be used by targets and formatters to adjust
 // the time, or take ownership of the log record.

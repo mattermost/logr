@@ -24,11 +24,11 @@ func (level StdLevel) IsEnabled(l Level) bool {
 	if !ok {
 		return false
 	}
-	return lvl >= level
+	return lvl <= level
 }
 
 // IsStacktraceEnabled returns true if the specifed Level requires a stack trace.
-// For this implementation, anything more verbose than ErrorLevel will require a
+// For this implementation, anything more serious than ErrorLevel will require a
 // stack trace.
 func (level StdLevel) IsStacktraceEnabled(l Level) bool {
 	lvl, ok := l.(StdLevel)

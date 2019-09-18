@@ -9,44 +9,35 @@ import (
 
 // RecordWriter can convert a LogRecord to bytes and output to some data sink.
 type RecordWriter interface {
-	Write(rec *logr.LogRec)
+	Write(rec *logr.LogRec) error
 }
 
 // Basic provides the basic functionality of a Target that can be used
 // to more easily compose your own Targets.
 type Basic struct {
-	Level logr.Level
-	Fmtr  logr.Formatter
-	In    chan *logr.LogRec
-	Done  chan struct{}
-	W     RecordWriter
+	target logr.Target
+	in     chan *logr.LogRec
+	done   chan struct{}
+	w      RecordWriter
 }
 
-// InitBasic creates a Basic target that can be used within custom targets.
-func (b *Basic) InitBasic(level logr.Level, formatter logr.Formatter, rw RecordWriter, maxQueued int) {
-	b.Level = level
-	b.Fmtr = formatter
-	b.In = make(chan *logr.LogRec, maxQueued)
-	b.Done = make(chan struct{}, 1)
-	b.W = rw
+// Start initializes this target helper and starts accepting log records for processing.
+func (b *Basic) Start(target logr.Target, rw RecordWriter, maxQueued int) {
+	b.target = target
+	b.in = make(chan *logr.LogRec, maxQueued)
+	b.done = make(chan struct{}, 1)
+	b.w = rw
 	go b.start()
 }
 
-// IsLevelEnabled returns true if this target should emit
-// logs for the specified level. Also determines if
-// a stack trace is required.
-func (b *Basic) IsLevelEnabled(level logr.Level) (enabled bool, stacktrace bool) {
-	return b.Level.IsEnabled(level), b.Level.IsStacktraceEnabled(level)
-}
-
-// Formatter returns the Formatter associated with this Target.
-func (b *Basic) Formatter() logr.Formatter {
-	return b.Fmtr
+// Shutdown stops processing log records.
+func (b *Basic) Shutdown() {
+	b.done <- struct{}{}
 }
 
 // Log outputs the log record to this targets destination.
 func (b *Basic) Log(rec *logr.LogRec) {
-	b.In <- rec
+	b.in <- rec
 }
 
 // Start accepts log records via In channel and writes to the
@@ -59,20 +50,27 @@ func (b *Basic) start() {
 		}
 	}()
 
+	var err error
 	for {
 		var rec *logr.LogRec
 		// drain until no log records left in channel
 		select {
-		case rec = <-b.In:
-			W.Write(rec)
+		case rec = <-b.in:
+			err = b.w.Write(rec)
+			if err != nil {
+				logr.ReportError(err)
+			}
 		default:
 		}
 
 		// wait for log record or exit
 		select {
-		case rec = <-b.In:
-			W.Write(rec)
-		case <-b.Done:
+		case rec = <-b.in:
+			err = b.w.Write(rec)
+			if err != nil {
+				logr.ReportError(err)
+			}
+		case <-b.done:
 			return
 		}
 	}

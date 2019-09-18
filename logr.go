@@ -35,6 +35,11 @@ var (
 		in:   make(chan *LogRec, MAXQUEUE),
 		exit: make(chan struct{}, 1),
 	}
+
+	// OnLoggerError when not nil, is called any time an internal
+	// logging error occurs. For example, this can happen when a
+	// target cannot connect to its data sink.
+	OnLoggerError func(error)
 )
 
 // Configure creates a logger using the supplied
@@ -46,15 +51,22 @@ func Configure(config *cfg.Config) error {
 
 // AddTarget adds a target to the logger which will receive
 // log records for outputting.
-func AddTarget(target Target) {
+func AddTarget(target Target) error {
 	logr.mux.Lock()
 	defer logr.mux.Unlock()
+
+	err := target.Start()
+	if err != nil {
+		return err
+
+	}
 
 	logr.targets = append(logr.targets, target)
 	if !logr.active {
 		logr.active = true
 		go start()
 	}
+	return nil
 }
 
 // IsLevelEnabled returns true if at least one target has the specified
@@ -128,6 +140,17 @@ func Shutdown() error {
 		}
 	}
 	return errs.ErrorOrNil()
+}
+
+// ReportError is used to notify the host application of any internal logging errors.
+// If OnLoggerError is not nil, it is called with the error, otherwise the error is
+// output to stderr.
+func ReportError(err error) {
+	if OnLoggerError == nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	OnLoggerError(err)
 }
 
 // start selects on incoming log records until exit channel signals.
