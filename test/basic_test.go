@@ -1,7 +1,6 @@
-package logr_test
+package test
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -17,14 +16,14 @@ import (
 )
 
 func Example() {
-	buf := &buffer{}
+	buf := &Buffer{}
 	target := &target.Writer{Level: logr.WarnLevel, Fmtr: &format.Plain{Delim: " | "}, Out: buf, MaxQueued: 1000}
 	logr.AddTarget(target)
 
 	logger := logr.NewLogger().WithField("", "")
 
-	logger.Errorf("the erroneous data is %s", stringRnd(10))
-	logger.Warnf("strange data: %s", stringRnd(5))
+	logger.Errorf("the erroneous data is %s", StringRnd(10))
+	logger.Warnf("strange data: %s", StringRnd(5))
 	logger.Debug("XXX")
 	logger.Trace("XXX")
 
@@ -33,12 +32,12 @@ func Example() {
 }
 
 func TestBasic(t *testing.T) {
-	buf := &buffer{}
+	buf := &Buffer{}
 	target := &target.Writer{Level: logr.WarnLevel, Fmtr: &format.Plain{Delim: " | "}, Out: buf, MaxQueued: 1000}
 	logr.AddTarget(target)
 
 	wg := sync.WaitGroup{}
-	var id int32 = 0
+	var id int32
 
 	runner := func(loops int) {
 		defer wg.Done()
@@ -48,8 +47,8 @@ func TestBasic(t *testing.T) {
 		for i := 0; i < loops; i++ {
 			logger.Debug("XXX")
 			logger.Trace("XXX")
-			logger.Errorf("count:%d -- the erroneous data is %s", i, stringRnd(10))
-			logger.Warnf("strange data: %s", stringRnd(5))
+			logger.Errorf("count:%d -- the erroneous data is %s", i, StringRnd(10))
+			logger.Warnf("strange data: %s", StringRnd(5))
 			runtime.Gosched()
 		}
 	}
@@ -65,38 +64,4 @@ func TestBasic(t *testing.T) {
 	if strings.Contains(output, "XXX") {
 		t.Errorf("wrong level(s) enabled")
 	}
-}
-
-//
-// Pseudo-random string generator
-//
-const charset = "abcdefghijklmnopqrstuvwxyz" +
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func stringRnd(length int) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
-}
-
-//
-// Simple buffer implementing io.Writer
-//
-type buffer struct {
-	mux sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *buffer) Write(data []byte) (int, error) {
-	b.mux.Lock()
-	defer b.mux.Unlock()
-	return b.buf.Write(data)
-}
-
-func (b *buffer) String() string {
-	b.mux.Lock()
-	defer b.mux.Unlock()
-	return b.buf.String()
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/wiggin77/cfg"
 	"github.com/wiggin77/merror"
@@ -12,10 +13,11 @@ import (
 // Fields type, used to pass to `WithFields`.
 type Fields map[string]interface{}
 
-// levelCacheEntry is stored in levelCache map.
-type levelCacheEntry struct {
-	enabled    bool
-	stacktrace bool
+// LevelStatus represents whether a level is enabled and
+// requires a stack trace.
+type LevelStatus struct {
+	Enabled    bool
+	Stacktrace bool
 }
 
 // Logr maintains a list of log targets and accepts incoming
@@ -25,7 +27,7 @@ type Logr struct {
 	targets    []Target
 	active     bool
 	in         chan *LogRec
-	exit       chan struct{}
+	done       chan struct{}
 	shutdown   bool
 	levelCache sync.Map
 }
@@ -33,7 +35,7 @@ type Logr struct {
 var (
 	logr = &Logr{
 		in:   make(chan *LogRec, MAXQUEUE),
-		exit: make(chan struct{}, 1),
+		done: make(chan struct{}),
 	}
 
 	// OnLoggerError when not nil, is called any time an internal
@@ -66,37 +68,44 @@ func AddTarget(target Target) error {
 		logr.active = true
 		go start()
 	}
+	resetLevelCache()
 	return nil
 }
 
 // IsLevelEnabled returns true if at least one target has the specified
 // level enabled. The result is cached so that subsequent checks are fast.
-func IsLevelEnabled(level Level) (enabled bool, stacktrace bool) {
-	// Don't accept new log records after shutdown.
-	if logr.shutdown {
-		return false, false
-	}
+func IsLevelEnabled(level Level) LevelStatus {
 	// Check cache.
 	lce, ok := logr.levelCache.Load(level)
 	if ok {
-		entry := lce.(levelCacheEntry)
-		return entry.enabled, entry.stacktrace
+		return lce.(LevelStatus)
 	}
-	// Check each target.
+
 	logr.mux.RLock()
 	defer logr.mux.RUnlock()
+
+	status := LevelStatus{}
+
+	// Don't accept new log records after shutdown.
+	if logr.shutdown {
+		return status
+	}
+
+	// Check each target.
 	for _, t := range logr.targets {
 		e, s := t.IsLevelEnabled(level)
 		if e {
-			enabled = true
+			status.Enabled = true
 			if s {
-				stacktrace = true
+				status.Stacktrace = true
+				break // if both enabled then no sense checking more targets
 			}
 		}
 	}
+
 	// Cache and return the result.
-	logr.levelCache.Store(level, levelCacheEntry{enabled: enabled, stacktrace: stacktrace})
-	return enabled, stacktrace
+	logr.levelCache.Store(level, status)
+	return status
 }
 
 // ResetLevelCache resets the cached results of `IsLevelEnabled`. This is
@@ -106,7 +115,12 @@ func ResetLevelCache() {
 	// clear the cache.
 	logr.mux.Lock()
 	defer logr.mux.Unlock()
+	resetLevelCache()
+}
 
+// resetLevelCache empties the level cache without locking.
+// mux.Lock must be held before calling this function.
+func resetLevelCache() {
 	logr.levelCache.Range(func(key interface{}, value interface{}) bool {
 		logr.levelCache.Delete(key)
 		return true
@@ -124,21 +138,34 @@ func Exit(code int) {
 // to flush all targets.
 func Shutdown() error {
 	logr.mux.Lock()
-	defer logr.mux.Unlock()
-
 	logr.shutdown = true
-	errs := merror.New()
+	resetLevelCache()
+	logr.mux.Unlock()
 
-	logr.exit <- struct{}{}
+	// close the incoming channel and wait for read loop to exit.
+	close(logr.in)
+	select {
+	case <-time.After(time.Second * 10):
+	case <-logr.done:
+	}
 
 	// logr.in channel should now be drained to targets and no more log records
 	// can be added.
+	logr.mux.Lock()
+	defer logr.mux.Unlock()
+	errs := merror.New()
 	for _, t := range logr.targets {
 		err := t.Shutdown()
 		if err != nil {
 			errs.Append(err)
 		}
 	}
+
+	// reset logr so it can be restarted by adding new targets.
+	logr.targets = nil
+	logr.in = make(chan *LogRec, MAXQUEUE)
+	logr.done = make(chan struct{})
+
 	return errs.ErrorOrNil()
 }
 
@@ -153,33 +180,32 @@ func ReportError(err error) {
 	OnLoggerError(err)
 }
 
-// start selects on incoming log records until exit channel signals.
+// start selects on incoming log records until done channel signals.
 // Incoming log records are fanned out to all log targets.
 func start() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, r)
 			go start()
+		} else {
+			logr.mux.Lock()
+			logr.active = false
+			logr.mux.Unlock()
 		}
 	}()
 
 	for {
 		var rec *LogRec
-		// drain until no log records left in channel
+		var more bool
 		select {
-		case rec = <-logr.in:
-			rec.prep()
-			fanout(rec)
-		default:
-		}
-
-		// wait for log record or exit
-		select {
-		case rec = <-logr.in:
-			rec.prep()
-			fanout(rec)
-		case <-logr.exit:
-			return
+		case rec, more = <-logr.in:
+			if more {
+				rec.prep()
+				fanout(rec)
+			} else {
+				close(logr.done)
+				return
+			}
 		}
 	}
 }
@@ -196,6 +222,8 @@ func fanout(rec *LogRec) {
 	logr.mux.RLock()
 	defer logr.mux.RUnlock()
 	for _, target = range logr.targets {
-		target.Log(rec)
+		if enabled, _ := target.IsLevelEnabled(rec.Level()); enabled {
+			target.Log(rec)
+		}
 	}
 }

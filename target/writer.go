@@ -20,7 +20,8 @@ type Writer struct {
 
 // Start initializes the target and should start a new
 // goroutine to accept incoming log records.
-// In this case we just need to initialize the Basic helper.
+// In this case we just need to initialize the Basic helper
+// which provides an accepting goroutine.
 func (w *Writer) Start() error {
 	if w.Out == nil {
 		return errors.New("io.Writer cannot be nil")

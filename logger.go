@@ -42,9 +42,9 @@ func (logger *Logger) WithFields(fields Fields) *Logger {
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Print.
 func (logger *Logger) Log(level Level, args ...interface{}) {
-	enabled, stacktrace := IsLevelEnabled(level)
-	if enabled {
-		rec := NewLogRec(level, logger, "", args, stacktrace)
+	status := IsLevelEnabled(level)
+	if status.Enabled {
+		rec := NewLogRec(level, logger, "", args, status.Stacktrace)
 		logr.in <- rec
 	}
 }
@@ -101,9 +101,9 @@ func (logger *Logger) Panic(args ...interface{}) {
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Printf.
 func (logger *Logger) Logf(level Level, format string, args ...interface{}) {
-	enabled, stacktrace := IsLevelEnabled(level)
-	if enabled {
-		rec := NewLogRec(level, logger, format, args, stacktrace)
+	status := IsLevelEnabled(level)
+	if status.Enabled {
+		rec := NewLogRec(level, logger, format, args, status.Stacktrace)
 		logr.in <- rec
 	}
 }
@@ -159,9 +159,9 @@ func (logger *Logger) Panicf(format string, args ...interface{}) {
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Println.
 func (logger *Logger) Logln(level Level, args ...interface{}) {
-	enabled, stacktrace := IsLevelEnabled(level)
-	if enabled {
-		rec := NewLogRec(level, logger, "", args, stacktrace)
+	status := IsLevelEnabled(level)
+	if status.Enabled {
+		rec := NewLogRec(level, logger, "", args, status.Stacktrace)
 		rec.newline = true
 		logr.in <- rec
 	}
