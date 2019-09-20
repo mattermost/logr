@@ -3,6 +3,7 @@ package format
 import (
 	"fmt"
 	"io"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -52,6 +53,9 @@ func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
 	if !p.DisableFields {
 		WriteFields(sb, rec.Fields(), ", ")
 	}
+	if !p.DisableStacktrace {
+		WriteStacktrace(sb, rec.StackFrames())
+	}
 	sb.WriteString("\n")
 
 	return []byte(sb.String()), nil
@@ -70,4 +74,8 @@ func WriteFields(w io.Writer, flds logr.Fields, separator string) {
 		fmt.Fprintf(w, "%s%s=%v", sep, k, flds[k])
 		sep = separator
 	}
+}
+
+func WriteStacktrace(w io.Writer, frames []runtime.Frame) {
+
 }

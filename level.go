@@ -17,6 +17,11 @@ type Level interface {
 // StdLevel represents the classic log levels provided by Stdlib, Logrus and others.
 type StdLevel uint32
 
+// StdLevelStacktrace determines the level at which stack traces are needed.
+// The default is Fatal, meaning any log record at severity fatal (or greater severity)
+// will have a stack trace generated.
+var StdLevelStacktrace = FatalLevel
+
 // IsEnabled returns true if the specifed Level is at or above this verbosity. Also
 // determines if a stack trace is required.
 func (level StdLevel) IsEnabled(l Level) bool {
@@ -28,14 +33,12 @@ func (level StdLevel) IsEnabled(l Level) bool {
 }
 
 // IsStacktraceEnabled returns true if the specifed Level requires a stack trace.
-// For this implementation, anything more serious than ErrorLevel will require a
-// stack trace.
 func (level StdLevel) IsStacktraceEnabled(l Level) bool {
 	lvl, ok := l.(StdLevel)
 	if !ok {
 		return false
 	}
-	return lvl < ErrorLevel
+	return lvl <= StdLevelStacktrace
 }
 
 // String returns a string representation of this Level.

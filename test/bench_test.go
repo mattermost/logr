@@ -2,6 +2,7 @@ package test
 
 import (
 	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/wiggin77/logr"
@@ -66,7 +67,35 @@ func BenchmarkLogFiltered(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		logger.Errorf("log entry %d", b.N)
+		logger.Log(logr.ErrorLevel, "blap bleep bloop")
+	}
+	b.StopTimer()
+	logr.Shutdown()
+}
+
+// BenchmarkLogStacktrace measures adding a log record to the queue.
+// It does not measure how long the record takes to be output as that happens async.
+// Level caching is enabled.
+// This is how long you can expect logging to tie up the calling thread when a stack
+// trace is generated.
+func BenchmarkLogStacktrace(b *testing.B) {
+	oldStackLevel := logr.StdLevelStacktrace
+	logr.StdLevelStacktrace = logr.ErrorLevel
+	defer func() { logr.StdLevelStacktrace = oldStackLevel }()
+
+	for i := 0; i < 10; i++ {
+		//target := &target.Writer{Level: logr.ErrorLevel, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
+		target := &target.Writer{Level: logr.ErrorLevel, Fmtr: &format.Plain{Delim: " | "}, Out: os.Stdout, MaxQueued: 1000}
+
+		logr.AddTarget(target)
+	}
+
+	logger := logr.NewLogger()
+	logger.Errorln("log entry cache primer")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logger.Errorf("log entry with stack trace %d", b.N)
 	}
 	b.StopTimer()
 	logr.Shutdown()
