@@ -5,7 +5,12 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/wiggin77/logr/level"
 )
+
+// Level aliases `level.Level` to avoid stutter.
+type Level level.Level
 
 // LogRec collects raw, unformatted data to be logged.
 // TODO:  pool these?  how to reliably know when targets are done with them?

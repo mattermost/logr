@@ -12,12 +12,13 @@ import (
 	"github.com/wiggin77/logr"
 
 	"github.com/wiggin77/logr/format"
+	"github.com/wiggin77/logr/level"
 	"github.com/wiggin77/logr/target"
 )
 
 func Example() {
 	buf := &Buffer{}
-	target := &target.Writer{Level: logr.WarnLevel, Fmtr: &format.Plain{Delim: " | "}, Out: buf, MaxQueued: 1000}
+	target := &target.Writer{Level: level.Warn, Fmtr: &format.Plain{Delim: " | "}, Out: buf, MaxQueued: 1000}
 	logr.AddTarget(target)
 
 	logger := logr.NewLogger().WithField("", "")
@@ -33,7 +34,7 @@ func Example() {
 
 func TestBasic(t *testing.T) {
 	buf := &Buffer{}
-	target := &target.Writer{Level: logr.WarnLevel, Fmtr: &format.Plain{Delim: " | "}, Out: buf, MaxQueued: 1000}
+	target := &target.Writer{Level: level.Warn, Fmtr: &format.Plain{Delim: " | "}, Out: buf, MaxQueued: 1000}
 	logr.AddTarget(target)
 
 	wg := sync.WaitGroup{}

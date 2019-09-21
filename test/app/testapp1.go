@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/wiggin77/logr/level"
+
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
 	"github.com/wiggin77/logr/target"
@@ -23,10 +25,10 @@ const (
 )
 
 func main() {
-	t := &target.Writer{Level: logr.WarnLevel, Fmtr: &format.Plain{Delim: " | "}, Out: os.Stdout, MaxQueued: 1000}
+	t := &target.Writer{Level: level.Warn, Fmtr: &format.Plain{Delim: " | "}, Out: os.Stdout, MaxQueued: 1000}
 	logr.AddTarget(t)
 
-	t = &target.Writer{Level: logr.TraceLevel, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
+	t = &target.Writer{Level: level.Trace, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
 	logr.AddTarget(t)
 
 	wg := sync.WaitGroup{}
