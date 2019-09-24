@@ -1,4 +1,15 @@
-package logr
+package target
+
+import (
+	"github.com/wiggin77/logr"
+	"github.com/wiggin77/logr/level"
+)
+
+// Level to avoid stutter.
+type Level level.Level
+
+// Formatter to avoid stutter.
+type Formatter logr.Formatter
 
 // Target represents a destination for log records such as file,
 // database, TCP socket, etc.
@@ -17,8 +28,8 @@ type Target interface {
 	// Formatter returns the Formatter associated with this Target.
 	Formatter() Formatter
 
-	// Log outputs the log record to this targets destination.
-	Log(rec *LogRec)
+	// Log outputs the log record to this target's destination.
+	Log(rec *logr.LogRec)
 
 	// Shutdown makes best effort to flush target queue and
 	// frees/closes all resources.

@@ -1,7 +1,7 @@
 package level
 
 // Std represents the classic log levels provided by Stdlib, Logrus and others.
-type Std uint32
+type Std Level
 
 // StdStacktraceLevel determines the level at which stack traces are needed.
 // The default is Fatal, meaning any log record at severity fatal (or greater severity)
