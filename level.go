@@ -22,8 +22,7 @@ type StdLevel uint32
 // will have a stack trace generated.
 var StdLevelStacktrace = FatalLevel
 
-// IsEnabled returns true if the specifed Level is at or above this verbosity. Also
-// determines if a stack trace is required.
+// IsEnabled returns true if the specifed Level is at or above this verbosity.
 func (level StdLevel) IsEnabled(l Level) bool {
 	lvl, ok := l.(StdLevel)
 	if !ok {
