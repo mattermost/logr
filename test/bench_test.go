@@ -6,7 +6,6 @@ import (
 
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
-	"github.com/wiggin77/logr/level"
 	"github.com/wiggin77/logr/target"
 )
 
@@ -18,13 +17,18 @@ var Stacktrace bool
 
 func BenchmarkFilterOut(b *testing.B) {
 	for i := 0; i < 10; i++ {
-		target := &target.Writer{Level: level.Error, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
+		filter := &logr.StdFilter{Lvl: logr.Error}
+		formatter := &format.Plain{Delim: " | "}
+		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+		if err != nil {
+			b.Error(err)
+		}
 		logr.AddTarget(target)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		status := logr.IsLevelEnabled(level.Debug)
+		status := logr.IsLevelEnabled(logr.Debug)
 		Enabled = status.Enabled
 		Stacktrace = status.Stacktrace
 	}
@@ -38,7 +42,12 @@ func BenchmarkFilterOut(b *testing.B) {
 // This is how long you can expect logging to tie up the calling thread.
 func BenchmarkLog(b *testing.B) {
 	for i := 0; i < 10; i++ {
-		target := &target.Writer{Level: level.Warn, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
+		filter := &logr.StdFilter{Lvl: logr.Warn}
+		formatter := &format.Plain{Delim: " | "}
+		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+		if err != nil {
+			b.Error(err)
+		}
 		logr.AddTarget(target)
 	}
 
@@ -58,7 +67,12 @@ func BenchmarkLog(b *testing.B) {
 // This is how long you can expect logging to tie up the calling thread.
 func BenchmarkLogFiltered(b *testing.B) {
 	for i := 0; i < 10; i++ {
-		target := &target.Writer{Level: level.Fatal, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
+		filter := &logr.StdFilter{Lvl: logr.Fatal}
+		formatter := &format.Plain{Delim: " | "}
+		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+		if err != nil {
+			b.Error(err)
+		}
 		logr.AddTarget(target)
 	}
 
@@ -67,7 +81,7 @@ func BenchmarkLogFiltered(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		logger.Log(level.Error, "blap bleep bloop")
+		logger.Log(logr.Error, "blap bleep bloop")
 	}
 	b.StopTimer()
 	logr.Shutdown()
@@ -79,12 +93,13 @@ func BenchmarkLogFiltered(b *testing.B) {
 // This is how long you can expect logging to tie up the calling thread when a stack
 // trace is generated.
 func BenchmarkLogStacktrace(b *testing.B) {
-	oldStackLevel := level.StdStacktraceLevel
-	level.StdStacktraceLevel = level.Error
-	defer func() { level.StdStacktraceLevel = oldStackLevel }()
-
 	for i := 0; i < 10; i++ {
-		target := &target.Writer{Level: level.Error, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
+		filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
+		formatter := &format.Plain{Delim: " | "}
+		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+		if err != nil {
+			b.Error(err)
+		}
 		logr.AddTarget(target)
 	}
 

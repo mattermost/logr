@@ -16,7 +16,6 @@ type RecordWriter interface {
 // to more easily compose your own Targets.
 type Basic struct {
 	target logr.Target
-	tl     TargetLevel
 	in     chan *logr.LogRec
 	done   chan struct{}
 	w      RecordWriter
@@ -31,9 +30,11 @@ func (b *Basic) Start(target logr.Target, rw RecordWriter, maxQueued int) {
 	go b.start()
 }
 
-// Shutdown stops processing log records.
-func (b *Basic) Shutdown() {
+// Shutdown stops processing log records after making best
+// effort to flush queue.
+func (b *Basic) Shutdown() error {
 	b.done <- struct{}{}
+	return nil
 }
 
 // Log outputs the log record to this targets destination.

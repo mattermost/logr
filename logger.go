@@ -2,8 +2,6 @@ package logr
 
 import (
 	"fmt"
-
-	"github.com/wiggin77/logr/level"
 )
 
 // Logger implements Logr APIs.
@@ -53,12 +51,12 @@ func (logger *Logger) Log(level Level, args ...interface{}) {
 
 // Trace is a convenience method equivalent to `Log(TraceLevel, args...)`.
 func (logger *Logger) Trace(args ...interface{}) {
-	logger.Log(level.Trace, args...)
+	logger.Log(Trace, args...)
 }
 
 // Debug is a convenience method equivalent to `Log(DebugLevel, args...)`.
 func (logger *Logger) Debug(args ...interface{}) {
-	logger.Log(level.Debug, args...)
+	logger.Log(Debug, args...)
 }
 
 // Print ensures compatibility with std lib logger.
@@ -68,30 +66,30 @@ func (logger *Logger) Print(args ...interface{}) {
 
 // Info is a convenience method equivalent to `Log(InfoLevel, args...)`.
 func (logger *Logger) Info(args ...interface{}) {
-	logger.Log(level.Info, args...)
+	logger.Log(Info, args...)
 }
 
 // Warn is a convenience method equivalent to `Log(WarnLevel, args...)`.
 func (logger *Logger) Warn(args ...interface{}) {
-	logger.Log(level.Warn, args...)
+	logger.Log(Warn, args...)
 }
 
 // Error is a convenience method equivalent to `Log(ErrorLevel, args...)`.
 func (logger *Logger) Error(args ...interface{}) {
-	logger.Log(level.Error, args...)
+	logger.Log(Error, args...)
 }
 
 // Fatal is a convenience method equivalent to `Log(FatalLevel, args...)`
 // followed by a call to os.Exit(1).
 func (logger *Logger) Fatal(args ...interface{}) {
-	logger.Log(level.Fatal, args...)
+	logger.Log(Fatal, args...)
 	Exit(1)
 }
 
 // Panic is a convenience method equivalent to `Log(PanicLevel, args...)`
 // followed by a call to panic().
 func (logger *Logger) Panic(args ...interface{}) {
-	logger.Log(level.Panic, args...)
+	logger.Log(Panic, args...)
 	panic(fmt.Sprint(args...))
 }
 
@@ -112,17 +110,17 @@ func (logger *Logger) Logf(level Level, format string, args ...interface{}) {
 
 // Tracef is a convenience method equivalent to `Logf(TraceLevel, args...)`.
 func (logger *Logger) Tracef(format string, args ...interface{}) {
-	logger.Logf(level.Trace, format, args...)
+	logger.Logf(Trace, format, args...)
 }
 
 // Debugf is a convenience method equivalent to `Logf(DebugLevel, args...)`.
 func (logger *Logger) Debugf(format string, args ...interface{}) {
-	logger.Logf(level.Debug, format, args...)
+	logger.Logf(Debug, format, args...)
 }
 
 // Infof is a convenience method equivalent to `Logf(InfoLevel, args...)`.
 func (logger *Logger) Infof(format string, args ...interface{}) {
-	logger.Logf(level.Info, format, args...)
+	logger.Logf(Info, format, args...)
 }
 
 // Printf ensures compatibility with std lib logger.
@@ -132,25 +130,25 @@ func (logger *Logger) Printf(format string, args ...interface{}) {
 
 // Warnf is a convenience method equivalent to `Logf(WarnLevel, args...)`.
 func (logger *Logger) Warnf(format string, args ...interface{}) {
-	logger.Logf(level.Warn, format, args...)
+	logger.Logf(Warn, format, args...)
 }
 
 // Errorf is a convenience method equivalent to `Logf(ErrorLevel, args...)`.
 func (logger *Logger) Errorf(format string, args ...interface{}) {
-	logger.Logf(level.Error, format, args...)
+	logger.Logf(Error, format, args...)
 }
 
 // Fatalf is a convenience method equivalent to `Logf(FatalLevel, args...)`
 // followed by a call to os.Exit(1).
 func (logger *Logger) Fatalf(format string, args ...interface{}) {
-	logger.Logf(level.Fatal, format, args...)
+	logger.Logf(Fatal, format, args...)
 	Exit(1)
 }
 
 // Panicf is a convenience method equivalent to `Logf(PanicLevel, args...)`
 // followed by a call to panic().
 func (logger *Logger) Panicf(format string, args ...interface{}) {
-	logger.Logf(level.Panic, format, args...)
+	logger.Logf(Panic, format, args...)
 }
 
 //
@@ -171,17 +169,17 @@ func (logger *Logger) Logln(level Level, args ...interface{}) {
 
 // Traceln is a convenience method equivalent to `Logln(TraceLevel, args...)`.
 func (logger *Logger) Traceln(args ...interface{}) {
-	logger.Logln(level.Trace, args...)
+	logger.Logln(Trace, args...)
 }
 
 // Debugln is a convenience method equivalent to `Logln(DebugLevel, args...)`.
 func (logger *Logger) Debugln(args ...interface{}) {
-	logger.Logln(level.Debug, args...)
+	logger.Logln(Debug, args...)
 }
 
 // Infoln is a convenience method equivalent to `Logln(InfoLevel, args...)`.
 func (logger *Logger) Infoln(args ...interface{}) {
-	logger.Logln(level.Info, args...)
+	logger.Logln(Info, args...)
 }
 
 // Println ensures compatibility with std lib logger.
@@ -191,23 +189,23 @@ func (logger *Logger) Println(args ...interface{}) {
 
 // Warnln is a convenience method equivalent to `Logln(WarnLevel, args...)`.
 func (logger *Logger) Warnln(args ...interface{}) {
-	logger.Logln(level.Warn, args...)
+	logger.Logln(Warn, args...)
 }
 
 // Errorln is a convenience method equivalent to `Logln(ErrorLevel, args...)`.
 func (logger *Logger) Errorln(args ...interface{}) {
-	logger.Logln(level.Error, args...)
+	logger.Logln(Error, args...)
 }
 
 // Fatalln is a convenience method equivalent to `Logln(FatalLevel, args...)`
 // followed by a call to os.Exit(1).
 func (logger *Logger) Fatalln(args ...interface{}) {
-	logger.Logln(level.Fatal, args...)
+	logger.Logln(Fatal, args...)
 	Exit(1)
 }
 
 // Panicln is a convenience method equivalent to `Logln(PanicLevel, args...)`
 // followed by a call to panic().
 func (logger *Logger) Panicln(args ...interface{}) {
-	logger.Logln(level.Panic, args...)
+	logger.Logln(Panic, args...)
 }

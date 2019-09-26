@@ -57,12 +57,6 @@ func AddTarget(target Target) error {
 	logr.mux.Lock()
 	defer logr.mux.Unlock()
 
-	err := target.Start()
-	if err != nil {
-		return err
-
-	}
-
 	logr.targets = append(logr.targets, target)
 	if !logr.active {
 		logr.active = true
