@@ -3,9 +3,22 @@ package logr
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
+
+var (
+	logrPkg string
+)
+
+func init() {
+	// Calc current package name
+	pcs := make([]uintptr, 2)
+	_ = runtime.Callers(0, pcs)
+	tmp := runtime.FuncForPC(pcs[1]).Name()
+	logrPkg = getPackageName(tmp)
+}
 
 // LogRec collects raw, unformatted data to be logged.
 // TODO:  pool these?  how to reliably know when targets are done with them?
@@ -66,6 +79,17 @@ func (rec *LogRec) prep() {
 			}
 		}
 	}
+
+	// remove leading logr package entries.
+	var start int
+	for i, frame := range rec.frames {
+		pkg := getPackageName(frame.Function)
+		if pkg != "" && pkg != logrPkg {
+			start = i
+			break
+		}
+	}
+	rec.frames = rec.frames[start:]
 }
 
 // WithTime returns a shallow copy of the log record while replacing
@@ -120,4 +144,19 @@ func (rec *LogRec) StackFrames() []runtime.Frame {
 	rec.mux.RLock()
 	defer rec.mux.RUnlock()
 	return rec.frames
+}
+
+// getPackageName reduces a fully qualified function name to the package name
+// By sirupsen: https://github.com/sirupsen/logrus/blob/master/entry.go
+func getPackageName(f string) string {
+	for {
+		lastPeriod := strings.LastIndex(f, ".")
+		lastSlash := strings.LastIndex(f, "/")
+		if lastPeriod > lastSlash {
+			f = f[:lastPeriod]
+		} else {
+			break
+		}
+	}
+	return f
 }

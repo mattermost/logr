@@ -17,7 +17,7 @@ import (
 
 func Example() {
 	buf := &Buffer{}
-	filter := &logr.StdFilter{Lvl: logr.Warn}
+	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	target, err := target.NewWriterTarget(filter, formatter, buf, 1000)
 	if err != nil {
@@ -38,7 +38,7 @@ func Example() {
 
 func TestBasic(t *testing.T) {
 	buf := &Buffer{}
-	filter := &logr.StdFilter{Lvl: logr.Warn}
+	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	target, err := target.NewWriterTarget(filter, formatter, buf, 1000)
 	if err != nil {

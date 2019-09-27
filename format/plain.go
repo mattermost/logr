@@ -54,7 +54,11 @@ func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
 		WriteFields(sb, rec.Fields(), ", ")
 	}
 	if !p.DisableStacktrace {
-		WriteStacktrace(sb, rec.StackFrames())
+		frames := rec.StackFrames()
+		if len(frames) > 0 {
+			sb.WriteString("\n")
+			WriteStacktrace(sb, rec.StackFrames())
+		}
 	}
 	sb.WriteString("\n")
 
@@ -76,6 +80,14 @@ func WriteFields(w io.Writer, flds logr.Fields, separator string) {
 	}
 }
 
+// WriteStacktrace formats and outputs a stack trace to an io.Writer.
 func WriteStacktrace(w io.Writer, frames []runtime.Frame) {
-
+	for _, frame := range frames {
+		if frame.Function != "" {
+			fmt.Fprintf(w, "  %s\n", frame.Function)
+		}
+		if frame.File != "" {
+			fmt.Fprintf(w, "      %s:%d\n", frame.File, frame.Line)
+		}
+	}
 }
