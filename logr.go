@@ -23,29 +23,40 @@ type LevelStatus struct {
 // Logr maintains a list of log targets and accepts incoming
 // log records.
 type Logr struct {
-	mux        sync.RWMutex
-	targets    []Target
-	active     bool
-	in         chan *LogRec
-	done       chan struct{}
-	shutdown   bool
-	levelCache sync.Map
+	mux          sync.RWMutex
+	targets      []Target
+	active       bool
+	in           chan *LogRec
+	done         chan struct{}
+	shuttingdown bool
+	levelCache   sync.Map
 }
 
 var (
-	logr = &Logr{
-		in:   make(chan *LogRec, MAXQUEUE),
-		done: make(chan struct{}),
-	}
+	logr = &Logr{}
 
 	// OnLoggerError when not nil, is called any time an internal
 	// logging error occurs. For example, this can happen when a
 	// target cannot connect to its data sink.
 	OnLoggerError func(error)
+
+	// OnQueueFull when not nil, is called on an attempt to add
+	// a log record to a full Logr queue.
+	// `MaxQueueSize` can be used to modify the maximum queue size.
+	// This function should return quickly, with a bool indicating whether
+	// the log record should be dropped (true) or block until the log record
+	// is successfully added (false). If nil then blocking (false) is assumed.
+	OnQueueFull func(rec *LogRec, maxQueueSize int) bool
+
+	// OnTargetQueueFull when not nil, is called on an attempt to add
+	// a log record to a full target queue.
+	// This function should return quickly, with a bool indicating whether
+	// the log record should be dropped (true) or block until the log record
+	// is successully added (false). If nil then blocking (false) is assumed.
+	OnTargetQueueFull func(target Target, rec *LogRec, maxQueueSize int) bool
 )
 
-// Configure creates a logger using the supplied
-// configuration.
+// Configure adds/removes targets via the supplied `Config`.
 func Configure(config *cfg.Config) error {
 	// TODO
 	return fmt.Errorf("not implemented yet")
@@ -56,6 +67,10 @@ func Configure(config *cfg.Config) error {
 func AddTarget(target Target) error {
 	logr.mux.Lock()
 	defer logr.mux.Unlock()
+
+	if logr.shuttingdown {
+		return fmt.Errorf("logr shutting down")
+	}
 
 	logr.targets = append(logr.targets, target)
 	if !logr.active {
@@ -80,8 +95,8 @@ func IsLevelEnabled(level Level) LevelStatus {
 
 	status := LevelStatus{}
 
-	// Don't accept new log records after shutdown.
-	if logr.shutdown {
+	// Don't accept new log records while shutting down.
+	if logr.shuttingdown {
 		return status
 	}
 
@@ -132,7 +147,7 @@ func Exit(code int) {
 // to flush all targets.
 func Shutdown() error {
 	logr.mux.Lock()
-	logr.shutdown = true
+	logr.shuttingdown = true
 	resetLevelCache()
 	logr.mux.Unlock()
 
@@ -157,21 +172,21 @@ func Shutdown() error {
 
 	// reset logr so it can be restarted by adding new targets.
 	logr.targets = nil
-	logr.in = make(chan *LogRec, MAXQUEUE)
-	logr.done = make(chan struct{})
-
+	logr.in = nil
+	logr.done = nil
+	logr.shuttingdown = false
 	return errs.ErrorOrNil()
 }
 
 // ReportError is used to notify the host application of any internal logging errors.
-// If OnLoggerError is not nil, it is called with the error, otherwise the error is
-// output to stderr.
-func ReportError(err error) {
+// If `OnLoggerError` is not nil, it is called with the error, otherwise the error is
+// output to `os.Stderr`.
+func ReportError(err interface{}) {
 	if OnLoggerError == nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	OnLoggerError(err)
+	OnLoggerError(fmt.Errorf("%v", err))
 }
 
 // start selects on incoming log records until done channel signals.
@@ -179,7 +194,7 @@ func ReportError(err error) {
 func start() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintln(os.Stderr, r)
+			ReportError(r)
 			go start()
 		} else {
 			logr.mux.Lock()
@@ -187,6 +202,9 @@ func start() {
 			logr.mux.Unlock()
 		}
 	}()
+
+	logr.in = make(chan *LogRec, MaxQueueSize)
+	logr.done = make(chan struct{})
 
 	for {
 		var rec *LogRec
@@ -209,7 +227,7 @@ func fanout(rec *LogRec) {
 	var target Target
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "fanout failed for target %s, %v", target, r)
+			ReportError(fmt.Errorf("fanout failed for target %s, %v", target, r))
 		}
 	}()
 
