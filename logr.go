@@ -51,7 +51,8 @@ type Logr struct {
 	OnQueueFull func(rec *LogRec, maxQueueSize int) bool
 
 	// OnTargetQueueFull, when not nil, is called on an attempt to add
-	// a log record to a full target queue.
+	// a log record to a full target queue provided the target supports reporting
+	// this condition.
 	// This function should return quickly, with a bool indicating whether
 	// the log record should be dropped (true) or block until the log record
 	// is successully added (false). If nil then blocking (false) is assumed.

@@ -39,7 +39,15 @@ func (b *Basic) Shutdown() error {
 
 // Log outputs the log record to this targets destination.
 func (b *Basic) Log(rec *logr.LogRec) {
-	b.in <- rec
+	select {
+	case b.in <- rec:
+	default:
+		handler := rec.Logger().Logr().OnTargetQueueFull
+		if handler != nil && handler(b.target, rec, cap(b.in)) {
+			return // drop the record
+		}
+		b.in <- rec // block until success
+	}
 }
 
 // Start accepts log records via In channel and writes to the
