@@ -1,7 +1,6 @@
 package target
 
 import (
-	"errors"
 	"io"
 	"sync"
 
@@ -18,13 +17,10 @@ type Writer struct {
 }
 
 // NewWriterTarget creates a target capable of outputting log records to an io.Writer.
-func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, maxQueue int) (*Writer, error) {
-	if out == nil {
-		return nil, errors.New("io.Writer cannot be nil")
-	}
+func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, maxQueue int) *Writer {
 	w := &Writer{filter: filter, formatter: formatter, out: out}
 	w.Basic.Start(w, w, maxQueue)
-	return w, nil
+	return w
 }
 
 // Shutdown makes best effort to flush target queue and

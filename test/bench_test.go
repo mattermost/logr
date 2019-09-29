@@ -21,10 +21,7 @@ func BenchmarkFilterOut(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
-		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		if err != nil {
-			b.Error(err)
-		}
+		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
 		lgr.AddTarget(target)
 	}
 
@@ -50,10 +47,7 @@ func BenchmarkLog(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
 		formatter := &format.Plain{Delim: " | "}
-		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		if err != nil {
-			b.Error(err)
-		}
+		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
 		lgr.AddTarget(target)
 	}
 
@@ -79,10 +73,7 @@ func BenchmarkLogFiltered(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Fatal}
 		formatter := &format.Plain{Delim: " | "}
-		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		if err != nil {
-			b.Error(err)
-		}
+		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
 		lgr.AddTarget(target)
 	}
 
@@ -110,10 +101,7 @@ func BenchmarkLogStacktrace(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
-		target, err := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		if err != nil {
-			b.Error(err)
-		}
+		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
 		lgr.AddTarget(target)
 	}
 

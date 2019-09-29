@@ -20,11 +20,8 @@ func Example() {
 	buf := &Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
-	target, err := target.NewWriterTarget(filter, formatter, buf, 1000)
-	if err != nil {
-		panic(err)
-	}
-	lgr.AddTarget(target)
+	t := target.NewWriterTarget(filter, formatter, buf, 1000)
+	lgr.AddTarget(t)
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
 
@@ -33,7 +30,7 @@ func Example() {
 	logger.Debug("XXX")
 	logger.Trace("XXX")
 
-	err = lgr.Shutdown()
+	err := lgr.Shutdown()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -47,10 +44,7 @@ func TestBasic(t *testing.T) {
 	buf := &Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
-	target, err := target.NewWriterTarget(filter, formatter, buf, 1000)
-	if err != nil {
-		t.Error(err)
-	}
+	target := target.NewWriterTarget(filter, formatter, buf, 1000)
 	lgr.AddTarget(target)
 
 	wg := sync.WaitGroup{}
@@ -76,7 +70,7 @@ func TestBasic(t *testing.T) {
 	}
 	wg.Wait()
 
-	err = lgr.Shutdown()
+	err := lgr.Shutdown()
 	if err != nil {
 		t.Error(err)
 	}
