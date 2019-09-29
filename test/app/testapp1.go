@@ -9,8 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiggin77/logr/level"
-
+	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
 	"github.com/wiggin77/logr/target"
 	"github.com/wiggin77/logr/test"
@@ -24,12 +23,14 @@ const (
 )
 
 func main() {
-	logr := &Logr{MaxQueued: 1000}
-	t := &target.Writer{Level: level.Warn, Fmtr: &format.Plain{Delim: " | "}, Out: os.Stdout, MaxQueued: 1000}
-	logr.AddTarget(t)
+	lgr := &logr.Logr{MaxQueueSize: 1000}
+	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
+	formatter := &format.Plain{Delim: " | "}
+	t := target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
+	lgr.AddTarget(t)
 
-	t = &target.Writer{Level: level.Trace, Fmtr: &format.Plain{Delim: " | "}, Out: ioutil.Discard, MaxQueued: 1000}
-	logr.AddTarget(t)
+	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+	lgr.AddTarget(t)
 
 	wg := sync.WaitGroup{}
 	var id int32
@@ -39,7 +40,7 @@ func main() {
 	runner := func(loops int) {
 		defer wg.Done()
 		tid := atomic.AddInt32(&id, 1)
-		logger := logr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
+		logger := lgr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
 
 		for i := 1; i <= loops; i++ {
 			atomic.AddInt32(&filterCount, 2)
@@ -62,7 +63,7 @@ func main() {
 
 	end := time.Now()
 
-	err := logr.Shutdown()
+	err := lgr.Shutdown()
 	if err != nil {
 		fmt.Println(err)
 	}
