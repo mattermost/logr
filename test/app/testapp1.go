@@ -22,8 +22,35 @@ const (
 	LOOPS = 10000
 )
 
+var lgr = &logr.Logr{
+	MaxQueueSize:      1000,
+	OnLoggerError:     handleLoggerError,
+	OnQueueFull:       handleQueueFull,
+	OnTargetQueueFull: handleTargetQueueFull,
+}
+
+var (
+	queueFullCount       uint32
+	targetQueueFullCount uint32
+)
+
+func handleLoggerError(err error) {
+	panic(err)
+}
+
+func handleQueueFull(rec *logr.LogRec, maxQueueSize int) bool {
+	fmt.Fprintf(os.Stderr, "!!!!! Logr queue full. Max size %d. Count %d. Blocking...\n",
+		maxQueueSize, atomic.AddUint32(&queueFullCount, 1))
+	return false
+}
+
+func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize int) bool {
+	fmt.Fprintf(os.Stderr, "!!!!! Target queue full. Max size %d. Count %d. Blocking...\n",
+		maxQueueSize, atomic.AddUint32(&targetQueueFullCount, 1))
+	return false
+}
+
 func main() {
-	lgr := &logr.Logr{MaxQueueSize: 1000}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	t := target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
@@ -49,7 +76,7 @@ func main() {
 
 			lc := atomic.AddInt32(&logCount, 1)
 			logger.Errorf("count:%d -- random data: %s", lc, test.StringRnd(10))
-
+			time.Sleep(1 * time.Millisecond)
 		}
 	}
 

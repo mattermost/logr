@@ -34,7 +34,7 @@ type Logr struct {
 	// If exceeded, `OnQueueFull` is called which determines if the log
 	// record will be dropped or block until add is successful.
 	// If this is modified, it must be done before `Configure` or
-	// `AddTarget`.  Defaults to DefaultMaxQueueSize (1000).
+	// `AddTarget`.  Defaults to DefaultMaxQueueSize.
 	MaxQueueSize int
 
 	// OnLoggerError, when not nil, is called any time an internal
