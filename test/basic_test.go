@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -10,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/wiggin77/logr"
-
 	"github.com/wiggin77/logr/format"
 	"github.com/wiggin77/logr/target"
 )
 
 func Example() {
+	lgr := &logr.Logr{}
 	buf := &Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
@@ -23,20 +24,26 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	logr.AddTarget(target)
+	lgr.AddTarget(target)
 
-	logger := logr.NewLogger().WithField("", "")
+	logger := lgr.NewLogger().WithField("name", "wiggin")
 
 	logger.Errorf("the erroneous data is %s", StringRnd(10))
 	logger.Warnf("strange data: %s", StringRnd(5))
 	logger.Debug("XXX")
 	logger.Trace("XXX")
 
+	err = lgr.Shutdown()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+
 	output := buf.String()
 	fmt.Println(output)
 }
 
 func TestBasic(t *testing.T) {
+	lgr := logr.Logr{}
 	buf := &Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
@@ -44,7 +51,7 @@ func TestBasic(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	logr.AddTarget(target)
+	lgr.AddTarget(target)
 
 	wg := sync.WaitGroup{}
 	var id int32
@@ -52,7 +59,7 @@ func TestBasic(t *testing.T) {
 	runner := func(loops int) {
 		defer wg.Done()
 		tid := atomic.AddInt32(&id, 1)
-		logger := logr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
+		logger := lgr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
 
 		for i := 0; i < loops; i++ {
 			logger.Debug("XXX")
@@ -69,8 +76,18 @@ func TestBasic(t *testing.T) {
 	}
 	wg.Wait()
 
+	err = lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
+	}
+
 	output := buf.String()
 	fmt.Println(output)
+
+	if !strings.Contains(output, "strange data") {
+		t.Errorf("missing warnings")
+	}
+
 	if strings.Contains(output, "XXX") {
 		t.Errorf("wrong level(s) enabled")
 	}

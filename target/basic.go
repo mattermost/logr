@@ -60,7 +60,7 @@ func (b *Basic) start() {
 		case rec = <-b.in:
 			err = b.w.Write(rec)
 			if err != nil {
-				logr.ReportError(err)
+				rec.Logger().Logr().ReportError(err)
 			}
 		default:
 		}
@@ -70,7 +70,7 @@ func (b *Basic) start() {
 		case rec = <-b.in:
 			err = b.w.Write(rec)
 			if err != nil {
-				logr.ReportError(err)
+				rec.Logger().Logr().ReportError(err)
 			}
 		case <-b.done:
 			return

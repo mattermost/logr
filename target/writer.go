@@ -37,8 +37,8 @@ func (w *Writer) Shutdown() error {
 // IsLevelEnabled returns true if this target should emit
 // logs for the specified level. Also determines if
 // a stack trace is required.
-func (w *Writer) IsLevelEnabled(level logr.Level) (enabled bool, stacktrace bool) {
-	return w.filter.IsEnabled(level), w.filter.IsStacktraceEnabled(level)
+func (w *Writer) IsLevelEnabled(lvl logr.Level) (enabled bool, stacktrace bool) {
+	return w.filter.IsEnabled(lvl), w.filter.IsStacktraceEnabled(lvl)
 }
 
 // Formatter returns the Formatter associated with this Target.

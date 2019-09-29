@@ -42,10 +42,10 @@ type LogRec struct {
 }
 
 // NewLogRec creates a new LogRec with the current time and optional stack trace.
-func NewLogRec(level Level, logger *Logger, template string, args []interface{}, incStacktrace bool) *LogRec {
-	rec := &LogRec{time: time.Now(), logger: logger, level: level, template: template, args: args}
+func NewLogRec(lvl Level, logger *Logger, template string, args []interface{}, incStacktrace bool) *LogRec {
+	rec := &LogRec{time: time.Now(), logger: logger, level: lvl, template: template, args: args}
 	if incStacktrace {
-		rec.stackPC = make([]uintptr, MaxStackFrames)
+		rec.stackPC = make([]uintptr, DefaultMaxStackFrames)
 		rec.stackCount = runtime.Callers(2, rec.stackPC)
 	}
 	return rec
@@ -111,6 +111,11 @@ func (rec *LogRec) WithTime(time time.Time) *LogRec {
 		stackCount: rec.stackCount,
 		frames:     rec.frames,
 	}
+}
+
+// Logger returns the `Logger` that created this `LogRec`.
+func (rec *LogRec) Logger() *Logger {
+	return rec.logger
 }
 
 // Time returns this log record's time stamp.

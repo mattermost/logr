@@ -11,7 +11,6 @@ import (
 
 	"github.com/wiggin77/logr/level"
 
-	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
 	"github.com/wiggin77/logr/target"
 	"github.com/wiggin77/logr/test"
@@ -25,6 +24,7 @@ const (
 )
 
 func main() {
+	logr := &Logr{MaxQueued: 1000}
 	t := &target.Writer{Level: level.Warn, Fmtr: &format.Plain{Delim: " | "}, Out: os.Stdout, MaxQueued: 1000}
 	logr.AddTarget(t)
 
