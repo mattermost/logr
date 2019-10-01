@@ -40,8 +40,8 @@ func (logger *Logger) WithFields(fields Fields) *Logger {
 }
 
 // Log checks that the level matches one or more targets, and
-// if so, generates a log record that is added to the main
-// queue (channel). Arguments are handled in the manner of fmt.Print.
+// if so, generates a log record that is added to the Logr queue.
+// Arguments are handled in the manner of fmt.Print.
 func (logger *Logger) Log(lvl Level, args ...interface{}) {
 	status := logger.logr.IsLevelEnabled(lvl)
 	if status.Enabled {
