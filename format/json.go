@@ -10,15 +10,8 @@ import (
 	"github.com/wiggin77/logr"
 )
 
-const (
-	// DefTimestampFormat is the default time stamp format used by
-	// Plain formatter and others.
-	DefTimestampFormat = "2006-01-02 15:04:05.000 Z07:00"
-)
-
-// Plain is the simplest formatter, outputting only text with
-// no colors.
-type Plain struct {
+// JSON formats log records as JSON.
+type JSON struct {
 	// DisableTimestamp disables output of timestamp field.
 	DisableTimestamp bool
 	// DisableLevel disables output of level field.
@@ -30,18 +23,14 @@ type Plain struct {
 	// DisableStacktrace disables output of stack trace.
 	DisableStacktrace bool
 
-	// Delim is an optional delimiter output between each log field.
-	// Defaults to a single space.
-	Delim string
-
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
 	TimestampFormat string
 }
 
-// Format converts a log record to bytes.
-func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
-	sb := &strings.Builder{}
+// Format converts a log record to bytes in JSON format.
+func (j *JSON) Format(rec *logr.LogRec) ([]byte, error) {
+	buf := &bytes.Buffer
 
 	delim := p.Delim
 	if delim == "" {
