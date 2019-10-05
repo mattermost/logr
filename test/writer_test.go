@@ -39,11 +39,20 @@ func Example() {
 	fmt.Println(output)
 }
 
-func TestBasic(t *testing.T) {
+func TestWriterPlain(t *testing.T) {
+	plain := &format.Plain{Delim: " | "}
+	writer(t, plain)
+}
+
+func TestWriterJSON(t *testing.T) {
+	json := &format.JSON{Indent: "  "}
+	writer(t, json)
+}
+
+func writer(t *testing.T, formatter logr.Formatter) {
 	lgr := logr.Logr{}
 	buf := &Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.Plain{Delim: " | "}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
 	lgr.AddTarget(target)
 

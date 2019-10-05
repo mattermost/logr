@@ -25,8 +25,8 @@ type Plain struct {
 	DisableLevel bool
 	// DisableMsg disables output of msg field.
 	DisableMsg bool
-	// DisableFields disables output of all context fields.
-	DisableFields bool
+	// DisableContext disables output of all context fields.
+	DisableContext bool
 	// DisableStacktrace disables output of stack trace.
 	DisableStacktrace bool
 
@@ -62,8 +62,10 @@ func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
 	if !p.DisableMsg {
 		fmt.Fprintf(sb, "%s%s", rec.Msg(), delim)
 	}
-	if !p.DisableFields {
+	if !p.DisableContext {
+		fmt.Fprint(sb, "ctx:{")
 		writeFieldsPlain(sb, rec.Fields(), ", ")
+		fmt.Fprint(sb, "}")
 	}
 	if !p.DisableStacktrace {
 		frames := rec.StackFrames()
