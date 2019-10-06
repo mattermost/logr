@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"log/syslog"
 	"math/rand"
 	"os"
 	"sync"
@@ -51,12 +52,21 @@ func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize in
 }
 
 func main() {
+	// create writer target to stdout
+	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
-	t := target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
+	t = target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
 	lgr.AddTarget(t)
 
+	// create writer target to /dev/null
 	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+	lgr.AddTarget(t)
+
+	// create syslog target to local
+	filter = &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
+	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
+	t, err := target.NewSyslogTarget(filter, formatter, params, 1000)
 	lgr.AddTarget(t)
 
 	wg := sync.WaitGroup{}
@@ -75,7 +85,7 @@ func main() {
 			logger.Trace("XXX")
 
 			lc := atomic.AddInt32(&logCount, 1)
-			logger.Errorf("count:%d -- random data: %s", lc, test.StringRnd(10))
+			logger.Warnf("count:%d -- random data: %s", lc, test.StringRnd(10))
 			time.Sleep(1 * time.Millisecond)
 		}
 	}
@@ -89,8 +99,9 @@ func main() {
 	wg.Wait()
 
 	end := time.Now()
+	lgr.NewLogger().Errorf("Logr test ending at %v", end)
 
-	err := lgr.Shutdown()
+	err = lgr.Shutdown()
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -265,9 +265,9 @@ func (logr *Logr) start() {
 		}
 	}()
 
+	var rec *LogRec
+	var more bool
 	for {
-		var rec *LogRec
-		var more bool
 		select {
 		case rec, more = <-logr.in:
 			if more {

@@ -48,7 +48,7 @@ type stacktraceRec struct {
 }
 
 // Format converts a log record to bytes in JSON format.
-func (j *JSON) Format(rec *logr.LogRec) ([]byte, error) {
+func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	timestampFmt := j.TimestampFormat
 	if timestampFmt == "" {
 		timestampFmt = DefTimestampFormat
@@ -68,7 +68,7 @@ func (j *JSON) Format(rec *logr.LogRec) ([]byte, error) {
 	if !j.DisableContext {
 		jrec.Ctx = rec.Fields()
 	}
-	if !j.DisableStacktrace {
+	if stacktrace && !j.DisableStacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
 			for _, frame := range frames {

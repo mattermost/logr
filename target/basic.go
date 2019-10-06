@@ -3,6 +3,7 @@ package target
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/wiggin77/logr"
 )
@@ -52,7 +53,14 @@ func (b *Basic) Formatter() logr.Formatter {
 // Shutdown stops processing log records after making best
 // effort to flush queue.
 func (b *Basic) Shutdown() error {
-	b.done <- struct{}{}
+	// close the incoming channel and wait for read loop to exit.
+	close(b.in)
+	select {
+	case <-time.After(time.Second * 10):
+	case <-b.done:
+	}
+
+	// b.in channel should now be drained.
 	return nil
 }
 
@@ -80,27 +88,20 @@ func (b *Basic) start() {
 	}()
 
 	var err error
+	var rec *logr.LogRec
+	var more bool
 	for {
-		var rec *logr.LogRec
-		// drain until no log records left in channel
 		select {
-		case rec = <-b.in:
-			err = b.w.Write(rec)
-			if err != nil {
-				rec.Logger().Logr().ReportError(err)
+		case rec, more = <-b.in:
+			if more {
+				err = b.w.Write(rec)
+				if err != nil {
+					rec.Logger().Logr().ReportError(err)
+				}
+			} else {
+				close(b.done)
+				return
 			}
-		default:
-		}
-
-		// wait for log record or exit
-		select {
-		case rec = <-b.in:
-			err = b.w.Write(rec)
-			if err != nil {
-				rec.Logger().Logr().ReportError(err)
-			}
-		case <-b.done:
-			return
 		}
 	}
 }

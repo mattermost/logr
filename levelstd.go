@@ -51,9 +51,9 @@ var (
 	// Error designates a serious but possibly recoverable error.
 	Error = StdLevel{id: 2, name: "error"}
 	// Warn designates non-critical error.
-	Warn = StdLevel{id: 3, name: "warn"}
+	Warn = StdLevel{id: 3, name: "warn "}
 	// Info designates information regarding application events.
-	Info = StdLevel{id: 4, name: "info"}
+	Info = StdLevel{id: 4, name: "info "}
 	// Debug designates verbose information typically used for debugging.
 	Debug = StdLevel{id: 5, name: "debug"}
 	// Trace designates the highest verbosity of log output.

@@ -1,4 +1,4 @@
-package test
+package target_test
 
 import (
 	"fmt"
@@ -13,11 +13,12 @@ import (
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
 	"github.com/wiggin77/logr/target"
+	"github.com/wiggin77/logr/test"
 )
 
-func Example() {
+func ExampleWriter() {
 	lgr := &logr.Logr{}
-	buf := &Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	t := target.NewWriterTarget(filter, formatter, buf, 1000)
@@ -25,8 +26,8 @@ func Example() {
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
 
-	logger.Errorf("the erroneous data is %s", StringRnd(10))
-	logger.Warnf("strange data: %s", StringRnd(5))
+	logger.Errorf("the erroneous data is %s", test.StringRnd(10))
+	logger.Warnf("strange data: %s", test.StringRnd(5))
 	logger.Debug("XXX")
 	logger.Trace("XXX")
 
@@ -51,7 +52,7 @@ func TestWriterJSON(t *testing.T) {
 
 func writer(t *testing.T, formatter logr.Formatter) {
 	lgr := logr.Logr{}
-	buf := &Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
 	lgr.AddTarget(target)
@@ -67,8 +68,8 @@ func writer(t *testing.T, formatter logr.Formatter) {
 		for i := 0; i < loops; i++ {
 			logger.Debug("XXX")
 			logger.Trace("XXX")
-			logger.Errorf("count:%d -- the erroneous data is %s", i, StringRnd(10))
-			logger.Warnf("strange data: %s", StringRnd(5))
+			logger.Errorf("count:%d -- the erroneous data is %s", i, test.StringRnd(10))
+			logger.Warnf("strange data: %s", test.StringRnd(5))
 			runtime.Gosched()
 		}
 	}

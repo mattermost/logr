@@ -40,7 +40,7 @@ type Plain struct {
 }
 
 // Format converts a log record to bytes.
-func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
+func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	sb := &strings.Builder{}
 
 	delim := p.Delim
@@ -60,14 +60,17 @@ func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
 		fmt.Fprintf(sb, "%v%s", rec.Level(), delim)
 	}
 	if !p.DisableMsg {
-		fmt.Fprintf(sb, "%s%s", rec.Msg(), delim)
+		fmt.Fprint(sb, rec.Msg())
 	}
 	if !p.DisableContext {
-		fmt.Fprint(sb, "ctx:{")
-		writeFieldsPlain(sb, rec.Fields(), ", ")
-		fmt.Fprint(sb, "}")
+		ctx := rec.Fields()
+		if len(ctx) > 0 {
+			fmt.Fprint(sb, delim, "ctx:{")
+			writeFieldsPlain(sb, ctx, ", ")
+			fmt.Fprint(sb, "}")
+		}
 	}
-	if !p.DisableStacktrace {
+	if stacktrace && !p.DisableStacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
 			sb.WriteString("\n")

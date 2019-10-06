@@ -28,7 +28,8 @@ func (w *Writer) Write(rec *logr.LogRec) error {
 	w.mux.Lock()
 	defer w.mux.Unlock()
 
-	data, err := w.formatter.Format(rec)
+	_, stacktrace := w.IsLevelEnabled(rec.Level())
+	data, err := w.formatter.Format(rec, stacktrace)
 	if err != nil {
 		return err
 	}
