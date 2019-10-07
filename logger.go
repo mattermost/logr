@@ -4,31 +4,32 @@ import (
 	"fmt"
 )
 
+// Fields type, used to pass to `WithFields`.
+type Fields map[string]interface{}
+
 // Logger implements Logr APIs.
 // TODO expand docs for this key struct
 type Logger struct {
+	logr   *Logr
 	fields Fields
 	parent *Logger
 }
 
-// NewLogger creates a logger using defaults. A logger is light-weight
-// enough to create on-demand, but typically one or more loggers are
-// created and re-used.
-func NewLogger() *Logger {
-	logger := &Logger{}
-	return logger
+// Logr returns the `Logr` instance that created this `Logger`.
+func (logger *Logger) Logr() *Logr {
+	return logger.logr
 }
 
-// WithField creates a new Logger with any existing fields
+// WithField creates a new `Logger` with any existing fields
 // plus the new one.
 func (logger *Logger) WithField(key string, value interface{}) *Logger {
 	return logger.WithFields(Fields{key: value})
 }
 
-// WithFields creates a new Logger with any existing fields
+// WithFields creates a new `Logger` with any existing fields
 // plus the new ones.
 func (logger *Logger) WithFields(fields Fields) *Logger {
-	l := &Logger{fields: Fields{}, parent: logger}
+	l := &Logger{logr: logger.logr, fields: Fields{}, parent: logger}
 	for k, v := range logger.fields {
 		l.fields[k] = v
 	}
@@ -39,24 +40,24 @@ func (logger *Logger) WithFields(fields Fields) *Logger {
 }
 
 // Log checks that the level matches one or more targets, and
-// if so, generates a log record that is added to the main
-// queue (channel). Arguments are handled in the manner of fmt.Print.
-func (logger *Logger) Log(level Level, args ...interface{}) {
-	status := IsLevelEnabled(level)
+// if so, generates a log record that is added to the Logr queue.
+// Arguments are handled in the manner of fmt.Print.
+func (logger *Logger) Log(lvl Level, args ...interface{}) {
+	status := logger.logr.IsLevelEnabled(lvl)
 	if status.Enabled {
-		rec := NewLogRec(level, logger, "", args, status.Stacktrace)
-		logr.in <- rec
+		rec := NewLogRec(lvl, logger, "", args, status.Stacktrace)
+		logger.logr.Enqueue(rec)
 	}
 }
 
 // Trace is a convenience method equivalent to `Log(TraceLevel, args...)`.
 func (logger *Logger) Trace(args ...interface{}) {
-	logger.Log(TraceLevel, args...)
+	logger.Log(Trace, args...)
 }
 
 // Debug is a convenience method equivalent to `Log(DebugLevel, args...)`.
 func (logger *Logger) Debug(args ...interface{}) {
-	logger.Log(DebugLevel, args...)
+	logger.Log(Debug, args...)
 }
 
 // Print ensures compatibility with std lib logger.
@@ -66,30 +67,30 @@ func (logger *Logger) Print(args ...interface{}) {
 
 // Info is a convenience method equivalent to `Log(InfoLevel, args...)`.
 func (logger *Logger) Info(args ...interface{}) {
-	logger.Log(InfoLevel, args...)
+	logger.Log(Info, args...)
 }
 
 // Warn is a convenience method equivalent to `Log(WarnLevel, args...)`.
 func (logger *Logger) Warn(args ...interface{}) {
-	logger.Log(WarnLevel, args...)
+	logger.Log(Warn, args...)
 }
 
 // Error is a convenience method equivalent to `Log(ErrorLevel, args...)`.
 func (logger *Logger) Error(args ...interface{}) {
-	logger.Log(ErrorLevel, args...)
+	logger.Log(Error, args...)
 }
 
 // Fatal is a convenience method equivalent to `Log(FatalLevel, args...)`
 // followed by a call to os.Exit(1).
 func (logger *Logger) Fatal(args ...interface{}) {
-	logger.Log(FatalLevel, args...)
-	Exit(1)
+	logger.Log(Fatal, args...)
+	logger.logr.exit(1)
 }
 
 // Panic is a convenience method equivalent to `Log(PanicLevel, args...)`
 // followed by a call to panic().
 func (logger *Logger) Panic(args ...interface{}) {
-	logger.Log(PanicLevel, args...)
+	logger.Log(Panic, args...)
 	panic(fmt.Sprint(args...))
 }
 
@@ -100,27 +101,27 @@ func (logger *Logger) Panic(args ...interface{}) {
 // Logf checks that the level matches one or more targets, and
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Printf.
-func (logger *Logger) Logf(level Level, format string, args ...interface{}) {
-	status := IsLevelEnabled(level)
+func (logger *Logger) Logf(lvl Level, format string, args ...interface{}) {
+	status := logger.logr.IsLevelEnabled(lvl)
 	if status.Enabled {
-		rec := NewLogRec(level, logger, format, args, status.Stacktrace)
-		logr.in <- rec
+		rec := NewLogRec(lvl, logger, format, args, status.Stacktrace)
+		logger.logr.Enqueue(rec)
 	}
 }
 
 // Tracef is a convenience method equivalent to `Logf(TraceLevel, args...)`.
 func (logger *Logger) Tracef(format string, args ...interface{}) {
-	logger.Logf(TraceLevel, format, args...)
+	logger.Logf(Trace, format, args...)
 }
 
 // Debugf is a convenience method equivalent to `Logf(DebugLevel, args...)`.
 func (logger *Logger) Debugf(format string, args ...interface{}) {
-	logger.Logf(DebugLevel, format, args...)
+	logger.Logf(Debug, format, args...)
 }
 
 // Infof is a convenience method equivalent to `Logf(InfoLevel, args...)`.
 func (logger *Logger) Infof(format string, args ...interface{}) {
-	logger.Logf(InfoLevel, format, args...)
+	logger.Logf(Info, format, args...)
 }
 
 // Printf ensures compatibility with std lib logger.
@@ -130,25 +131,25 @@ func (logger *Logger) Printf(format string, args ...interface{}) {
 
 // Warnf is a convenience method equivalent to `Logf(WarnLevel, args...)`.
 func (logger *Logger) Warnf(format string, args ...interface{}) {
-	logger.Logf(WarnLevel, format, args...)
+	logger.Logf(Warn, format, args...)
 }
 
 // Errorf is a convenience method equivalent to `Logf(ErrorLevel, args...)`.
 func (logger *Logger) Errorf(format string, args ...interface{}) {
-	logger.Logf(ErrorLevel, format, args...)
+	logger.Logf(Error, format, args...)
 }
 
 // Fatalf is a convenience method equivalent to `Logf(FatalLevel, args...)`
 // followed by a call to os.Exit(1).
 func (logger *Logger) Fatalf(format string, args ...interface{}) {
-	logger.Logf(FatalLevel, format, args...)
-	Exit(1)
+	logger.Logf(Fatal, format, args...)
+	logger.logr.exit(1)
 }
 
 // Panicf is a convenience method equivalent to `Logf(PanicLevel, args...)`
 // followed by a call to panic().
 func (logger *Logger) Panicf(format string, args ...interface{}) {
-	logger.Logf(PanicLevel, format, args...)
+	logger.Logf(Panic, format, args...)
 }
 
 //
@@ -158,28 +159,28 @@ func (logger *Logger) Panicf(format string, args ...interface{}) {
 // Logln checks that the level matches one or more targets, and
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Println.
-func (logger *Logger) Logln(level Level, args ...interface{}) {
-	status := IsLevelEnabled(level)
+func (logger *Logger) Logln(lvl Level, args ...interface{}) {
+	status := logger.logr.IsLevelEnabled(lvl)
 	if status.Enabled {
-		rec := NewLogRec(level, logger, "", args, status.Stacktrace)
+		rec := NewLogRec(lvl, logger, "", args, status.Stacktrace)
 		rec.newline = true
-		logr.in <- rec
+		logger.logr.Enqueue(rec)
 	}
 }
 
 // Traceln is a convenience method equivalent to `Logln(TraceLevel, args...)`.
 func (logger *Logger) Traceln(args ...interface{}) {
-	logger.Logln(TraceLevel, args...)
+	logger.Logln(Trace, args...)
 }
 
 // Debugln is a convenience method equivalent to `Logln(DebugLevel, args...)`.
 func (logger *Logger) Debugln(args ...interface{}) {
-	logger.Logln(DebugLevel, args...)
+	logger.Logln(Debug, args...)
 }
 
 // Infoln is a convenience method equivalent to `Logln(InfoLevel, args...)`.
 func (logger *Logger) Infoln(args ...interface{}) {
-	logger.Logln(InfoLevel, args...)
+	logger.Logln(Info, args...)
 }
 
 // Println ensures compatibility with std lib logger.
@@ -189,23 +190,23 @@ func (logger *Logger) Println(args ...interface{}) {
 
 // Warnln is a convenience method equivalent to `Logln(WarnLevel, args...)`.
 func (logger *Logger) Warnln(args ...interface{}) {
-	logger.Logln(WarnLevel, args...)
+	logger.Logln(Warn, args...)
 }
 
 // Errorln is a convenience method equivalent to `Logln(ErrorLevel, args...)`.
 func (logger *Logger) Errorln(args ...interface{}) {
-	logger.Logln(ErrorLevel, args...)
+	logger.Logln(Error, args...)
 }
 
 // Fatalln is a convenience method equivalent to `Logln(FatalLevel, args...)`
 // followed by a call to os.Exit(1).
 func (logger *Logger) Fatalln(args ...interface{}) {
-	logger.Logln(FatalLevel, args...)
-	Exit(1)
+	logger.Logln(Fatal, args...)
+	logger.logr.exit(1)
 }
 
 // Panicln is a convenience method equivalent to `Logln(PanicLevel, args...)`
 // followed by a call to panic().
 func (logger *Logger) Panicln(args ...interface{}) {
-	logger.Logln(PanicLevel, args...)
+	logger.Logln(Panic, args...)
 }

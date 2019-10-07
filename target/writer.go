@@ -1,7 +1,6 @@
 package target
 
 import (
-	"errors"
 	"io"
 	"sync"
 
@@ -11,42 +10,15 @@ import (
 // Writer outputs log records to any `io.Writer`.
 type Writer struct {
 	Basic
-	Level     logr.Level
-	Fmtr      logr.Formatter
-	mux       sync.Mutex
-	Out       io.Writer
-	MaxQueued int
+	out io.Writer
+	mux sync.Mutex
 }
 
-// Start initializes the target and should start a new
-// goroutine to accept incoming log records.
-// In this case we just need to initialize the Basic helper
-// which provides an accepting goroutine.
-func (w *Writer) Start() error {
-	if w.Out == nil {
-		return errors.New("io.Writer cannot be nil")
-	}
-	w.Basic.Start(w, w, w.MaxQueued)
-	return nil
-}
-
-// Shutdown makes best effort to flush target queue and
-// frees/closes all resources.
-func (w *Writer) Shutdown() error {
-	w.Basic.Shutdown()
-	return nil
-}
-
-// IsLevelEnabled returns true if this target should emit
-// logs for the specified level. Also determines if
-// a stack trace is required.
-func (w *Writer) IsLevelEnabled(level logr.Level) (enabled bool, stacktrace bool) {
-	return w.Level.IsEnabled(level), w.Level.IsStacktraceEnabled(level)
-}
-
-// Formatter returns the Formatter associated with this Target.
-func (w *Writer) Formatter() logr.Formatter {
-	return w.Fmtr
+// NewWriterTarget creates a target capable of outputting log records to an io.Writer.
+func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, maxQueue int) *Writer {
+	w := &Writer{out: out}
+	w.Basic.Start(w, w, filter, formatter, maxQueue)
+	return w
 }
 
 // Write converts the log record to bytes, via the Formatter,
@@ -56,10 +28,11 @@ func (w *Writer) Write(rec *logr.LogRec) error {
 	w.mux.Lock()
 	defer w.mux.Unlock()
 
-	data, err := w.Fmtr.Format(rec)
+	_, stacktrace := w.IsLevelEnabled(rec.Level())
+	data, err := w.formatter.Format(rec, stacktrace)
 	if err != nil {
 		return err
 	}
-	_, err = w.Out.Write(data)
+	_, err = w.out.Write(data)
 	return err
 }

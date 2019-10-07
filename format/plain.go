@@ -11,24 +11,36 @@ import (
 )
 
 const (
-	defTimestampFormat = "2006-01-02 15:04:05.000 Z07:00"
+	// DefTimestampFormat is the default time stamp format used by
+	// Plain formatter and others.
+	DefTimestampFormat = "2006-01-02 15:04:05.000 Z07:00"
 )
 
 // Plain is the simplest formatter, outputting only text with
 // no colors.
 type Plain struct {
-	DisableTimestamp  bool
-	DisableLevel      bool
-	DisableMsg        bool
-	DisableFields     bool
+	// DisableTimestamp disables output of timestamp field.
+	DisableTimestamp bool
+	// DisableLevel disables output of level field.
+	DisableLevel bool
+	// DisableMsg disables output of msg field.
+	DisableMsg bool
+	// DisableContext disables output of all context fields.
+	DisableContext bool
+	// DisableStacktrace disables output of stack trace.
 	DisableStacktrace bool
 
-	Delim           string
+	// Delim is an optional delimiter output between each log field.
+	// Defaults to a single space.
+	Delim string
+
+	// TimestampFormat is an optional format for timestamps. If empty
+	// then DefTimestampFormat is used.
 	TimestampFormat string
 }
 
 // Format converts a log record to bytes.
-func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
+func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	sb := &strings.Builder{}
 
 	delim := p.Delim
@@ -38,7 +50,7 @@ func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
 
 	timestampFmt := p.TimestampFormat
 	if timestampFmt == "" {
-		timestampFmt = defTimestampFormat
+		timestampFmt = DefTimestampFormat
 	}
 
 	if !p.DisableTimestamp {
@@ -48,22 +60,32 @@ func (p *Plain) Format(rec *logr.LogRec) ([]byte, error) {
 		fmt.Fprintf(sb, "%v%s", rec.Level(), delim)
 	}
 	if !p.DisableMsg {
-		fmt.Fprintf(sb, "%s%s", rec.Msg(), delim)
+		fmt.Fprint(sb, rec.Msg())
 	}
-	if !p.DisableFields {
-		WriteFields(sb, rec.Fields(), ", ")
+	if !p.DisableContext {
+		ctx := rec.Fields()
+		if len(ctx) > 0 {
+			fmt.Fprint(sb, delim, "ctx:{")
+			writeFieldsPlain(sb, ctx, ", ")
+			fmt.Fprint(sb, "}")
+		}
 	}
-	if !p.DisableStacktrace {
-		WriteStacktrace(sb, rec.StackFrames())
+	if stacktrace && !p.DisableStacktrace {
+		frames := rec.StackFrames()
+		if len(frames) > 0 {
+			sb.WriteString("\n")
+			writeStacktracePlain(sb, rec.StackFrames())
+		}
 	}
 	sb.WriteString("\n")
 
 	return []byte(sb.String()), nil
 }
 
-// WriteFields writes zero or more name value pairs to the io.Writer.
-// The pairs are sorted by key name.
-func WriteFields(w io.Writer, flds logr.Fields, separator string) {
+// writeFieldsPlain writes zero or more name value pairs to the io.Writer.
+// The pairs are sorted by key name and output in key=value format
+// with optional separator between fields.
+func writeFieldsPlain(w io.Writer, flds logr.Fields, separator string) {
 	keys := make([]string, 0, len(flds))
 	for k := range flds {
 		keys = append(keys, k)
@@ -76,6 +98,14 @@ func WriteFields(w io.Writer, flds logr.Fields, separator string) {
 	}
 }
 
-func WriteStacktrace(w io.Writer, frames []runtime.Frame) {
-
+// writeStacktracePlain formats and outputs a stack trace to an io.Writer.
+func writeStacktracePlain(w io.Writer, frames []runtime.Frame) {
+	for _, frame := range frames {
+		if frame.Function != "" {
+			fmt.Fprintf(w, "  %s\n", frame.Function)
+		}
+		if frame.File != "" {
+			fmt.Fprintf(w, "      %s:%d\n", frame.File, frame.Line)
+		}
+	}
 }
