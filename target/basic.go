@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/wiggin77/logr"
+	"github.com/wiggin77/logr/format"
 )
 
 // RecordWriter can convert a LogRecord to bytes and output to some data sink.
@@ -29,6 +30,13 @@ type Basic struct {
 
 // Start initializes this target helper and starts accepting log records for processing.
 func (b *Basic) Start(target logr.Target, rw RecordWriter, filter logr.Filter, formatter logr.Formatter, maxQueued int) {
+	if filter == nil {
+		filter = &logr.StdFilter{Lvl: logr.Fatal}
+	}
+	if formatter == nil {
+		formatter = &format.Plain{}
+	}
+
 	b.target = target
 	b.filter = filter
 	b.formatter = formatter
