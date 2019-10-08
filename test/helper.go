@@ -43,7 +43,7 @@ func DoSomeLogging(lgr *logr.Logr, goroutines int, loops int) {
 	wg.Wait()
 
 	end := time.Now()
-	lgr.NewLogger().Errorf("test ending at %v", end)
+	lgr.NewLogger().Infof("test ending at %v", end)
 
 	err := lgr.Shutdown()
 	if err != nil {
