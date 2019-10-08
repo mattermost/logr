@@ -5,11 +5,7 @@ package target_test
 import (
 	"fmt"
 	"log/syslog"
-	"math/rand"
 	"os"
-	"runtime"
-	"sync"
-	"sync/atomic"
 	"testing"
 
 	"github.com/wiggin77/logr"
@@ -48,7 +44,7 @@ func TestSyslogPlain(t *testing.T) {
 }
 
 func syslogger(t *testing.T, formatter logr.Formatter) {
-	lgr := logr.Logr{}
+	lgr := &logr.Logr{}
 
 	lgr.OnLoggerError = func(err error) {
 		t.Error(err)
@@ -62,31 +58,5 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	}
 	lgr.AddTarget(target)
 
-	wg := sync.WaitGroup{}
-	var id int32
-
-	runner := func(loops int) {
-		defer wg.Done()
-		tid := atomic.AddInt32(&id, 1)
-		logger := lgr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
-
-		for i := 0; i < loops; i++ {
-			logger.Debug("XXX")
-			logger.Trace("XXX")
-			logger.Errorf("count:%d -- the erroneous data is %s", i, test.StringRnd(10))
-			logger.Warnf("count:%d -- strange data: %s", i, test.StringRnd(5))
-			runtime.Gosched()
-		}
-	}
-
-	for i := 0; i < 3; i++ {
-		wg.Add(1)
-		go runner(5)
-	}
-	wg.Wait()
-
-	err = lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	test.DoSomeLogging(lgr, 3, 5)
 }

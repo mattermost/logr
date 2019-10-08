@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log/syslog"
-	"math/rand"
 	"os"
-	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
@@ -67,46 +64,10 @@ func main() {
 	filter = &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
 	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
 	t, err := target.NewSyslogTarget(filter, formatter, params, 1000)
+	if err != nil {
+		panic(err)
+	}
 	lgr.AddTarget(t)
 
-	wg := sync.WaitGroup{}
-	var id int32
-	var filterCount int32
-	var logCount int32
-
-	runner := func(loops int) {
-		defer wg.Done()
-		tid := atomic.AddInt32(&id, 1)
-		logger := lgr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
-
-		for i := 1; i <= loops; i++ {
-			atomic.AddInt32(&filterCount, 2)
-			logger.Debug("XXX")
-			logger.Trace("XXX")
-
-			lc := atomic.AddInt32(&logCount, 1)
-			logger.Warnf("count:%d -- random data: %s", lc, test.StringRnd(10))
-			time.Sleep(1 * time.Millisecond)
-		}
-	}
-
-	start := time.Now()
-
-	for i := 0; i < GOROUTINES; i++ {
-		wg.Add(1)
-		go runner(LOOPS)
-	}
-	wg.Wait()
-
-	end := time.Now()
-	lgr.NewLogger().Errorf("Logr test ending at %v", end)
-
-	err = lgr.Shutdown()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	fmt.Println(atomic.LoadInt32(&logCount), " log entries output.")
-	fmt.Println(atomic.LoadInt32(&filterCount), " log entries filtered.")
-	fmt.Println(end.Sub(start).String())
+	test.DoSomeLogging(lgr, GOROUTINES, LOOPS)
 }
