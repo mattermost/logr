@@ -104,7 +104,7 @@ Logr also supports custom filters (logr.CustomLevel) which allow fine grained in
   logger.Debug("won't be logged since Debug wasn't added to custom filter")
 ```
 
-Both filter types allow you to determine which levels require a stack trace to be output.
+Both filter types allow you to determine which levels require a stack trace to be output. Note that generating stack traces cannot happen fully asynchronously and thus add latency to the calling goroutine.
 
 ## Targets
 
