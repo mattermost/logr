@@ -69,5 +69,5 @@ func main() {
 	}
 	lgr.AddTarget(t)
 
-	test.DoSomeLogging(lgr, GOROUTINES, LOOPS)
+	test.DoSomeLogging(lgr, GOROUTINES, LOOPS, "Good", "XXX!!XXX")
 }
