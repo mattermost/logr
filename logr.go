@@ -55,7 +55,7 @@ type Logr struct {
 	// this condition.
 	// This function should return quickly, with a bool indicating whether
 	// the log record should be dropped (true) or block until the log record
-	// is successully added (false). If nil then blocking (false) is assumed.
+	// is successfully added (false). If nil then blocking (false) is assumed.
 	OnTargetQueueFull func(target Target, rec *LogRec, maxQueueSize int) bool
 
 	// OnExit, when not nil, is called when a FatalXXX style log API is called.
@@ -182,7 +182,7 @@ func (logr *Logr) Enqueue(rec *LogRec) {
 }
 
 // exit is called by one of the FatalXXX style APIS. If `logr.OnExit` is not nil
-// then that method is called, otherwise the default behaviour is to shut down this
+// then that method is called, otherwise the default behavior is to shut down this
 // Logr cleanly then call `os.Exit(code)`.
 func (logr *Logr) exit(code int) {
 	if logr.OnExit != nil {
@@ -197,7 +197,7 @@ func (logr *Logr) exit(code int) {
 }
 
 // panic is called by one of the PanicXXX style APIS. If `logr.OnPanic` is not nil
-// then that method is called, otherwise the default behaviour is to shut down this
+// then that method is called, otherwise the default behavior is to shut down this
 // Logr cleanly then call `panic(err)`.
 func (logr *Logr) panic(err interface{}) {
 	if logr.OnPanic != nil {

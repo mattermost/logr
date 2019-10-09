@@ -33,7 +33,7 @@ func (lt StdFilter) IsEnabled(level Level) bool {
 	return lvl.id <= lt.Lvl.id
 }
 
-// IsStacktraceEnabled returns true if the specifed Level requires a stack trace.
+// IsStacktraceEnabled returns true if the specified Level requires a stack trace.
 func (lt StdFilter) IsStacktraceEnabled(level Level) bool {
 	lvl, ok := level.(StdLevel)
 	if !ok {
