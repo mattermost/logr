@@ -23,3 +23,6 @@ vendor
 output
 build
 app
+
+# test apps
+test/cmd/testapp1/testapp1

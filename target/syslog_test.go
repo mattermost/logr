@@ -58,5 +58,5 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	}
 	lgr.AddTarget(target)
 
-	test.DoSomeLogging(lgr, 3, 5)
+	test.DoSomeLogging(lgr, 3, 5, "Good", "XXX!!XXX")
 }

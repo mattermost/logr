@@ -53,16 +53,19 @@ func writer(t *testing.T, formatter logr.Formatter) {
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
 	lgr.AddTarget(target)
 
-	test.DoSomeLogging(lgr, 10, 50)
+	const goodToken = "This gets logged"
+	const badToken = "XXX!!XXX"
+
+	test.DoSomeLogging(lgr, 10, 50, goodToken, badToken)
 
 	output := buf.String()
 	fmt.Println(output)
 
-	if !strings.Contains(output, "random data") {
+	if !strings.Contains(output, goodToken) {
 		t.Errorf("missing warnings")
 	}
 
-	if strings.Contains(output, "XXX") {
+	if strings.Contains(output, badToken) {
 		t.Errorf("wrong level(s) enabled")
 	}
 }

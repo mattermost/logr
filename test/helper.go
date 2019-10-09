@@ -12,7 +12,7 @@ import (
 )
 
 // DoSomeLogging performs some concurrent logging on a preconfigured Logr.
-func DoSomeLogging(lgr *logr.Logr, goroutines int, loops int) {
+func DoSomeLogging(lgr *logr.Logr, goroutines int, loops int, goodToken string, badToken string) {
 	wg := sync.WaitGroup{}
 	var id int32
 	var filterCount int32
@@ -25,11 +25,11 @@ func DoSomeLogging(lgr *logr.Logr, goroutines int, loops int) {
 
 		for i := 1; i <= loops; i++ {
 			atomic.AddInt32(&filterCount, 2)
-			logger.Debug("This is some debug log output. XXX")
-			logger.Trace("A trace line for logging. XXX")
+			logger.Debug("This is some debug log output. ", badToken)
+			logger.Trace("A trace line for logging. ", badToken)
 
 			lc := atomic.AddInt32(&logCount, 1)
-			logger.Warnf("count:%d -- random data: %s", lc, StringRnd(10))
+			logger.Warnf("count:%d -- %s -- random data: %s", lc, goodToken, StringRnd(10))
 			time.Sleep(1 * time.Millisecond)
 		}
 	}
