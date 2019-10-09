@@ -92,6 +92,9 @@ func (logr *Logr) AddTarget(target Target) error {
 		if logr.maxQueueSizeActual == 0 {
 			logr.maxQueueSizeActual = DefaultMaxQueueSize
 		}
+		if logr.maxQueueSizeActual < 0 {
+			logr.maxQueueSizeActual = 0
+		}
 		logr.in = make(chan *LogRec, logr.maxQueueSizeActual)
 		logr.done = make(chan struct{})
 		go logr.start()
