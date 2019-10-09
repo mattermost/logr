@@ -31,6 +31,22 @@ type JSON struct {
 	// EscapeHTML determines if certain characters (e.g. `<`, `>`, `&`)
 	// are escaped.
 	EscapeHTML bool
+
+	// KeyTimestamp overrides the timestamp field key name.
+	KeyTimestamp string
+
+	// KeyLevel overrides the level field key name.
+	KeyLevel string
+
+	// KeyMsg overrides the msg field key name.
+	KeyMsg string
+
+	// KeyContextFields when not empty will group all context fields
+	// under this key.
+	KeyContextFields string
+
+	// KeyStacktrace overrides the stacktrace field key name.
+	KeyStacktrace string
 }
 
 type jsonRec struct {
@@ -54,31 +70,42 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		timestampFmt = DefTimestampFormat
 	}
 
-	jrec := &jsonRec{}
+	data := make(map[string]interface{}, 7)
+	j.applyDefaultKeyNames()
 
 	if !j.DisableTimestamp {
-		jrec.Timestamp = rec.Time().Format(timestampFmt)
+		data[j.KeyTimestamp] = rec.Time().Format(timestampFmt)
 	}
 	if !j.DisableLevel {
-		jrec.Level = rec.Level().String()
+		data[j.KeyLevel] = rec.Level().String()
 	}
 	if !j.DisableMsg {
-		jrec.Msg = rec.Msg()
+		data[j.KeyMsg] = rec.Msg()
 	}
 	if !j.DisableContext {
-		jrec.Ctx = rec.Fields()
+		if j.KeyContextFields != "" {
+			data[j.KeyContextFields] = rec.Fields()
+		} else {
+			m := prefixCollisions(data, rec.Fields())
+			for k, v := range m {
+				data[k] = v
+			}
+		}
 	}
 	if stacktrace && !j.DisableStacktrace {
 		frames := rec.StackFrames()
-		if len(frames) > 0 {
+		numFrames := len(frames)
+		if numFrames > 0 {
+			st := make([]stacktraceRec, 0, numFrames)
 			for _, frame := range frames {
 				srec := stacktraceRec{
 					Function: frame.Function,
 					File:     frame.File,
 					Line:     frame.Line,
 				}
-				jrec.Stacktrace = append(jrec.Stacktrace, srec)
+				st = append(st, srec)
 			}
+			data[j.KeyStacktrace] = st
 		}
 	}
 
@@ -87,9 +114,36 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	encoder.SetIndent("", j.Indent)
 	encoder.SetEscapeHTML(j.EscapeHTML)
 
-	err := encoder.Encode(jrec)
+	err := encoder.Encode(data)
 	if err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func (j *JSON) applyDefaultKeyNames() {
+	if j.KeyTimestamp == "" {
+		j.KeyTimestamp = "timestamp"
+	}
+	if j.KeyLevel == "" {
+		j.KeyLevel = "level"
+	}
+	if j.KeyMsg == "" {
+		j.KeyMsg = "msg"
+	}
+	if j.KeyStacktrace == "" {
+		j.KeyStacktrace = "stacktrace"
+	}
+}
+
+func prefixCollisions(data map[string]interface{}, m map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(data)+len(m))
+	for k, v := range m {
+		if _, ok := data[k]; ok {
+			out["ctx."+k] = v
+		} else {
+			out[k] = v
+		}
+	}
+	return out
 }

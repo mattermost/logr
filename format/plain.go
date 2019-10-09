@@ -60,14 +60,12 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		fmt.Fprintf(sb, "%v%s", rec.Level(), delim)
 	}
 	if !p.DisableMsg {
-		fmt.Fprint(sb, rec.Msg())
+		fmt.Fprint(sb, rec.Msg(), delim)
 	}
 	if !p.DisableContext {
 		ctx := rec.Fields()
 		if len(ctx) > 0 {
-			fmt.Fprint(sb, delim, "ctx:{")
-			writeFieldsPlain(sb, ctx, ", ")
-			fmt.Fprint(sb, "}")
+			writeFieldsPlain(sb, ctx, " ")
 		}
 	}
 	if stacktrace && !p.DisableStacktrace {
