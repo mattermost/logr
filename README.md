@@ -1,6 +1,7 @@
 # logr
 
 [![GoDoc](https://godoc.org/github.com/wiggin77/logr?status.svg)](http://godoc.org/github.com/wiggin77/logr)
+[![Build Status](https://api.travis-ci.com/wiggin77/logr.svg?branch=master)](https://travis-ci.com/wiggin77/logr.svg?branch=master)
 
 Logr is a fully asynchronous, structured logger for Go.
 
