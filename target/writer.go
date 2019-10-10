@@ -36,3 +36,8 @@ func (w *Writer) Write(rec *logr.LogRec) error {
 	_, err = w.out.Write(data)
 	return err
 }
+
+// String returns a string representation of this target.
+func (w *Writer) String() string {
+	return "WriterTarget"
+}
