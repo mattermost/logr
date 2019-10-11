@@ -263,6 +263,9 @@ func (logr *Logr) Flush() error {
 // Shutdown cleanly stops the logging engine after making best efforts
 // to flush all targets. Call this function right before application
 // exit - logr cannot be restarted once shut down.
+// `logr.ShutdownTimeout` determines how long shutdown can execute before
+// timing out. Use `IsTimeoutError` to determine if the returned error is
+// due to a timeout.
 func (logr *Logr) Shutdown() error {
 	logr.mux.Lock()
 	if logr.shutdown {
@@ -281,7 +284,7 @@ func (logr *Logr) Shutdown() error {
 	close(logr.in)
 	select {
 	case <-ctx.Done():
-		errs.Append(errors.New("logr queue shutdown timeout"))
+		errs.Append(newTimeoutError("logr queue shutdown timeout"))
 	case <-logr.done:
 	}
 
