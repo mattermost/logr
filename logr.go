@@ -241,7 +241,9 @@ func (logr *Logr) panic(err interface{}) {
 // Flush blocks while flushing the logr queue and all target queues, by
 // writing existing log records to valid targets.
 // Any attempts to add new log records will block until flush is complete.
-// TODO: timeout
+// `logr.FlushTimeout` determines how long flush can execute before
+// timing out. Use `IsTimeoutError` to determine if the returned error is
+// due to a timeout.
 func (logr *Logr) Flush() error {
 	logr.mux.Lock()
 	defer logr.mux.Unlock()
@@ -254,7 +256,7 @@ func (logr *Logr) Flush() error {
 
 	select {
 	case <-ctx.Done():
-		return errors.New("logr queue shutdown timeout")
+		return newTimeoutError("logr queue shutdown timeout")
 	case <-rec.flush:
 	}
 	return nil
