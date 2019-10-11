@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
@@ -49,14 +50,27 @@ func TestWriterJSON(t *testing.T) {
 func writer(t *testing.T, formatter logr.Formatter) {
 	lgr := &logr.Logr{}
 	buf := &test.Buffer{}
-	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
+	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
 	lgr.AddTarget(target)
 
-	const goodToken = "This gets logged"
+	const goodToken = "Woot!"
 	const badToken = "XXX!!XXX"
 
-	test.DoSomeLogging(lgr, 10, 50, goodToken, badToken)
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: 10,
+		Loops:      50,
+		GoodToken:  goodToken,
+		BadToken:   badToken,
+		Lvl:        logr.Error,
+		Delay:      time.Millisecond * 1,
+	}
+	test.DoSomeLogging(cfg)
+	err := lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
+	}
 
 	output := buf.String()
 	fmt.Println(output)

@@ -36,6 +36,9 @@ type LogRec struct {
 	stackPC    []uintptr
 	stackCount int
 
+	// flushes Logr and target queues when not nil.
+	flush chan struct{}
+
 	// remaining fields calculated by `prep`
 	msg    string
 	frames []runtime.Frame
@@ -49,6 +52,12 @@ func NewLogRec(lvl Level, logger *Logger, template string, args []interface{}, i
 		rec.stackCount = runtime.Callers(2, rec.stackPC)
 	}
 	return rec
+}
+
+// newFlushLogRec creates a LogRec that flushes the Logr queue and
+// any target queues that support flushing.
+func newFlushLogRec(logger *Logger) *LogRec {
+	return &LogRec{logger: logger, flush: make(chan struct{})}
 }
 
 // prep resolves all args and field values to strings, and
@@ -78,18 +87,18 @@ func (rec *LogRec) prep() {
 				break
 			}
 		}
-	}
 
-	// remove leading logr package entries.
-	var start int
-	for i, frame := range rec.frames {
-		pkg := getPackageName(frame.Function)
-		if pkg != "" && pkg != logrPkg {
-			start = i
-			break
+		// remove leading logr package entries.
+		var start int
+		for i, frame := range rec.frames {
+			pkg := getPackageName(frame.Function)
+			if pkg != "" && pkg != logrPkg {
+				start = i
+				break
+			}
 		}
+		rec.frames = rec.frames[start:]
 	}
-	rec.frames = rec.frames[start:]
 }
 
 // WithTime returns a shallow copy of the log record while replacing
@@ -149,6 +158,18 @@ func (rec *LogRec) StackFrames() []runtime.Frame {
 	rec.mux.RLock()
 	defer rec.mux.RUnlock()
 	return rec.frames
+}
+
+// String returns a string representation of this log record.
+func (rec *LogRec) String() string {
+	if rec.flush != nil {
+		return "[flusher]"
+	}
+
+	f := &DefaultFormatter{}
+	b, _ := f.Format(rec, true)
+	s := string(b)
+	return strings.TrimSpace(s)
 }
 
 // getPackageName reduces a fully qualified function name to the package name

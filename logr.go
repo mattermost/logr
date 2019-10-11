@@ -1,6 +1,7 @@
 package logr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -21,8 +22,10 @@ type LevelStatus struct {
 // Logr maintains a list of log targets and accepts incoming
 // log records.
 type Logr struct {
+	tmux    sync.RWMutex // target mutex
+	targets []Target
+
 	mux                sync.RWMutex
-	targets            []Target
 	maxQueueSizeActual int
 	in                 chan *LogRec
 	done               chan struct{}
@@ -67,6 +70,19 @@ type Logr struct {
 	// When nil, then the default behavior is to cleanly shut down this Logr and
 	// call `panic(err)`.
 	OnPanic func(err interface{})
+
+	// EnqueueTimeout is the amount of time a log record can take to be queued.
+	// This only applies to blocking enqueue which happen after `logr.OnQueueFull`
+	// is called and returns false.
+	EnqueueTimeout time.Duration
+
+	// ShutdownTimeout is the amount of time `logr.Shutdown` can execute before
+	// timing out.
+	ShutdownTimeout time.Duration
+
+	// FlushTimeout is the amount of time `logr.Flush` can execute before
+	// timing out.
+	FlushTimeout time.Duration
 }
 
 // Configure adds/removes targets via the supplied `Config`.
@@ -85,6 +101,8 @@ func (logr *Logr) AddTarget(target Target) error {
 		return fmt.Errorf("logr shut down")
 	}
 
+	logr.tmux.Lock()
+	defer logr.tmux.Unlock()
 	logr.targets = append(logr.targets, target)
 
 	logr.once.Do(func() {
@@ -131,7 +149,11 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	}
 
 	// Check each target.
-	for _, t := range logr.targets {
+	logr.tmux.RLock()
+	tarr := make([]Target, len(logr.targets))
+	copy(tarr, logr.targets)
+	logr.tmux.RUnlock()
+	for _, t := range tarr {
 		e, s := t.IsLevelEnabled(lvl)
 		if e {
 			status.Enabled = true
@@ -166,12 +188,12 @@ func (logr *Logr) resetLevelCache() {
 	})
 }
 
-// Enqueue adds a log record to the logr queue. If the queue is full then
+// enqueue adds a log record to the logr queue. If the queue is full then
 // this function either blocks or the log record is dropped, depending on
 // the result of calling `OnQueueFull`.
-func (logr *Logr) Enqueue(rec *LogRec) {
+func (logr *Logr) enqueue(rec *LogRec) {
 	if logr.in == nil {
-		logr.ReportError(fmt.Errorf("AddTarget or Configure must be called before Enqueue"))
+		logr.ReportError(fmt.Errorf("AddTarget or Configure must be called before enqueue"))
 	}
 
 	select {
@@ -180,7 +202,11 @@ func (logr *Logr) Enqueue(rec *LogRec) {
 		if logr.OnQueueFull != nil && logr.OnQueueFull(rec, logr.maxQueueSizeActual) {
 			return // drop the record
 		}
-		logr.in <- rec // block until success
+		select {
+		case <-time.After(logr.enqueueTimeout()):
+			logr.ReportError(fmt.Errorf("enqueue timed out for log rec [%v]", rec))
+		case logr.in <- rec: // block until success or timeout
+		}
 	}
 }
 
@@ -214,6 +240,28 @@ func (logr *Logr) panic(err interface{}) {
 	panic(err)
 }
 
+// Flush blocks while flushing the logr queue and all target queues, by
+// writing existing log records to valid targets.
+// Any attempts to add new log records will block until flush is complete.
+// TODO: timeout
+func (logr *Logr) Flush() error {
+	logr.mux.Lock()
+	defer logr.mux.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), logr.flushTimeout())
+	defer cancel()
+
+	rec := newFlushLogRec(logr.NewLogger())
+	logr.enqueue(rec)
+
+	select {
+	case <-ctx.Done():
+		return errors.New("logr queue shutdown timeout")
+	case <-rec.flush:
+	}
+	return nil
+}
+
 // Shutdown cleanly stops the logging engine after making best efforts
 // to flush all targets. Call this function right before application
 // exit - logr cannot be restarted once shut down.
@@ -226,20 +274,27 @@ func (logr *Logr) Shutdown() error {
 	logr.resetLevelCache()
 	logr.mux.Unlock()
 
+	errs := merror.New()
+
+	ctx, cancel := context.WithTimeout(context.Background(), logr.shutdownTimeout())
+	defer cancel()
+
 	// close the incoming channel and wait for read loop to exit.
 	close(logr.in)
 	select {
-	case <-time.After(time.Second * 10):
+	case <-ctx.Done():
+		errs.Append(errors.New("logr queue shutdown timeout"))
 	case <-logr.done:
 	}
 
 	// logr.in channel should now be drained to targets and no more log records
 	// can be added.
-	logr.mux.Lock()
-	defer logr.mux.Unlock()
-	errs := merror.New()
-	for _, t := range logr.targets {
-		err := t.Shutdown()
+	logr.tmux.RLock()
+	tarr := make([]Target, len(logr.targets))
+	copy(tarr, logr.targets)
+	logr.tmux.RUnlock()
+	for _, t := range tarr {
+		err := t.Shutdown(ctx)
 		if err != nil {
 			errs.Append(err)
 		}
@@ -258,6 +313,32 @@ func (logr *Logr) ReportError(err interface{}) {
 	logr.OnLoggerError(fmt.Errorf("%v", err))
 }
 
+// enqueueTimeout returns amount of time a log record can take to be queued.
+// This only applies to blocking enqueue which happen after `logr.OnQueueFull` is called
+// and returns false.
+func (logr *Logr) enqueueTimeout() time.Duration {
+	if logr.EnqueueTimeout == 0 {
+		return DefaultEnqueueTimeout
+	}
+	return logr.EnqueueTimeout
+}
+
+// shutdownTimeout returns the timeout duration for `logr.Shutdown`.
+func (logr *Logr) shutdownTimeout() time.Duration {
+	if logr.ShutdownTimeout == 0 {
+		return DefaultShutdownTimeout
+	}
+	return logr.ShutdownTimeout
+}
+
+// flushTimeout returns the timeout duration for `logr.Flush`.
+func (logr *Logr) flushTimeout() time.Duration {
+	if logr.FlushTimeout == 0 {
+		return DefaultFlushTimeout
+	}
+	return logr.FlushTimeout
+}
+
 // start selects on incoming log records until done channel signals.
 // Incoming log records are fanned out to all log targets.
 func (logr *Logr) start() {
@@ -274,8 +355,12 @@ func (logr *Logr) start() {
 		select {
 		case rec, more = <-logr.in:
 			if more {
-				rec.prep()
-				logr.fanout(rec)
+				if rec.flush != nil {
+					logr.flush(rec.flush)
+				} else {
+					rec.prep()
+					logr.fanout(rec)
+				}
 			} else {
 				close(logr.done)
 				return
@@ -293,11 +378,47 @@ func (logr *Logr) fanout(rec *LogRec) {
 		}
 	}()
 
-	logr.mux.RLock()
-	defer logr.mux.RUnlock()
-	for _, target = range logr.targets {
+	logr.tmux.RLock()
+	tarr := make([]Target, len(logr.targets))
+	copy(tarr, logr.targets)
+	logr.tmux.RUnlock()
+
+	for _, target = range tarr {
 		if enabled, _ := target.IsLevelEnabled(rec.Level()); enabled {
 			target.Log(rec)
 		}
 	}
+}
+
+// flush drains the queue and notifies when done.
+func (logr *Logr) flush(done chan<- struct{}) {
+	// first drain the logr queue.
+loop:
+	for {
+		var rec *LogRec
+		select {
+		case rec = <-logr.in:
+			if rec.flush == nil {
+				rec.prep()
+				logr.fanout(rec)
+			}
+		default:
+			break loop
+		}
+	}
+
+	logger := logr.NewLogger()
+
+	// drain all the targets; block until finished.
+	logr.tmux.RLock()
+	tarr := make([]Target, len(logr.targets))
+	copy(tarr, logr.targets)
+	logr.tmux.RUnlock()
+
+	for _, target := range tarr {
+		rec := newFlushLogRec(logger)
+		target.Log(rec)
+		<-rec.flush
+	}
+	done <- struct{}{}
 }

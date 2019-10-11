@@ -67,7 +67,7 @@ type stacktraceRec struct {
 func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	timestampFmt := j.TimestampFormat
 	if timestampFmt == "" {
-		timestampFmt = DefTimestampFormat
+		timestampFmt = logr.DefTimestampFormat
 	}
 
 	data := make(map[string]interface{}, 7)

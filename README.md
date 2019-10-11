@@ -115,11 +115,11 @@ You can use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) vi
 
 You can create your own target by implementing the [Target](./target.go) interface.
 
-An easier method is to use the [Basic](./target/basic.go) target and build your functionality on that. Basic handles all the queuing and other plumbing so you only need to implement two methods. Example target that outputs to `io.Writer`:
+An easier method is to use the [logr.Basic](./target.go) type target and build your functionality on that. Basic handles all the queuing and other plumbing so you only need to implement two methods. Example target that outputs to `io.Writer`:
 
 ```go
 type Writer struct {
-  Basic
+  logr.Basic
   out io.Writer
 }
 

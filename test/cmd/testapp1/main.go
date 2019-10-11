@@ -6,6 +6,7 @@ import (
 	"log/syslog"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
@@ -28,23 +29,25 @@ var lgr = &logr.Logr{
 }
 
 var (
+	errorCount           uint32
 	queueFullCount       uint32
 	targetQueueFullCount uint32
 )
 
 func handleLoggerError(err error) {
-	panic(err)
+	atomic.AddUint32(&errorCount, 1)
+	fmt.Fprintln(os.Stderr, "!!!!! OnLoggerError -- ", err)
 }
 
 func handleQueueFull(rec *logr.LogRec, maxQueueSize int) bool {
-	fmt.Fprintf(os.Stderr, "!!!!! Logr queue full. Max size %d. Count %d. Blocking...\n",
+	fmt.Fprintf(os.Stderr, "!!!!! OnQueueFull - Max size %d. Count %d. Blocking...\n",
 		maxQueueSize, atomic.AddUint32(&queueFullCount, 1))
 	return false
 }
 
 func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize int) bool {
-	fmt.Fprintf(os.Stderr, "!!!!! Target queue full. Max size %d. Count %d. Blocking...\n",
-		maxQueueSize, atomic.AddUint32(&targetQueueFullCount, 1))
+	fmt.Fprintf(os.Stderr, "!!!!! OnTargetQueueFull - (%v). Max size %d. Count %d. Blocking...\n",
+		target, maxQueueSize, atomic.AddUint32(&targetQueueFullCount, 1))
 	return false
 }
 
@@ -60,14 +63,49 @@ func main() {
 	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
 	lgr.AddTarget(t)
 
-	// create syslog target to local
-	filter = &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
+	// create syslog target to local using custom filter.
+	lvl := logr.CustomLevel{FID: 77, Name: "Summary", Stacktrace: false}
+	fltr := &logr.CustomFilter{}
+	fltr.Add(lvl)
 	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
-	t, err := target.NewSyslogTarget(filter, formatter, params, 1000)
+	t, err := target.NewSyslogTarget(fltr, formatter, params, 1000)
 	if err != nil {
 		panic(err)
 	}
 	lgr.AddTarget(t)
 
-	test.DoSomeLogging(lgr, GOROUTINES, LOOPS, "Good", "XXX!!XXX")
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: GOROUTINES,
+		Loops:      LOOPS,
+		GoodToken:  "Woot!",
+		BadToken:   "XXX!!XXX",
+		Lvl:        logr.Error,
+		Delay:      time.Millisecond * 1,
+	}
+	logged, filtered := test.DoSomeLogging(cfg)
+
+	err = lgr.Flush()
+	if err != nil {
+		panic(err)
+	}
+
+	logged2, filtered2 := test.DoSomeLogging(cfg)
+
+	lgr.NewLogger().Logf(lvl, "Logr test completed. errors=%d, queueFull=%d, targetFull=%d",
+		atomic.LoadUint32(&errorCount),
+		atomic.LoadUint32(&queueFullCount),
+		atomic.LoadUint32(&targetQueueFullCount))
+
+	err = lgr.Shutdown()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Fprintf(os.Stderr, "Exiting normally. logged=%d, filtered=%d, errors=%d, queueFull=%d, targetFull=%d\n",
+		logged+logged2,
+		filtered+filtered2,
+		atomic.LoadUint32(&errorCount),
+		atomic.LoadUint32(&queueFullCount),
+		atomic.LoadUint32(&targetQueueFullCount))
 }

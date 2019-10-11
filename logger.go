@@ -46,7 +46,7 @@ func (logger *Logger) Log(lvl Level, args ...interface{}) {
 	status := logger.logr.IsLevelEnabled(lvl)
 	if status.Enabled {
 		rec := NewLogRec(lvl, logger, "", args, status.Stacktrace)
-		logger.logr.Enqueue(rec)
+		logger.logr.enqueue(rec)
 	}
 }
 
@@ -105,7 +105,7 @@ func (logger *Logger) Logf(lvl Level, format string, args ...interface{}) {
 	status := logger.logr.IsLevelEnabled(lvl)
 	if status.Enabled {
 		rec := NewLogRec(lvl, logger, format, args, status.Stacktrace)
-		logger.logr.Enqueue(rec)
+		logger.logr.enqueue(rec)
 	}
 }
 
@@ -164,7 +164,7 @@ func (logger *Logger) Logln(lvl Level, args ...interface{}) {
 	if status.Enabled {
 		rec := NewLogRec(lvl, logger, "", args, status.Stacktrace)
 		rec.newline = true
-		logger.logr.Enqueue(rec)
+		logger.logr.enqueue(rec)
 	}
 }
 

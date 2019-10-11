@@ -7,6 +7,7 @@ import (
 	"log/syslog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/wiggin77/logr"
 	"github.com/wiggin77/logr/format"
@@ -58,5 +59,18 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	}
 	lgr.AddTarget(target)
 
-	test.DoSomeLogging(lgr, 3, 5, "Good", "XXX!!XXX")
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: 3,
+		Loops:      5,
+		GoodToken:  "Woot!",
+		BadToken:   "XXX!!XXX",
+		Lvl:        logr.Warn,
+		Delay:      time.Millisecond * 1,
+	}
+	test.DoSomeLogging(cfg)
+	err = lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
+	}
 }

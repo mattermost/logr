@@ -3,6 +3,7 @@
 package target
 
 import (
+	"context"
 	"fmt"
 	"log/syslog"
 
@@ -12,7 +13,7 @@ import (
 
 // Syslog outputs log records to local or remote syslog.
 type Syslog struct {
-	Basic
+	logr.Basic
 	w *syslog.Writer
 }
 
@@ -39,10 +40,10 @@ func NewSyslogTarget(filter logr.Filter, formatter logr.Formatter, params *Syslo
 
 // Shutdown stops processing log records after making best
 // effort to flush queue.
-func (s *Syslog) Shutdown() error {
+func (s *Syslog) Shutdown(ctx context.Context) error {
 	errs := merror.New()
 
-	err := s.Basic.Shutdown()
+	err := s.Basic.Shutdown(ctx)
 	errs.Append(err)
 
 	err = s.w.Close()
@@ -55,7 +56,7 @@ func (s *Syslog) Shutdown() error {
 // and outputs to syslog.
 func (s *Syslog) Write(rec *logr.LogRec) error {
 	_, stacktrace := s.IsLevelEnabled(rec.Level())
-	data, err := s.formatter.Format(rec, stacktrace)
+	data, err := s.Formatter().Format(rec, stacktrace)
 	if err != nil {
 		return err
 	}
