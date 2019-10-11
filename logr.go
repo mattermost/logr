@@ -150,10 +150,8 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 
 	// Check each target.
 	logr.tmux.RLock()
-	tarr := make([]Target, len(logr.targets))
-	copy(tarr, logr.targets)
-	logr.tmux.RUnlock()
-	for _, t := range tarr {
+	defer logr.tmux.RUnlock()
+	for _, t := range logr.targets {
 		e, s := t.IsLevelEnabled(lvl)
 		if e {
 			status.Enabled = true
@@ -290,10 +288,8 @@ func (logr *Logr) Shutdown() error {
 	// logr.in channel should now be drained to targets and no more log records
 	// can be added.
 	logr.tmux.RLock()
-	tarr := make([]Target, len(logr.targets))
-	copy(tarr, logr.targets)
-	logr.tmux.RUnlock()
-	for _, t := range tarr {
+	defer logr.tmux.RUnlock()
+	for _, t := range logr.targets {
 		err := t.Shutdown(ctx)
 		if err != nil {
 			errs.Append(err)
@@ -379,11 +375,8 @@ func (logr *Logr) fanout(rec *LogRec) {
 	}()
 
 	logr.tmux.RLock()
-	tarr := make([]Target, len(logr.targets))
-	copy(tarr, logr.targets)
-	logr.tmux.RUnlock()
-
-	for _, target = range tarr {
+	defer logr.tmux.RUnlock()
+	for _, target = range logr.targets {
 		if enabled, _ := target.IsLevelEnabled(rec.Level()); enabled {
 			target.Log(rec)
 		}
@@ -411,11 +404,8 @@ loop:
 
 	// drain all the targets; block until finished.
 	logr.tmux.RLock()
-	tarr := make([]Target, len(logr.targets))
-	copy(tarr, logr.targets)
-	logr.tmux.RUnlock()
-
-	for _, target := range tarr {
+	defer logr.tmux.RUnlock()
+	for _, target := range logr.targets {
 		rec := newFlushLogRec(logger)
 		target.Log(rec)
 		<-rec.flush
