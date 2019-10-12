@@ -88,7 +88,12 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		} else {
 			m := prefixCollisions(data, rec.Fields())
 			for k, v := range m {
-				data[k] = v
+				switch v := v.(type) {
+				case error:
+					data[k] = v.Error()
+				default:
+					data[k] = v
+				}
 			}
 		}
 	}

@@ -62,10 +62,43 @@ func WriteFields(w io.Writer, flds Fields, separator string) {
 	}
 	sort.Strings(keys)
 	sep := ""
-	for _, k := range keys {
-		fmt.Fprintf(w, "%s%s=%v", sep, k, flds[k])
+	for _, key := range keys {
+		writeField(w, key, flds[key], sep)
 		sep = separator
 	}
+}
+
+func writeField(w io.Writer, key string, val interface{}, sep string) {
+	template := "%s%s=%v"
+	switch v := val.(type) {
+	case error:
+		val := v.Error()
+		if shouldQuote(val) {
+			template = "%s%s=%q"
+		} else {
+			template = "%s%s=%s"
+		}
+	case string:
+		if shouldQuote(v) {
+			template = "%s%s=%q"
+		} else {
+			template = "%s%s=%s"
+		}
+	}
+	fmt.Fprintf(w, template, sep, key, val)
+}
+
+// shouldQuote returns true if val contains any characters that might be unsafe
+// when injecting log output into an aggregator, viewer or report.
+func shouldQuote(val string) bool {
+	for _, c := range val {
+		if !((c >= '0' && c <= '9') ||
+			(c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z')) {
+			return true
+		}
+	}
+	return false
 }
 
 // WriteStacktrace formats and outputs a stack trace to an io.Writer.
