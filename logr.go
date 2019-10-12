@@ -12,13 +12,6 @@ import (
 	"github.com/wiggin77/merror"
 )
 
-// LevelStatus represents whether a level is enabled and
-// requires a stack trace.
-type LevelStatus struct {
-	Enabled    bool
-	Stacktrace bool
-}
-
 // Logr maintains a list of log targets and accepts incoming
 // log records.
 type Logr struct {
@@ -31,7 +24,7 @@ type Logr struct {
 	done               chan struct{}
 	once               sync.Once
 	shutdown           bool
-	levelCache         sync.Map
+	lvlCache           levelCache
 
 	// MaxQueueSize is the maximum number of log records that can be queued.
 	// If exceeded, `OnQueueFull` is called which determines if the log
@@ -83,6 +76,10 @@ type Logr struct {
 	// FlushTimeout is the amount of time `logr.Flush` can execute before
 	// timing out.
 	FlushTimeout time.Duration
+
+	// UseSyncMapLevelCache should be set to true before the first target is added
+	// when high concurrency (e.g. >32 cores) is expected.
+	UseSyncMapLevelCache bool
 }
 
 // Configure adds/removes targets via the supplied `Config`.
@@ -115,6 +112,11 @@ func (logr *Logr) AddTarget(target Target) error {
 		}
 		logr.in = make(chan *LogRec, logr.maxQueueSizeActual)
 		logr.done = make(chan struct{})
+		if logr.UseSyncMapLevelCache {
+			logr.lvlCache = &syncMapLevelCache{}
+		} else {
+			logr.lvlCache = &mapLevelCache{}
+		}
 		go logr.start()
 	})
 	logr.resetLevelCache()
@@ -133,15 +135,15 @@ func (logr *Logr) NewLogger() *Logger {
 // level enabled. The result is cached so that subsequent checks are fast.
 func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	// Check cache.
-	lce, ok := logr.levelCache.Load(lvl)
+	status, ok := logr.lvlCache.get(lvl.ID())
 	if ok {
-		return lce.(LevelStatus)
+		return status
 	}
 
 	logr.mux.RLock()
 	defer logr.mux.RUnlock()
 
-	status := LevelStatus{}
+	status = LevelStatus{}
 
 	// Don't accept new log records after shutdown.
 	if logr.shutdown {
@@ -163,7 +165,7 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	}
 
 	// Cache and return the result.
-	logr.levelCache.Store(lvl, status)
+	logr.lvlCache.put(lvl.ID(), status)
 	return status
 }
 
@@ -180,10 +182,7 @@ func (logr *Logr) ResetLevelCache() {
 // resetLevelCache empties the level cache without locking.
 // mux.Lock must be held before calling this function.
 func (logr *Logr) resetLevelCache() {
-	logr.levelCache.Range(func(key interface{}, value interface{}) bool {
-		logr.levelCache.Delete(key)
-		return true
-	})
+	logr.lvlCache.clear()
 }
 
 // enqueue adds a log record to the logr queue. If the queue is full then

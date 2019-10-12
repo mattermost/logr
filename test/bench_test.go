@@ -18,7 +18,7 @@ var Stacktrace bool
 // BenchmarkFilterOut benchmarks `logr.IsLevelEnabled` with empty level cache.
 func BenchmarkFilterOut(b *testing.B) {
 	lgr := &logr.Logr{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
@@ -44,7 +44,7 @@ func BenchmarkFilterOut(b *testing.B) {
 // This is how long you can expect logging to tie up the calling thread.
 func BenchmarkLog(b *testing.B) {
 	lgr := &logr.Logr{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
@@ -70,7 +70,7 @@ func BenchmarkLog(b *testing.B) {
 // This is how long you can expect logging to tie up the calling thread.
 func BenchmarkLogFiltered(b *testing.B) {
 	lgr := &logr.Logr{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Fatal}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
@@ -98,7 +98,7 @@ func BenchmarkLogFiltered(b *testing.B) {
 // trace is generated.
 func BenchmarkLogStacktrace(b *testing.B) {
 	lgr := &logr.Logr{}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
