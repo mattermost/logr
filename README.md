@@ -3,7 +3,7 @@
 [![GoDoc](https://godoc.org/github.com/wiggin77/logr?status.svg)](http://godoc.org/github.com/wiggin77/logr)
 [![Build Status](https://api.travis-ci.com/wiggin77/logr.svg?branch=master)](https://travis-ci.com/wiggin77/logr)
 
-Logr is a fully asynchronous, structured logger for Go.
+Logr is a fully asynchronous, contextual logger for Go.
 
 It is very much inspired by [Logrus](https://github.com/sirupsen/logrus) but addresses two issues:
 
