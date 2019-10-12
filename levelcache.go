@@ -10,8 +10,8 @@ type LevelStatus struct {
 }
 
 type levelCache interface {
-	get(id int) (LevelStatus, bool)
-	put(id int, status LevelStatus)
+	get(id LevelID) (LevelStatus, bool)
+	put(id LevelID, status LevelStatus)
 	clear()
 }
 
@@ -21,12 +21,12 @@ type syncMapLevelCache struct {
 	m sync.Map
 }
 
-func (c *syncMapLevelCache) get(id int) (LevelStatus, bool) {
+func (c *syncMapLevelCache) get(id LevelID) (LevelStatus, bool) {
 	status, ok := c.m.Load(id)
 	return status.(LevelStatus), ok
 }
 
-func (c *syncMapLevelCache) put(id int, status LevelStatus) {
+func (c *syncMapLevelCache) put(id LevelID, status LevelStatus) {
 	c.m.Store(id, status)
 }
 
@@ -39,18 +39,18 @@ func (c *syncMapLevelCache) clear() {
 
 // mapLevelCache uses map and a mutex.
 type mapLevelCache struct {
-	m   map[int]LevelStatus
+	m   map[LevelID]LevelStatus
 	mux sync.RWMutex
 }
 
-func (c *mapLevelCache) get(id int) (LevelStatus, bool) {
+func (c *mapLevelCache) get(id LevelID) (LevelStatus, bool) {
 	c.mux.RLock()
 	status, ok := c.m[id]
 	c.mux.RUnlock()
 	return status, ok
 }
 
-func (c *mapLevelCache) put(id int, status LevelStatus) {
+func (c *mapLevelCache) put(id LevelID, status LevelStatus) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -62,5 +62,5 @@ func (c *mapLevelCache) clear() {
 	defer c.mux.Unlock()
 
 	size := len(c.m)
-	c.m = make(map[int]LevelStatus, size)
+	c.m = make(map[LevelID]LevelStatus, size)
 }

@@ -2,12 +2,12 @@ package logr
 
 // StdLevel represents the classic log levels provided by Stdlib, Logrus and others.
 type StdLevel struct {
-	id   int
+	id   LevelID
 	name string
 }
 
 // ID returns the unique id of this Level.
-func (level StdLevel) ID() int {
+func (level StdLevel) ID() LevelID {
 	return level.id
 }
 
