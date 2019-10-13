@@ -1,6 +1,9 @@
 package logr
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // LevelStatus represents whether a level is enabled and
 // requires a stack trace.
@@ -10,8 +13,9 @@ type LevelStatus struct {
 }
 
 type levelCache interface {
-	get(id LevelID) (LevelStatus, bool)
-	put(id LevelID, status LevelStatus)
+	setup()
+	get(id LevelID) (*LevelStatus, bool)
+	put(id LevelID, status *LevelStatus)
 	clear()
 }
 
@@ -21,36 +25,45 @@ type syncMapLevelCache struct {
 	m sync.Map
 }
 
-func (c *syncMapLevelCache) get(id LevelID) (LevelStatus, bool) {
-	status, ok := c.m.Load(id)
-	return status.(LevelStatus), ok
+func (c *syncMapLevelCache) setup() {
+	c.clear()
 }
 
-func (c *syncMapLevelCache) put(id LevelID, status LevelStatus) {
+func (c *syncMapLevelCache) get(id LevelID) (*LevelStatus, bool) {
+	s, _ := c.m.Load(id)
+	status := s.(*LevelStatus)
+	return status, status != &dummy
+}
+
+func (c *syncMapLevelCache) put(id LevelID, status *LevelStatus) {
 	c.m.Store(id, status)
 }
 
 func (c *syncMapLevelCache) clear() {
-	c.m.Range(func(key interface{}, value interface{}) bool {
-		c.m.Delete(key)
-		return true
-	})
+	var i LevelID
+	for i = 0; i < 255; i++ {
+		c.m.Store(i, &dummy)
+	}
 }
 
-// mapLevelCache uses map and a mutex.
+// mapLevelCache using map and a mutex.
 type mapLevelCache struct {
-	m   map[LevelID]LevelStatus
+	m   map[LevelID]*LevelStatus
 	mux sync.RWMutex
 }
 
-func (c *mapLevelCache) get(id LevelID) (LevelStatus, bool) {
+func (c *mapLevelCache) setup() {
+	c.m = make(map[LevelID]*LevelStatus)
+}
+
+func (c *mapLevelCache) get(id LevelID) (*LevelStatus, bool) {
 	c.mux.RLock()
 	status, ok := c.m[id]
 	c.mux.RUnlock()
 	return status, ok
 }
 
-func (c *mapLevelCache) put(id LevelID, status LevelStatus) {
+func (c *mapLevelCache) put(id LevelID, status *LevelStatus) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -62,5 +75,78 @@ func (c *mapLevelCache) clear() {
 	defer c.mux.Unlock()
 
 	size := len(c.m)
-	c.m = make(map[LevelID]LevelStatus, size)
+	c.m = make(map[LevelID]*LevelStatus, size)
+}
+
+// arrayLevelCache using array and a mutex.
+type arrayLevelCache struct {
+	arr [256]*LevelStatus
+	mux sync.RWMutex
+}
+
+func (c *arrayLevelCache) setup() {
+	c.clear()
+}
+
+var dummy = LevelStatus{}
+
+func (c *arrayLevelCache) get(id LevelID) (*LevelStatus, bool) {
+	c.mux.RLock()
+	status := c.arr[id]
+	ok := status != &dummy
+	c.mux.RUnlock()
+	return status, ok
+}
+
+func (c *arrayLevelCache) put(id LevelID, status *LevelStatus) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	c.arr[id] = status
+}
+
+func (c *arrayLevelCache) clear() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	for i := range c.arr {
+		c.arr[i] = &dummy
+	}
+}
+
+// cowLevelCache using atomic value and map
+type cowLevelCache struct {
+	m   atomic.Value
+	mux sync.Mutex
+}
+
+func (c *cowLevelCache) setup() {
+	c.m.Store(make(map[LevelID]*LevelStatus))
+}
+
+func (c *cowLevelCache) get(id LevelID) (*LevelStatus, bool) {
+	m1 := c.m.Load().(map[LevelID]*LevelStatus)
+	status, ok := m1[id]
+	return status, ok
+}
+
+func (c *cowLevelCache) put(id LevelID, status *LevelStatus) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	m1 := c.m.Load().(map[LevelID]*LevelStatus)
+	m2 := make(map[LevelID]*LevelStatus, len(m1))
+	for k, v := range m1 {
+		m2[k] = v
+	}
+	m2[id] = status
+	c.m.Store(m2)
+}
+
+func (c *cowLevelCache) clear() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	m1 := make(map[LevelID]*LevelStatus)
+	c.m.Store(m1)
 }
