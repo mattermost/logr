@@ -45,7 +45,10 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	}
 
 	if !p.DisableTimestamp {
-		fmt.Fprintf(sb, "%s%s", rec.Time().Format(timestampFmt), delim)
+		var arr [128]byte
+		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
+		sb.Write(tbuf)
+		sb.WriteString(delim)
 	}
 	if !p.DisableLevel {
 		fmt.Fprintf(sb, "%v%s", rec.Level(), delim)

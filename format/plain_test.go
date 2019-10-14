@@ -1,6 +1,7 @@
 package format_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wiggin77/logr"
@@ -12,8 +13,8 @@ import (
 func TestPlain(t *testing.T) {
 	lgr := &logr.Logr{}
 	buf := &test.Buffer{}
-	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	formatter := &format.Plain{DisableTimestamp: true, DisableStacktrace: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
+	formatter := &format.Plain{DisableStacktrace: true, Delim: " | "}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
 	lgr.AddTarget(target)
 
@@ -25,9 +26,11 @@ func TestPlain(t *testing.T) {
 	got := buf.String()
 	want := "error | This is an error. | name=wiggin\n"
 
-	if got != want {
-		t.Errorf("expected: \"%s\";  got:\"%s\"", got, want)
+	if !strings.Contains(got, want) {
+		t.Errorf("expected: \"%s\";  got:\"%s\"", want, got)
 	}
+
+	t.Log(got)
 
 	err := lgr.Shutdown()
 	if err != nil {
