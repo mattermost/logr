@@ -42,7 +42,7 @@ func DoSomeLogging(cfg DoSomeLoggingCfg) (logged int32, filtered int32) {
 		logger := cfg.Lgr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
 
 		for i := 1; i <= loops; i++ {
-			if cfg.Lvl.ID() < logr.Trace.ID() {
+			if cfg.Lvl.ID < logr.Trace.ID {
 				atomic.AddInt32(&filterCount, 1)
 				logger.Log(logr.Trace, "This should not be output. ", cfg.BadToken)
 			}

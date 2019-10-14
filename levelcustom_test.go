@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	LoginLevel  = logr.CustomLevel{FID: 100, Name: "login ", Stacktrace: false}
-	LogoutLevel = logr.CustomLevel{FID: 101, Name: "logout", Stacktrace: false}
+	LoginLevel  = logr.Level{ID: 100, Name: "login ", Stacktrace: false}
+	LogoutLevel = logr.Level{ID: 101, Name: "logout", Stacktrace: false}
 )
 
 func TestCustomLevel(t *testing.T) {

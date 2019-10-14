@@ -2,6 +2,7 @@ package target
 
 import (
 	"io"
+	"io/ioutil"
 
 	"github.com/wiggin77/logr"
 )
@@ -14,6 +15,9 @@ type Writer struct {
 
 // NewWriterTarget creates a target capable of outputting log records to an io.Writer.
 func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, maxQueue int) *Writer {
+	if out == nil {
+		out = ioutil.Discard
+	}
 	w := &Writer{out: out}
 	w.Basic.Start(w, w, filter, formatter, maxQueue)
 	return w

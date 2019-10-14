@@ -83,12 +83,12 @@ Logr supports the traditional seven log levels via `logr.StdFilter`: Panic, Fata
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 ```
 
-Logr also supports custom filters (logr.CustomLevel) which allow fine grained inclusion of log items without turning on the fire-hose.
+Logr also supports custom filters (logr.CustomFilter) which allow fine grained inclusion of log items without turning on the fire-hose.
 
 ```go
   // create custom levels; use IDs > 10.
-  LoginLevel := logr.CustomLevel{FID: 100, Name: "login ", Stacktrace: false}
-  LogoutLevel := logr.CustomLevel{FID: 101, Name: "logout", Stacktrace: false}
+  LoginLevel := logr.Level{FID: 100, Name: "login ", Stacktrace: false}
+  LogoutLevel := logr.Level{FID: 101, Name: "logout", Stacktrace: false}
 
   lgr := &logr.Logr{}
 

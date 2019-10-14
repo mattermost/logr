@@ -51,7 +51,7 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		sb.WriteString(delim)
 	}
 	if !p.DisableLevel {
-		fmt.Fprintf(sb, "%v%s", rec.Level(), delim)
+		fmt.Fprintf(sb, "%v%s", rec.Level().Name, delim)
 	}
 	if !p.DisableMsg {
 		fmt.Fprint(sb, rec.Msg(), delim)

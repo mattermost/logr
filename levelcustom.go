@@ -4,24 +4,6 @@ import (
 	"sync"
 )
 
-// CustomLevel can be used as part of a list of Levels where
-// any levels in the list are enabled.
-type CustomLevel struct {
-	FID        LevelID
-	Name       string
-	Stacktrace bool
-}
-
-// ID returns the unique id of this custom level.
-func (s CustomLevel) ID() LevelID {
-	return s.FID
-}
-
-// String returns a string representation of this custom level.
-func (s CustomLevel) String() string {
-	return s.Name
-}
-
 // CustomFilter allows targets to enable logging via a list of levels.
 type CustomFilter struct {
 	mux    sync.RWMutex
@@ -32,7 +14,7 @@ type CustomFilter struct {
 func (st *CustomFilter) IsEnabled(level Level) bool {
 	st.mux.RLock()
 	defer st.mux.RUnlock()
-	_, ok := st.levels[level.ID()]
+	_, ok := st.levels[level.ID]
 	return ok
 }
 
@@ -40,12 +22,9 @@ func (st *CustomFilter) IsEnabled(level Level) bool {
 func (st *CustomFilter) IsStacktraceEnabled(level Level) bool {
 	st.mux.RLock()
 	defer st.mux.RUnlock()
-	lvl, ok := st.levels[level.ID()]
+	lvl, ok := st.levels[level.ID]
 	if ok {
-		cl, ok := lvl.(CustomLevel)
-		if ok {
-			return cl.Stacktrace
-		}
+		return lvl.Stacktrace
 	}
 	return false
 }
@@ -61,6 +40,6 @@ func (st *CustomFilter) Add(levels ...Level) {
 	}
 
 	for _, s := range levels {
-		st.levels[s.ID()] = s
+		st.levels[s.ID] = s
 	}
 }

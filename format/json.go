@@ -77,7 +77,7 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		data[j.KeyTimestamp] = rec.Time().Format(timestampFmt)
 	}
 	if !j.DisableLevel {
-		data[j.KeyLevel] = rec.Level().String()
+		data[j.KeyLevel] = rec.Level().Name
 	}
 	if !j.DisableMsg {
 		data[j.KeyMsg] = rec.Msg()

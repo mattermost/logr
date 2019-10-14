@@ -136,7 +136,7 @@ func (logr *Logr) NewLogger() *Logger {
 // level enabled. The result is cached so that subsequent checks are fast.
 func (logr *Logr) IsLevelEnabled(lvl Level) *LevelStatus {
 	// Check cache.
-	status, ok := logr.lvlCache.get(lvl.ID())
+	status, ok := logr.lvlCache.get(lvl.ID)
 	if ok {
 		return status
 	}
@@ -166,7 +166,7 @@ func (logr *Logr) IsLevelEnabled(lvl Level) *LevelStatus {
 	}
 
 	// Cache and return the result.
-	logr.lvlCache.put(lvl.ID(), status)
+	logr.lvlCache.put(lvl.ID, status)
 	return status
 }
 

@@ -64,7 +64,7 @@ func main() {
 	lgr.AddTarget(t)
 
 	// create syslog target to local using custom filter.
-	lvl := logr.CustomLevel{FID: 77, Name: "Summary", Stacktrace: false}
+	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
 	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
