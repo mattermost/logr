@@ -87,8 +87,8 @@ Logr also supports custom filters (logr.CustomFilter) which allow fine grained i
 
 ```go
   // create custom levels; use IDs > 10.
-  LoginLevel := logr.Level{FID: 100, Name: "login ", Stacktrace: false}
-  LogoutLevel := logr.Level{FID: 101, Name: "logout", Stacktrace: false}
+  LoginLevel := logr.Level{ID: 100, Name: "login ", Stacktrace: false}
+  LogoutLevel := logr.Level{ID: 101, Name: "logout", Stacktrace: false}
 
   lgr := &logr.Logr{}
 
