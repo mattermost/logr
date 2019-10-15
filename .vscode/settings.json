@@ -1,6 +1,16 @@
 {
 	"cSpell.words": [
+		"debugf",
+		"debugln",
 		"delim",
-		"merror"
+		"errorln",
+		"infof",
+		"infoln",
+		"logln",
+		"merror",
+		"tracef",
+		"traceln",
+		"warnf",
+		"warnln"
 	]
 }

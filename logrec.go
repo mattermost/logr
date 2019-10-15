@@ -21,7 +21,7 @@ func init() {
 }
 
 // LogRec collects raw, unformatted data to be logged.
-// TODO:  pool these?  how to reliably know when targets are done with them?
+// TODO:  pool these?  how to reliably know when targets are done with them? Copy for each target?
 type LogRec struct {
 	mux  sync.RWMutex
 	time time.Time
