@@ -7,12 +7,10 @@ import (
 // Fields type, used to pass to `WithFields`.
 type Fields map[string]interface{}
 
-// Logger implements Logr APIs.
-// TODO expand docs for this key struct
+// Logger provides context for logging via fields.
 type Logger struct {
 	logr   *Logr
 	fields Fields
-	parent *Logger
 }
 
 // Logr returns the `Logr` instance that created this `Logger`.
@@ -29,7 +27,7 @@ func (logger *Logger) WithField(key string, value interface{}) *Logger {
 // WithFields creates a new `Logger` with any existing fields
 // plus the new ones.
 func (logger *Logger) WithFields(fields Fields) *Logger {
-	l := &Logger{logr: logger.logr, fields: Fields{}, parent: logger}
+	l := &Logger{logr: logger.logr, fields: make(Fields, len(fields)+len(logger.fields))}
 	for k, v := range logger.fields {
 		l.fields[k] = v
 	}
