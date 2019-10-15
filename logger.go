@@ -27,7 +27,15 @@ func (logger *Logger) WithField(key string, value interface{}) *Logger {
 // WithFields creates a new `Logger` with any existing fields
 // plus the new ones.
 func (logger *Logger) WithFields(fields Fields) *Logger {
-	l := &Logger{logr: logger.logr, fields: make(Fields, len(fields)+len(logger.fields))}
+	l := &Logger{logr: logger.logr}
+	// if parent has no fields then avoid creating a new map.
+	oldLen := len(logger.fields)
+	if oldLen == 0 {
+		l.fields = fields
+		return l
+	}
+
+	l.fields = make(Fields, len(fields)+oldLen)
 	for k, v := range logger.fields {
 		l.fields[k] = v
 	}
