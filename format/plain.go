@@ -1,8 +1,8 @@
 package format
 
 import (
+	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/wiggin77/logr"
 )
@@ -32,7 +32,7 @@ type Plain struct {
 
 // Format converts a log record to bytes.
 func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
-	sb := &strings.Builder{}
+	var buf bytes.Buffer
 
 	delim := p.Delim
 	if delim == "" {
@@ -47,28 +47,28 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	if !p.DisableTimestamp {
 		var arr [128]byte
 		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
-		sb.Write(tbuf)
-		sb.WriteString(delim)
+		buf.Write(tbuf)
+		buf.WriteString(delim)
 	}
 	if !p.DisableLevel {
-		fmt.Fprintf(sb, "%v%s", rec.Level().Name, delim)
+		fmt.Fprintf(&buf, "%v%s", rec.Level().Name, delim)
 	}
 	if !p.DisableMsg {
-		fmt.Fprint(sb, rec.Msg(), delim)
+		fmt.Fprint(&buf, rec.Msg(), delim)
 	}
 	if !p.DisableContext {
 		ctx := rec.Fields()
 		if len(ctx) > 0 {
-			logr.WriteFields(sb, ctx, " ")
+			logr.WriteFields(&buf, ctx, " ")
 		}
 	}
 	if stacktrace && !p.DisableStacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
-			sb.WriteString("\n")
-			logr.WriteStacktrace(sb, rec.StackFrames())
+			buf.WriteString("\n")
+			logr.WriteStacktrace(&buf, rec.StackFrames())
 		}
 	}
-	sb.WriteString("\n")
-	return []byte(sb.String()), nil
+	buf.WriteString("\n")
+	return buf.Bytes(), nil
 }

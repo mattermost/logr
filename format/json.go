@@ -74,7 +74,9 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	j.applyDefaultKeyNames()
 
 	if !j.DisableTimestamp {
-		data[j.KeyTimestamp] = rec.Time().Format(timestampFmt)
+		var arr [128]byte
+		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
+		data[j.KeyTimestamp] = string(tbuf)
 	}
 	if !j.DisableLevel {
 		data[j.KeyLevel] = rec.Level().Name
@@ -86,13 +88,16 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		if j.KeyContextFields != "" {
 			data[j.KeyContextFields] = rec.Fields()
 		} else {
-			m := prefixCollisions(data, rec.Fields())
-			for k, v := range m {
-				switch v := v.(type) {
-				case error:
-					data[k] = v.Error()
-				default:
-					data[k] = v
+			m := rec.Fields()
+			if len(m) > 0 {
+				m = prefixCollisions(data, m)
+				for k, v := range m {
+					switch v := v.(type) {
+					case error:
+						data[k] = v.Error()
+					default:
+						data[k] = v
+					}
 				}
 			}
 		}
@@ -142,6 +147,19 @@ func (j *JSON) applyDefaultKeyNames() {
 }
 
 func prefixCollisions(data map[string]interface{}, m map[string]interface{}) map[string]interface{} {
+	// first check if there are any collisions to avoid creating a new map. This will be the
+	// case most of the time.
+	var collision bool
+	for k := range m {
+		if _, ok := data[k]; ok {
+			collision = true
+			break
+		}
+	}
+	if !collision {
+		return m
+	}
+
 	out := make(map[string]interface{}, len(data)+len(m))
 	for k, v := range m {
 		if _, ok := data[k]; ok {
