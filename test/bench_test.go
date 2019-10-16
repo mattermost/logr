@@ -51,7 +51,7 @@ func BenchmarkLog(b *testing.B) {
 		lgr.AddTarget(target)
 	}
 
-	logger := lgr.NewLogger()
+	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
 	logger.Errorln("log entry cache primer")
 
 	b.ResetTimer()
@@ -112,6 +112,30 @@ func BenchmarkLogStacktrace(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		logger.Errorf("log entry with stack trace %d", b.N)
 	}
+	b.StopTimer()
+	err := lgr.Shutdown()
+	if err != nil {
+		b.Error(err)
+	}
+}
+
+// BenchmarkLogger measures creating Loggers with context.
+func BenchmarkLogger(b *testing.B) {
+	lgr := &logr.Logr{}
+	for i := 0; i < 5; i++ {
+		filter := &logr.StdFilter{Lvl: logr.Warn}
+		formatter := &format.Plain{Delim: " | "}
+		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+		lgr.AddTarget(target)
+	}
+
+	b.ResetTimer()
+
+	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
+	for i := 0; i < b.N; i++ {
+		logger.Errorf("log entry %d", b.N)
+	}
+
 	b.StopTimer()
 	err := lgr.Shutdown()
 	if err != nil {

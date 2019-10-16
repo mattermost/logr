@@ -127,8 +127,8 @@ func (logr *Logr) AddTarget(target Target) error {
 // NewLogger creates a Logger using defaults. A `Logger` is light-weight
 // enough to create on-demand, but typically one or more Loggers are
 // created and re-used.
-func (logr *Logr) NewLogger() *Logger {
-	logger := &Logger{logr: logr}
+func (logr *Logr) NewLogger() Logger {
+	logger := Logger{logr: logr}
 	return logger
 }
 

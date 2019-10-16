@@ -59,7 +59,7 @@ func main() {
 	formatter := &format.Plain{Delim: " | "}
 	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, QSIZE)
 	lgr.AddTarget(t)
-	logger := lgr.NewLogger()
+	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
 
 	var file *os.File
 	var err error

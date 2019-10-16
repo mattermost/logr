@@ -27,7 +27,7 @@ type LogRec struct {
 	time time.Time
 
 	level  Level
-	logger *Logger
+	logger Logger
 
 	template string
 	newline  bool
@@ -45,7 +45,7 @@ type LogRec struct {
 }
 
 // NewLogRec creates a new LogRec with the current time and optional stack trace.
-func NewLogRec(lvl Level, logger *Logger, template string, args []interface{}, incStacktrace bool) *LogRec {
+func NewLogRec(lvl Level, logger Logger, template string, args []interface{}, incStacktrace bool) *LogRec {
 	rec := &LogRec{time: time.Now(), logger: logger, level: lvl, template: template, args: args}
 	if incStacktrace {
 		rec.stackPC = make([]uintptr, DefaultMaxStackFrames)
@@ -56,7 +56,7 @@ func NewLogRec(lvl Level, logger *Logger, template string, args []interface{}, i
 
 // newFlushLogRec creates a LogRec that flushes the Logr queue and
 // any target queues that support flushing.
-func newFlushLogRec(logger *Logger) *LogRec {
+func newFlushLogRec(logger Logger) *LogRec {
 	return &LogRec{logger: logger, flush: make(chan struct{})}
 }
 
@@ -123,7 +123,7 @@ func (rec *LogRec) WithTime(time time.Time) *LogRec {
 }
 
 // Logger returns the `Logger` that created this `LogRec`.
-func (rec *LogRec) Logger() *Logger {
+func (rec *LogRec) Logger() Logger {
 	return rec.logger
 }
 
