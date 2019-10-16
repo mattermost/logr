@@ -10,12 +10,13 @@ import (
 type LevelStatus struct {
 	Enabled    bool
 	Stacktrace bool
+	empty      bool
 }
 
 type levelCache interface {
 	setup()
-	get(id LevelID) (*LevelStatus, bool)
-	put(id LevelID, status *LevelStatus)
+	get(id LevelID) (LevelStatus, bool)
+	put(id LevelID, status LevelStatus)
 	clear()
 }
 
@@ -29,41 +30,41 @@ func (c *syncMapLevelCache) setup() {
 	c.clear()
 }
 
-func (c *syncMapLevelCache) get(id LevelID) (*LevelStatus, bool) {
+func (c *syncMapLevelCache) get(id LevelID) (LevelStatus, bool) {
 	s, _ := c.m.Load(id)
-	status := s.(*LevelStatus)
-	return status, status != &dummy
+	status := s.(LevelStatus)
+	return status, !status.empty
 }
 
-func (c *syncMapLevelCache) put(id LevelID, status *LevelStatus) {
+func (c *syncMapLevelCache) put(id LevelID, status LevelStatus) {
 	c.m.Store(id, status)
 }
 
 func (c *syncMapLevelCache) clear() {
 	var i LevelID
 	for i = 0; i < 255; i++ {
-		c.m.Store(i, &dummy)
+		c.m.Store(i, LevelStatus{empty: true})
 	}
 }
 
 // mapLevelCache using map and a mutex.
 type mapLevelCache struct {
-	m   map[LevelID]*LevelStatus
+	m   map[LevelID]LevelStatus
 	mux sync.RWMutex
 }
 
 func (c *mapLevelCache) setup() {
-	c.m = make(map[LevelID]*LevelStatus)
+	c.m = make(map[LevelID]LevelStatus)
 }
 
-func (c *mapLevelCache) get(id LevelID) (*LevelStatus, bool) {
+func (c *mapLevelCache) get(id LevelID) (LevelStatus, bool) {
 	c.mux.RLock()
 	status, ok := c.m[id]
 	c.mux.RUnlock()
 	return status, ok
 }
 
-func (c *mapLevelCache) put(id LevelID, status *LevelStatus) {
+func (c *mapLevelCache) put(id LevelID, status LevelStatus) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -75,12 +76,12 @@ func (c *mapLevelCache) clear() {
 	defer c.mux.Unlock()
 
 	size := len(c.m)
-	c.m = make(map[LevelID]*LevelStatus, size)
+	c.m = make(map[LevelID]LevelStatus, size)
 }
 
 // arrayLevelCache using array and a mutex.
 type arrayLevelCache struct {
-	arr [256]*LevelStatus
+	arr [256]LevelStatus
 	mux sync.RWMutex
 }
 
@@ -90,15 +91,15 @@ func (c *arrayLevelCache) setup() {
 
 var dummy = LevelStatus{}
 
-func (c *arrayLevelCache) get(id LevelID) (*LevelStatus, bool) {
+func (c *arrayLevelCache) get(id LevelID) (LevelStatus, bool) {
 	c.mux.RLock()
 	status := c.arr[id]
-	ok := status != &dummy
+	ok := !status.empty
 	c.mux.RUnlock()
 	return status, ok
 }
 
-func (c *arrayLevelCache) put(id LevelID, status *LevelStatus) {
+func (c *arrayLevelCache) put(id LevelID, status LevelStatus) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -110,7 +111,7 @@ func (c *arrayLevelCache) clear() {
 	defer c.mux.Unlock()
 
 	for i := range c.arr {
-		c.arr[i] = &dummy
+		c.arr[i] = LevelStatus{empty: true}
 	}
 }
 
@@ -121,21 +122,21 @@ type cowLevelCache struct {
 }
 
 func (c *cowLevelCache) setup() {
-	c.m.Store(make(map[LevelID]*LevelStatus))
+	c.m.Store(make(map[LevelID]LevelStatus))
 }
 
-func (c *cowLevelCache) get(id LevelID) (*LevelStatus, bool) {
-	m1 := c.m.Load().(map[LevelID]*LevelStatus)
+func (c *cowLevelCache) get(id LevelID) (LevelStatus, bool) {
+	m1 := c.m.Load().(map[LevelID]LevelStatus)
 	status, ok := m1[id]
 	return status, ok
 }
 
-func (c *cowLevelCache) put(id LevelID, status *LevelStatus) {
+func (c *cowLevelCache) put(id LevelID, status LevelStatus) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	m1 := c.m.Load().(map[LevelID]*LevelStatus)
-	m2 := make(map[LevelID]*LevelStatus, len(m1))
+	m1 := c.m.Load().(map[LevelID]LevelStatus)
+	m2 := make(map[LevelID]LevelStatus, len(m1))
 	for k, v := range m1 {
 		m2[k] = v
 	}
@@ -147,6 +148,6 @@ func (c *cowLevelCache) clear() {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	m1 := make(map[LevelID]*LevelStatus)
+	m1 := make(map[LevelID]LevelStatus)
 	c.m.Store(m1)
 }

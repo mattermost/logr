@@ -27,12 +27,12 @@ func (logger *Logger) WithField(key string, value interface{}) *Logger {
 // WithFields creates a new `Logger` with any existing fields
 // plus the new ones.
 func (logger *Logger) WithFields(fields Fields) *Logger {
-	l := &Logger{logr: logger.logr}
+	l := Logger{logr: logger.logr}
 	// if parent has no fields then avoid creating a new map.
 	oldLen := len(logger.fields)
 	if oldLen == 0 {
 		l.fields = fields
-		return l
+		return &l
 	}
 
 	l.fields = make(Fields, len(fields)+oldLen)
@@ -42,7 +42,7 @@ func (logger *Logger) WithFields(fields Fields) *Logger {
 	for k, v := range fields {
 		l.fields[k] = v
 	}
-	return l
+	return &l
 }
 
 // Log checks that the level matches one or more targets, and

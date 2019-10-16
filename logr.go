@@ -134,7 +134,7 @@ func (logr *Logr) NewLogger() *Logger {
 
 // IsLevelEnabled returns true if at least one target has the specified
 // level enabled. The result is cached so that subsequent checks are fast.
-func (logr *Logr) IsLevelEnabled(lvl Level) *LevelStatus {
+func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	// Check cache.
 	status, ok := logr.lvlCache.get(lvl.ID)
 	if ok {
@@ -144,7 +144,7 @@ func (logr *Logr) IsLevelEnabled(lvl Level) *LevelStatus {
 	logr.mux.RLock()
 	defer logr.mux.RUnlock()
 
-	status = &LevelStatus{}
+	status = LevelStatus{}
 
 	// Don't accept new log records after shutdown.
 	if logr.shutdown {
