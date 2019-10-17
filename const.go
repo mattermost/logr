@@ -23,4 +23,8 @@ const (
 	// DefaultFlushTimeout is the default amount of time `logr.Flush` can execute before
 	// timing out.
 	DefaultFlushTimeout = time.Second * 30
+
+	// DefaultMaxPooledFormatBuffer is the maximum size a pooled format buffer can be.
+	// Buffers that grow beyond this size are garbage collected.
+	DefaultMaxPooledFormatBuffer = 1024 * 1024
 )

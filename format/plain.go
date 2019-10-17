@@ -53,8 +53,10 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 
 	var buf *bytes.Buffer = bufferPool.Get().(*bytes.Buffer)
 	defer func() {
-		buf.Reset()
-		bufferPool.Put(buf)
+		if buf.Cap() < rec.Logger().Logr().MaxPooledFormatBuffer {
+			buf.Reset()
+			bufferPool.Put(buf)
+		}
 	}()
 
 	if !p.DisableTimestamp {

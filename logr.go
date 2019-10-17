@@ -77,9 +77,18 @@ type Logr struct {
 	// timing out.
 	FlushTimeout time.Duration
 
-	// UseSyncMapLevelCache should be set to true before the first target is added
-	// when high concurrency (e.g. >32 cores) is expected.
+	// UseSyncMapLevelCache can be set to true before the first target is added
+	// when high concurrency (e.g. >32 cores) is expected. This may improve
+	// performance with large numbers of cores - benchmark for your use case.
 	UseSyncMapLevelCache bool
+
+	// MaxPooledFormatBuffer determines the maximum size of a format buffer that
+	// can be pooled. To reduce allocations the buffers needed during formatting
+	// are pooled. A very large log item will grow a buffer that could stay in
+	// memory indefinitely. This settings lets you control how big a pooled buffer
+	// can be - anything larger will be garbage collected after use.
+	// Defaults to 1MB.
+	MaxPooledFormatBuffer int
 }
 
 // Configure adds/removes targets via the supplied `Config`.
@@ -116,6 +125,9 @@ func (logr *Logr) AddTarget(target Target) error {
 			logr.lvlCache = &syncMapLevelCache{}
 		} else {
 			logr.lvlCache = &arrayLevelCache{}
+		}
+		if logr.MaxPooledFormatBuffer == 0 {
+			logr.MaxPooledFormatBuffer = DefaultMaxPooledFormatBuffer
 		}
 		logr.lvlCache.setup()
 		go logr.start()
