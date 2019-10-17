@@ -3,8 +3,17 @@ package format
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/wiggin77/logr"
+)
+
+var (
+	bufferPool = sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
 )
 
 // Plain is the simplest formatter, outputting only text with
@@ -32,8 +41,6 @@ type Plain struct {
 
 // Format converts a log record to bytes.
 func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
-	var buf bytes.Buffer
-
 	delim := p.Delim
 	if delim == "" {
 		delim = " "
@@ -44,6 +51,12 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		timestampFmt = logr.DefTimestampFormat
 	}
 
+	var buf *bytes.Buffer = bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}()
+
 	if !p.DisableTimestamp {
 		var arr [128]byte
 		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
@@ -51,22 +64,22 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		buf.WriteString(delim)
 	}
 	if !p.DisableLevel {
-		fmt.Fprintf(&buf, "%v%s", rec.Level().Name, delim)
+		fmt.Fprintf(buf, "%v%s", rec.Level().Name, delim)
 	}
 	if !p.DisableMsg {
-		fmt.Fprint(&buf, rec.Msg(), delim)
+		fmt.Fprint(buf, rec.Msg(), delim)
 	}
 	if !p.DisableContext {
 		ctx := rec.Fields()
 		if len(ctx) > 0 {
-			logr.WriteFields(&buf, ctx, " ")
+			logr.WriteFields(buf, ctx, " ")
 		}
 	}
 	if stacktrace && !p.DisableStacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
 			buf.WriteString("\n")
-			logr.WriteStacktrace(&buf, rec.StackFrames())
+			logr.WriteStacktrace(buf, rec.StackFrames())
 		}
 	}
 	buf.WriteString("\n")

@@ -129,13 +129,13 @@ func BenchmarkLogger(b *testing.B) {
 		lgr.AddTarget(target)
 	}
 
-	b.ResetTimer()
-
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
+	//logger := lgr.NewLogger()
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logger.Errorf("log entry %d", b.N)
 	}
-
 	b.StopTimer()
 	err := lgr.Shutdown()
 	if err != nil {

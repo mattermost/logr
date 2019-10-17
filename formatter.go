@@ -69,7 +69,7 @@ func WriteFields(w io.Writer, flds Fields, separator string) {
 }
 
 func writeField(w io.Writer, key string, val interface{}, sep string) {
-	template := "%s%s=%v"
+	var template string
 	switch v := val.(type) {
 	case error:
 		val := v.Error()
@@ -84,6 +84,8 @@ func writeField(w io.Writer, key string, val interface{}, sep string) {
 		} else {
 			template = "%s%s=%s"
 		}
+	default:
+		template = "%s%s=%v"
 	}
 	fmt.Fprintf(w, template, sep, key, val)
 }

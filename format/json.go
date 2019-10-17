@@ -119,7 +119,12 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 		}
 	}
 
-	buf := &bytes.Buffer{}
+	var buf *bytes.Buffer = bufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}()
+
 	encoder := json.NewEncoder(buf)
 	encoder.SetIndent("", j.Indent)
 	encoder.SetEscapeHTML(j.EscapeHTML)
