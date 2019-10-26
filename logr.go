@@ -144,10 +144,15 @@ func (logr *Logr) NewLogger() Logger {
 	return logger
 }
 
+var levelStatusDisabled = LevelStatus{}
+
 // IsLevelEnabled returns true if at least one target has the specified
 // level enabled. The result is cached so that subsequent checks are fast.
 func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	// Check cache.
+	if logr.lvlCache == nil {
+		return levelStatusDisabled
+	}
 	status, ok := logr.lvlCache.get(lvl.ID)
 	if ok {
 		return status
