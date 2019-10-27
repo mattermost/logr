@@ -2,8 +2,9 @@ package format
 
 import (
 	"bytes"
-	"encoding/json"
+	"runtime"
 
+	"github.com/francoispqt/gojay"
 	"github.com/wiggin77/logr"
 )
 
@@ -65,73 +66,25 @@ type stacktraceRec struct {
 
 // Format converts a log record to bytes in JSON format.
 func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
-	timestampFmt := j.TimestampFormat
-	if timestampFmt == "" {
-		timestampFmt = logr.DefTimestampFormat
-	}
-
-	data := make(map[string]interface{}, 7)
 	j.applyDefaultKeyNames()
 
-	if !j.DisableTimestamp {
-		var arr [128]byte
-		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
-		data[j.KeyTimestamp] = string(tbuf)
-	}
-	if !j.DisableLevel {
-		data[j.KeyLevel] = rec.Level().Name
-	}
-	if !j.DisableMsg {
-		data[j.KeyMsg] = rec.Msg()
-	}
-	if !j.DisableContext {
-		if j.KeyContextFields != "" {
-			data[j.KeyContextFields] = rec.Fields()
-		} else {
-			m := rec.Fields()
-			if len(m) > 0 {
-				m = prefixCollisions(data, m)
-				for k, v := range m {
-					switch v := v.(type) {
-					case error:
-						data[k] = v.Error()
-					default:
-						data[k] = v
-					}
-				}
-			}
-		}
-	}
-	if stacktrace && !j.DisableStacktrace {
-		frames := rec.StackFrames()
-		numFrames := len(frames)
-		if numFrames > 0 {
-			st := make([]stacktraceRec, 0, numFrames)
-			for _, frame := range frames {
-				srec := stacktraceRec{
-					Function: frame.Function,
-					File:     frame.File,
-					Line:     frame.Line,
-				}
-				st = append(st, srec)
-			}
-			data[j.KeyStacktrace] = st
-		}
-	}
-
 	var buf *bytes.Buffer = bufferPool.Get().(*bytes.Buffer)
+	enc := gojay.BorrowEncoder(buf)
 	defer func() {
+		enc.Release()
 		if buf.Cap() < rec.Logger().Logr().MaxPooledFormatBuffer {
 			buf.Reset()
 			bufferPool.Put(buf)
 		}
 	}()
 
-	encoder := json.NewEncoder(buf)
-	encoder.SetIndent("", j.Indent)
-	encoder.SetEscapeHTML(j.EscapeHTML)
+	jlr := JSONLogRec{
+		LogRec:     rec,
+		JSON:       j,
+		stacktrace: stacktrace,
+	}
 
-	err := encoder.Encode(data)
+	err := enc.EncodeObject(jlr)
 	if err != nil {
 		return nil, err
 	}
@@ -153,27 +106,87 @@ func (j *JSON) applyDefaultKeyNames() {
 	}
 }
 
-func prefixCollisions(data map[string]interface{}, m map[string]interface{}) map[string]interface{} {
-	// first check if there are any collisions to avoid creating a new map. This will be the
-	// case most of the time.
-	var collision bool
-	for k := range m {
-		if _, ok := data[k]; ok {
-			collision = true
-			break
+// JSONLogRec decorates a LogRec adding JSON encoding.
+type JSONLogRec struct {
+	*logr.LogRec
+	*JSON
+	stacktrace bool
+}
+
+// MarshalJSONObject encodes the LogRec as JSON.
+func (rec JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
+	if !rec.DisableTimestamp {
+		timestampFmt := rec.TimestampFormat
+		if timestampFmt == "" {
+			timestampFmt = logr.DefTimestampFormat
+		}
+		time := rec.Time()
+		enc.AddTimeKey(rec.KeyTimestamp, &time, timestampFmt)
+	}
+	if !rec.DisableLevel {
+		enc.AddStringKey(rec.KeyLevel, rec.Level().Name)
+	}
+	if !rec.DisableMsg {
+		enc.AddStringKey(rec.KeyMsg, rec.Msg())
+	}
+	if !rec.DisableContext {
+		if rec.KeyContextFields != "" {
+			enc.AddObjectKeyOmitEmpty(rec.KeyContextFields, rec.Fields())
+		} else {
+			m := rec.Fields()
+			if len(m) > 0 {
+				for k, v := range m {
+					key := rec.prefixCollision(k)
+					enc.AddInterfaceKey(key, v)
+				}
+			}
 		}
 	}
-	if !collision {
-		return m
+	if rec.stacktrace && !rec.DisableStacktrace {
+		frames := rec.StackFrames()
+		if len(frames) > 0 {
+			enc.AddArrayKey(rec.KeyStacktrace, stackFrames(frames))
+		}
 	}
 
-	out := make(map[string]interface{}, len(data)+len(m))
-	for k, v := range m {
-		if _, ok := data[k]; ok {
-			out["ctx."+k] = v
-		} else {
-			out[k] = v
-		}
+}
+
+// IsNil returns true if the LogRec pointer is nil.
+func (rec JSONLogRec) IsNil() bool {
+	return rec.LogRec == nil
+}
+
+func (rec JSONLogRec) prefixCollision(key string) string {
+	switch key {
+	case rec.KeyTimestamp, rec.KeyLevel, rec.KeyMsg, rec.KeyStacktrace:
+		return rec.prefixCollision("_" + key)
 	}
-	return out
+	return key
+}
+
+type stackFrames []runtime.Frame
+
+// MarshalJSONArray encodes stackFrames slice as JSON.
+func (s stackFrames) MarshalJSONArray(enc *gojay.Encoder) {
+	for _, frame := range s {
+		enc.AddObject(stackFrame(frame))
+	}
+}
+
+// IsNil returns true if stackFrames is empty slice.
+func (s stackFrames) IsNil() bool {
+	return len(s) == 0
+}
+
+type stackFrame runtime.Frame
+
+// MarshalJSONArray encodes stackFrame as JSON.
+func (f stackFrame) MarshalJSONObject(enc *gojay.Encoder) {
+	enc.AddStringKey("Function", f.Function)
+	enc.AddStringKey("File", f.File)
+	enc.AddIntKey("Line", f.Line)
+}
+
+func (f stackFrame) IsNil() bool {
+	return false
 }
