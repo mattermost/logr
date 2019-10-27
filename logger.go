@@ -2,24 +2,10 @@ package logr
 
 import (
 	"fmt"
-
-	"github.com/francoispqt/gojay"
 )
 
 // Fields type, used to pass to `WithFields`.
 type Fields map[string]interface{}
-
-// MarshalJSONObject encodes Fields map to JSON.
-func (f Fields) MarshalJSONObject(enc *gojay.Encoder) {
-	for k, v := range f {
-		enc.AddInterfaceKey(k, v)
-	}
-}
-
-// IsNil returns true if map is nil.
-func (f Fields) IsNil() bool {
-	return f == nil
-}
 
 // Logger provides context for logging via fields.
 type Logger struct {

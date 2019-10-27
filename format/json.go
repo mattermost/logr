@@ -2,7 +2,9 @@ package format
 
 import (
 	"bytes"
+	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/francoispqt/gojay"
 	"github.com/wiggin77/logr"
@@ -131,13 +133,13 @@ func (rec JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
 	}
 	if !rec.DisableContext {
 		if rec.KeyContextFields != "" {
-			enc.AddObjectKeyOmitEmpty(rec.KeyContextFields, rec.Fields())
+			enc.AddObjectKey(rec.KeyContextFields, jsonFields(rec.Fields()))
 		} else {
 			m := rec.Fields()
 			if len(m) > 0 {
 				for k, v := range m {
 					key := rec.prefixCollision(k)
-					enc.AddInterfaceKey(key, v)
+					encodeField(enc, key, v)
 				}
 			}
 		}
@@ -189,4 +191,64 @@ func (f stackFrame) MarshalJSONObject(enc *gojay.Encoder) {
 
 func (f stackFrame) IsNil() bool {
 	return false
+}
+
+type jsonFields logr.Fields
+
+// MarshalJSONObject encodes Fields map to JSON.
+func (f jsonFields) MarshalJSONObject(enc *gojay.Encoder) {
+	for k, v := range f {
+		encodeField(enc, k, v)
+	}
+}
+
+// IsNil returns true if map is nil.
+func (f jsonFields) IsNil() bool {
+	return f == nil
+}
+
+func encodeField(enc *gojay.Encoder, key string, val interface{}) {
+	switch vt := val.(type) {
+	case gojay.MarshalerJSONObject:
+		enc.AddObjectKey(key, vt)
+	case gojay.MarshalerJSONArray:
+		enc.AddArrayKey(key, vt)
+	case string:
+		enc.AddStringKey(key, vt)
+	case error:
+		enc.AddStringKey(key, vt.Error())
+	case bool:
+		enc.AddBoolKey(key, vt)
+	case int:
+		enc.AddIntKey(key, vt)
+	case int64:
+		enc.AddInt64Key(key, vt)
+	case int32:
+		enc.AddIntKey(key, int(vt))
+	case int16:
+		enc.AddIntKey(key, int(vt))
+	case int8:
+		enc.AddIntKey(key, int(vt))
+	case uint64:
+		enc.AddIntKey(key, int(vt))
+	case uint32:
+		enc.AddIntKey(key, int(vt))
+	case uint16:
+		enc.AddIntKey(key, int(vt))
+	case uint8:
+		enc.AddIntKey(key, int(vt))
+	case float64:
+		enc.AddFloatKey(key, vt)
+	case float32:
+		enc.AddFloat32Key(key, vt)
+	case *gojay.EmbeddedJSON:
+		enc.AddEmbeddedJSONKey(key, vt)
+	case time.Time:
+		enc.AddTimeKey(key, &vt, logr.DefTimestampFormat)
+	case *time.Time:
+		enc.AddTimeKey(key, vt, logr.DefTimestampFormat)
+	default:
+		s := fmt.Sprintf("%v", vt)
+		enc.AddStringKey(key, s)
+	}
 }
