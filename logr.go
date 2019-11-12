@@ -83,7 +83,7 @@ type Logr struct {
 	UseSyncMapLevelCache bool
 
 	// MaxPooledFormatBuffer determines the maximum size of a format buffer that
-	// can be pooled. To reduce allocations the buffers needed during formatting
+	// can be pooled. To reduce allocations, the buffers needed during formatting
 	// are pooled. A very large log item will grow a buffer that could stay in
 	// memory indefinitely. This settings lets you control how big a pooled buffer
 	// can be - anything larger will be garbage collected after use.
@@ -161,12 +161,12 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	logr.mux.RLock()
 	defer logr.mux.RUnlock()
 
-	status = LevelStatus{}
-
 	// Don't accept new log records after shutdown.
 	if logr.shutdown {
-		return status
+		return levelStatusDisabled
 	}
+
+	status = LevelStatus{}
 
 	// Check each target.
 	logr.tmux.RLock()
