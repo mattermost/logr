@@ -56,7 +56,7 @@ func (c *arrayLevelCache) setup() {
 	c.clear()
 }
 
-var dummy = LevelStatus{}
+//var dummy = LevelStatus{}
 
 func (c *arrayLevelCache) get(id LevelID) (LevelStatus, bool) {
 	c.mux.RLock()

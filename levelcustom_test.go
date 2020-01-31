@@ -26,7 +26,10 @@ func TestCustomLevel(t *testing.T) {
 
 	formatter := &format.Plain{Delim: " | "}
 	tgr := target.NewWriterTarget(filter, formatter, buf, 1000)
-	lgr.AddTarget(tgr)
+	err := lgr.AddTarget(tgr)
+	if err != nil {
+		t.Error(err)
+	}
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
 
@@ -35,7 +38,7 @@ func TestCustomLevel(t *testing.T) {
 	logger.Debug("XXX - won't be logged")
 	logger.Log(LogoutLevel, "will get logged")
 
-	err := lgr.Shutdown()
+	err = lgr.Shutdown()
 	if err != nil {
 		t.Error(err)
 	}

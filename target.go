@@ -117,27 +117,17 @@ func (b *Basic) start() {
 		}
 	}()
 
-	var err error
-	var rec *LogRec
-	var more bool
-	for {
-		select {
-		case rec, more = <-b.in:
-			if more {
-				if rec.flush != nil {
-					b.flush(rec.flush)
-				} else {
-					err = b.w.Write(rec)
-					if err != nil {
-						rec.Logger().Logr().ReportError(err)
-					}
-				}
-			} else {
-				close(b.done)
-				return
+	for rec := range b.in {
+		if rec.flush != nil {
+			b.flush(rec.flush)
+		} else {
+			err := b.w.Write(rec)
+			if err != nil {
+				rec.Logger().Logr().ReportError(err)
 			}
 		}
 	}
+	close(b.done)
 }
 
 // flush drains the queue and notifies when done.

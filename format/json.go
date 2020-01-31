@@ -52,20 +52,6 @@ type JSON struct {
 	KeyStacktrace string
 }
 
-type jsonRec struct {
-	Timestamp  string          `json:"timestamp,omitempty"`
-	Level      string          `json:"level,omitempty"`
-	Msg        string          `json:"msg,omitempty"`
-	Ctx        logr.Fields     `json:"ctx,omitempty"`
-	Stacktrace []stacktraceRec `json:"stacktrace,omitempty"`
-}
-
-type stacktraceRec struct {
-	Function string `json:"function"`
-	File     string `json:"file"`
-	Line     int    `json:"line"`
-}
-
 // Format converts a log record to bytes in JSON format.
 func (j *JSON) Format(rec *logr.LogRec, stacktrace bool) ([]byte, error) {
 	j.applyDefaultKeyNames()

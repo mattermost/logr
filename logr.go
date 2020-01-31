@@ -367,24 +367,15 @@ func (logr *Logr) start() {
 		}
 	}()
 
-	var rec *LogRec
-	var more bool
-	for {
-		select {
-		case rec, more = <-logr.in:
-			if more {
-				if rec.flush != nil {
-					logr.flush(rec.flush)
-				} else {
-					rec.prep()
-					logr.fanout(rec)
-				}
-			} else {
-				close(logr.done)
-				return
-			}
+	for rec := range logr.in {
+		if rec.flush != nil {
+			logr.flush(rec.flush)
+		} else {
+			rec.prep()
+			logr.fanout(rec)
 		}
 	}
+	close(logr.done)
 }
 
 // fanout pushes a LogRec to all targets.

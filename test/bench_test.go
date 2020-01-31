@@ -22,7 +22,7 @@ func BenchmarkFilterOut(b *testing.B) {
 		filter := &logr.StdFilter{Lvl: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		lgr.AddTarget(target)
+		_ = lgr.AddTarget(target)
 	}
 
 	b.ResetTimer()
@@ -48,7 +48,7 @@ func BenchmarkLog(b *testing.B) {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		lgr.AddTarget(target)
+		_ = lgr.AddTarget(target)
 	}
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
@@ -74,7 +74,7 @@ func BenchmarkLogFiltered(b *testing.B) {
 		filter := &logr.StdFilter{Lvl: logr.Fatal}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		lgr.AddTarget(target)
+		_ = lgr.AddTarget(target)
 	}
 
 	logger := lgr.NewLogger()
@@ -102,7 +102,7 @@ func BenchmarkLogStacktrace(b *testing.B) {
 		filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		lgr.AddTarget(target)
+		_ = lgr.AddTarget(target)
 	}
 
 	logger := lgr.NewLogger()
@@ -126,7 +126,7 @@ func BenchmarkLogger(b *testing.B) {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
 		formatter := &format.Plain{Delim: " | "}
 		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		lgr.AddTarget(target)
+		_ = lgr.AddTarget(target)
 	}
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})

@@ -18,7 +18,10 @@ func TestFlush(t *testing.T) {
 	target := test.NewSlowTarget(filter, formatter, buf, 3000)
 	target.Delay = time.Millisecond * 2
 	lgr := &logr.Logr{}
-	lgr.AddTarget(target)
+	err := lgr.AddTarget(target)
+	if err != nil {
+		t.Error(err)
+	}
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,
@@ -33,12 +36,12 @@ func TestFlush(t *testing.T) {
 	start := time.Now()
 
 	// blocks until flush is finished.
-	err := lgr.Flush()
+	err = lgr.Flush()
 	if err != nil {
 		t.Error(err)
 	}
 
-	dur := time.Now().Sub(start)
+	dur := time.Since(start)
 	t.Logf("Flush duration: %v", dur)
 
 	output := buf.String()

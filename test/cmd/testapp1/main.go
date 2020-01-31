@@ -57,11 +57,11 @@ func main() {
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.JSON{}
 	t = target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
-	lgr.AddTarget(t)
+	_ = lgr.AddTarget(t)
 
 	// create writer target to /dev/null
 	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-	lgr.AddTarget(t)
+	_ = lgr.AddTarget(t)
 
 	// create syslog target to local using custom filter.
 	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
@@ -72,7 +72,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	lgr.AddTarget(t)
+	_ = lgr.AddTarget(t)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,

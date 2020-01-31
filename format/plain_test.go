@@ -16,7 +16,10 @@ func TestPlain(t *testing.T) {
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
 	formatter := &format.Plain{DisableStacktrace: true, Delim: " | "}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
-	lgr.AddTarget(target)
+	err := lgr.AddTarget(target)
+	if err != nil {
+		t.Error(err)
+	}
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
 
@@ -32,7 +35,7 @@ func TestPlain(t *testing.T) {
 
 	t.Log(got)
 
-	err := lgr.Shutdown()
+	err = lgr.Shutdown()
 	if err != nil {
 		t.Error(err)
 	}

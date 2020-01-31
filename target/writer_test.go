@@ -19,7 +19,7 @@ func ExampleWriter() {
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	t := target.NewWriterTarget(filter, formatter, buf, 1000)
-	lgr.AddTarget(t)
+	_ = lgr.AddTarget(t)
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
 
@@ -52,7 +52,7 @@ func writer(t *testing.T, formatter logr.Formatter) {
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)
-	lgr.AddTarget(target)
+	_ = lgr.AddTarget(target)
 
 	const goodToken = "Woot!"
 	const badToken = "XXX!!XXX"

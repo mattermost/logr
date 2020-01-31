@@ -24,7 +24,7 @@ func ExampleSyslog() {
 	if err != nil {
 		panic(err)
 	}
-	lgr.AddTarget(t)
+	_ = lgr.AddTarget(t)
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
 
@@ -57,7 +57,7 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	if err != nil {
 		t.Error(err)
 	}
-	lgr.AddTarget(target)
+	_ = lgr.AddTarget(target)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,

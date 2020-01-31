@@ -58,7 +58,7 @@ func main() {
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, QSIZE)
-	lgr.AddTarget(t)
+	_ = lgr.AddTarget(t)
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
 
 	var file *os.File
@@ -70,7 +70,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		pprof.StartCPUProfile(file)
+		_ = pprof.StartCPUProfile(file)
 	}
 
 	for r := 0; r < REPEAT; r++ {

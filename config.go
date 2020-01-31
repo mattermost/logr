@@ -6,6 +6,6 @@ import (
 	"github.com/wiggin77/cfg"
 )
 
-func configLogger(config *cfg.Config) error {
+func ConfigLogger(config *cfg.Config) error {
 	return fmt.Errorf("Not implemented yet")
 }
