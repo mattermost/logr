@@ -26,6 +26,7 @@ vendor
 output
 build
 app
+logs
 
 # test apps
 test/cmd/testapp1/testapp1
