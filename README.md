@@ -110,7 +110,7 @@ Both filter types allow you to determine which levels require a stack trace to b
 
 ## Targets
 
-There are built-in targets for outputting to syslog and any `io.Writer`. More will be added.
+There are built-in targets for outputting to syslog, file, or any `io.Writer`. More will be added.
 
 You can use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) via a simple [adapter](https://github.com/wiggin77/logrus4logr).
 
