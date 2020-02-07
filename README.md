@@ -12,8 +12,6 @@ It is very much inspired by [Logrus](https://github.com/sirupsen/logrus) but add
 
 2. Logr provides custom filters which provide more flexibility than Trace, Debug, Info... levels. If you need to temporarily increase verbosity of logging while tracking down a problem you can avoid the fire-hose that typically comes from Debug or Trace by using custom filters.
 
-**Logr is currently in alpha. Feel free to try it, provide feedback, and report issues while we drive toward release.**
-
 ## Concepts
 
 <!-- markdownlint-disable MD033 -->
