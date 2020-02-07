@@ -56,11 +56,15 @@ func (s *Syslog) Shutdown(ctx context.Context) error {
 // and outputs to syslog.
 func (s *Syslog) Write(rec *logr.LogRec) error {
 	_, stacktrace := s.IsLevelEnabled(rec.Level())
-	data, err := s.Formatter().Format(rec, stacktrace)
+
+	buf := rec.Logger().Logr().BorrowBuffer()
+	defer rec.Logger().Logr().ReleaseBuffer(buf)
+
+	buf, err := s.Formatter().Format(rec, stacktrace, buf)
 	if err != nil {
 		return err
 	}
-	txt := string(data)
+	txt := buf.String()
 
 	switch rec.Level() {
 	case logr.Panic, logr.Fatal:

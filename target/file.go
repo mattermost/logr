@@ -61,11 +61,15 @@ func NewFileTarget(filter logr.Filter, formatter logr.Formatter, opts FileOption
 // and outputs to a file.
 func (f *File) Write(rec *logr.LogRec) error {
 	_, stacktrace := f.IsLevelEnabled(rec.Level())
-	data, err := f.Formatter().Format(rec, stacktrace)
+
+	buf := rec.Logger().Logr().BorrowBuffer()
+	defer rec.Logger().Logr().ReleaseBuffer(buf)
+
+	buf, err := f.Formatter().Format(rec, stacktrace, buf)
 	if err != nil {
 		return err
 	}
-	_, err = f.out.Write(data)
+	_, err = f.out.Write(buf.Bytes())
 	return err
 }
 

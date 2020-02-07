@@ -27,11 +27,15 @@ func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer
 // and outputs to the io.Writer.
 func (w *Writer) Write(rec *logr.LogRec) error {
 	_, stacktrace := w.IsLevelEnabled(rec.Level())
-	data, err := w.Formatter().Format(rec, stacktrace)
+
+	buf := rec.Logger().Logr().BorrowBuffer()
+	defer rec.Logger().Logr().ReleaseBuffer(buf)
+
+	buf, err := w.Formatter().Format(rec, stacktrace, buf)
 	if err != nil {
 		return err
 	}
-	_, err = w.out.Write(data)
+	_, err = w.out.Write(buf.Bytes())
 	return err
 }
 

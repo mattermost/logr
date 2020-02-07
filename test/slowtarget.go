@@ -28,14 +28,18 @@ func NewSlowTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, 
 // and outputs to the io.Writer.
 func (st *SlowTarget) Write(rec *logr.LogRec) error {
 	_, stacktrace := st.IsLevelEnabled(rec.Level())
-	data, err := st.Formatter().Format(rec, stacktrace)
+
+	buf := rec.Logger().Logr().BorrowBuffer()
+	defer rec.Logger().Logr().ReleaseBuffer(buf)
+
+	buf, err := st.Formatter().Format(rec, stacktrace, buf)
 	if err != nil {
 		return err
 	}
 
 	time.Sleep(st.Delay)
 
-	_, err = st.out.Write(data)
+	_, err = st.out.Write(buf.Bytes())
 	return err
 }
 

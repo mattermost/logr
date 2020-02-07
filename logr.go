@@ -92,6 +92,9 @@ type Logr struct {
 	// can be - anything larger will be garbage collected after use.
 	// Defaults to 1MB.
 	MaxPooledBuffer int
+
+	// DisableBufferPool when true disables the buffer pool. See MaxPooledBuffer.
+	DisableBufferPool bool
 }
 
 // Configure adds/removes targets via the supplied `Config`.
@@ -341,13 +344,16 @@ func (logr *Logr) ReportError(err interface{}) {
 
 // BorrowBuffer borrows a buffer from the pool. Release the buffer to reduce garbage collection.
 func (logr *Logr) BorrowBuffer() *bytes.Buffer {
+	if logr.DisableBufferPool {
+		return &bytes.Buffer{}
+	}
 	return logr.bufferPool.Get().(*bytes.Buffer)
 }
 
-// ReturnBuffer returns a buffer to the pool to reduce garbage collection. The buffer is only
+// ReleaseBuffer returns a buffer to the pool to reduce garbage collection. The buffer is only
 // retained if less than MaxPooledBuffer.
 func (logr *Logr) ReleaseBuffer(buf *bytes.Buffer) {
-	if buf.Cap() < logr.MaxPooledBuffer {
+	if !logr.DisableBufferPool && buf.Cap() < logr.MaxPooledBuffer {
 		buf.Reset()
 		logr.bufferPool.Put(buf)
 	}
