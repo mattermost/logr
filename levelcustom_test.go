@@ -3,6 +3,7 @@ package logr_test
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/wiggin77/logr"
@@ -14,6 +15,7 @@ import (
 var (
 	LoginLevel  = logr.Level{ID: 100, Name: "login ", Stacktrace: false}
 	LogoutLevel = logr.Level{ID: 101, Name: "logout", Stacktrace: false}
+	BadLevel    = logr.Level{ID: logr.MaxLevelID + 1, Name: "invalid", Stacktrace: false}
 )
 
 func TestCustomLevel(t *testing.T) {
@@ -54,4 +56,38 @@ func TestCustomLevel(t *testing.T) {
 		t.Error("wrong level(s) output")
 	}
 
+}
+
+func TestLevelIDTooLarge(t *testing.T) {
+	lgr := &logr.Logr{}
+	buf := &test.Buffer{}
+	var count int32
+
+	lgr.OnLoggerError = func(err error) {
+		atomic.AddInt32(&count, 1)
+	}
+
+	// create a custom filter with custom level.
+	filter := &logr.CustomFilter{}
+	filter.Add(BadLevel)
+
+	formatter := &format.Plain{Delim: " | "}
+	tgr := target.NewWriterTarget(filter, formatter, buf, 1000)
+	err := lgr.AddTarget(tgr)
+	if err != nil {
+		t.Error(err)
+	}
+
+	logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
+
+	logger.Log(BadLevel, "this item will trigger OnLoggerError")
+
+	err = lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if atomic.LoadInt32(&count) != 1 {
+		t.Error("OnLoggerError should be called once")
+	}
 }
