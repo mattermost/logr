@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/wiggin77/logr/format"
 )
 
 // Target represents a destination for log records such as file,
@@ -51,7 +53,7 @@ func (b *Basic) Start(target Target, rw RecordWriter, filter Filter, formatter F
 		filter = &StdFilter{Lvl: Fatal}
 	}
 	if formatter == nil {
-		formatter = &DefaultFormatter{}
+		formatter = format.Plain{Delim: " "}
 	}
 
 	b.target = target

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wiggin77/logr/format"
 )
 
 var (
@@ -140,7 +142,7 @@ func (rec *LogRec) Level() Level {
 }
 
 // Fields returns this log record's Fields.
-func (rec *LogRec) Fields() Fields {
+func (rec *LogRec) Fields() []Field {
 	// no locking needed as this field is not mutated.
 	return rec.logger.fields
 }
@@ -166,7 +168,7 @@ func (rec *LogRec) String() string {
 		return "[flusher]"
 	}
 
-	f := &DefaultFormatter{}
+	f := format.Plain{Delim: " "}
 	buf := rec.logger.logr.BorrowBuffer()
 	defer rec.logger.logr.ReleaseBuffer(buf)
 	buf, _ = f.Format(rec, true, buf)

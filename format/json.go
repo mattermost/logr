@@ -12,12 +12,6 @@ import (
 	"github.com/wiggin77/logr"
 )
 
-// ContextField is a name/value pair within the context fields.
-type ContextField struct {
-	Key string
-	Val interface{}
-}
-
 // JSON formats log records as JSON.
 type JSON struct {
 	// DisableTimestamp disables output of timestamp field.
@@ -59,7 +53,8 @@ type JSON struct {
 	KeyStacktrace string
 
 	// ContextSorter allows custom sorting for the context fields.
-	ContextSorter func(fields logr.Fields) []ContextField
+	// A new slice must be returned and the original unmodified.
+	ContextSorter func(fields []logr.Field) []logr.Field
 
 	once sync.Once
 }
@@ -112,18 +107,15 @@ func (j *JSON) applyDefaultKeyNames() {
 }
 
 // defaultContextSorter sorts the context fields alphabetically by key.
-func (j *JSON) defaultContextSorter(fields logr.Fields) []ContextField {
-	keys := make([]string, 0, len(fields))
-	for k := range fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+// A new slice must be returned and the original unmodified.
+func (j *JSON) defaultContextSorter(fields []logr.Field) []logr.Field {
+	sorted := make([]logr.Field, len(fields))
+	copy(sorted, fields)
 
-	cf := make([]ContextField, 0, len(keys))
-	for _, k := range keys {
-		cf = append(cf, ContextField{Key: k, Val: fields[k]})
-	}
-	return cf
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Key < sorted[j].Key
+	})
+	return sorted
 }
 
 // JSONLogRec decorates a LogRec adding JSON encoding.
@@ -131,7 +123,7 @@ type JSONLogRec struct {
 	*logr.LogRec
 	*JSON
 	stacktrace bool
-	sorter     func(fields logr.Fields) []ContextField
+	sorter     func(fields []logr.Field) []logr.Field
 }
 
 // MarshalJSONObject encodes the LogRec as JSON.
@@ -158,7 +150,7 @@ func (rec JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
 			if len(ctxFields) > 0 {
 				for _, cf := range ctxFields {
 					key := rec.prefixCollision(cf.Key)
-					encodeField(enc, key, cf.Val)
+					encodeField(enc, key, cf)
 				}
 			}
 		}
@@ -212,22 +204,54 @@ func (f stackFrame) IsNil() bool {
 	return false
 }
 
-type jsonFields []ContextField
+type jsonFields []logr.Field
 
-// MarshalJSONObject encodes Fields map to JSON.
+// MarshalJSONObject encodes Fields to JSON.
 func (f jsonFields) MarshalJSONObject(enc *gojay.Encoder) {
 	for _, ctxField := range f {
-		encodeField(enc, ctxField.Key, ctxField.Val)
+		encodeField(enc, ctxField.Key, ctxField)
 	}
 }
 
-// IsNil returns true if map is nil.
+// IsNil returns true if fields array is nil.
 func (f jsonFields) IsNil() bool {
 	return f == nil
 }
 
-func encodeField(enc *gojay.Encoder, key string, val interface{}) {
-	switch vt := val.(type) {
+func encodeField(enc *gojay.Encoder, key string, field logr.Field) {
+	switch field.Type {
+	case logr.UnknownType:
+		enc.AddStringKey(field.Key, "UnknownType")
+	case logr.ArrayMarshalerType:
+		enc.
+	case logr.ObjectMarshalerType:
+	case logr.BinaryType:
+	case logr.BoolType:
+		enc.AddBoolKey(key, bool(field.Integer))
+	case logr.ByteStringType:
+	case logr.Complex128Type:
+	case logr.Complex64Type:
+	case logr.DurationType:
+	case logr.Float64Type:
+	case logr.Float32Type:
+	case logr.Int64Type:
+	case logr.Int32Type:
+	case logr.Int16Type:
+	case logr.Int8Type:
+	case logr.StringType:
+	case logr.TimeType:
+	case logr.TimeFullType:
+	case logr.Uint64Type:
+	case logr.Uint32Type:
+	case logr.Uint16Type:
+	case logr.Uint8Type:
+	case logr.UintptrType:
+	case logr.ReflectType:
+	case logr.NamespaceType:
+	case logr.StringerType:
+	case logr.ErrorType:
+	case logr.SkipType:
+
 	case gojay.MarshalerJSONObject:
 		enc.AddObjectKey(key, vt)
 	case gojay.MarshalerJSONArray:
