@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/wiggin77/logr"
+	"github.com/mattermost/logr"
 )
 
 // SlowTarget outputs log records to any `io.Writer` with configurable delay

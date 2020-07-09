@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wiggin77/logr"
+	"github.com/mattermost/logr"
 )
 
 // DoSomeLoggingCfg is configuration for `DoSomeLogging` utility.

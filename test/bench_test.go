@@ -4,9 +4,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/wiggin77/logr"
-	"github.com/wiggin77/logr/format"
-	"github.com/wiggin77/logr/target"
+	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/format"
+	"github.com/mattermost/logr/target"
 )
 
 // Enabled avoids compiler optimization.

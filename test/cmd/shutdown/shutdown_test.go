@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wiggin77/logr"
+	"github.com/mattermost/logr"
 )
 
 func TestShutdown_NoTargetsAdded(t *testing.T) {
