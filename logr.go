@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wiggin77/cfg"
@@ -26,6 +27,9 @@ type Logr struct {
 	once               sync.Once
 	shutdown           bool
 	lvlCache           levelCache
+
+	loggedCount uint64
+	errorCount  uint64
 
 	bufferPool sync.Pool
 
@@ -344,6 +348,7 @@ func (logr *Logr) Shutdown() error {
 // If `OnLoggerError` is not nil, it is called with the error, otherwise the error is
 // output to `os.Stderr`.
 func (logr *Logr) ReportError(err interface{}) {
+	atomic.AddUint64(&logr.errorCount, 1)
 	if logr.OnLoggerError == nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
@@ -424,12 +429,19 @@ func (logr *Logr) fanout(rec *LogRec) {
 		}
 	}()
 
+	var logged bool
+
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
 	for _, target = range logr.targets {
 		if enabled, _ := target.IsLevelEnabled(rec.Level()); enabled {
 			target.Log(rec)
+			logged = true
 		}
+	}
+
+	if logged {
+		atomic.AddUint64(&logr.loggedCount, 1)
 	}
 }
 

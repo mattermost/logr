@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -43,6 +44,8 @@ type Basic struct {
 	in   chan *LogRec
 	done chan struct{}
 	w    RecordWriter
+
+	loggedCount uint64
 }
 
 // Start initializes this target helper and starts accepting log records for processing.
@@ -107,6 +110,18 @@ func (b *Basic) Log(rec *LogRec) {
 	}
 }
 
+// GetMetrics returns metrics for this target such as queue size and capacity.
+func (b *Basic) GetMetrics() TargetMetrics {
+	metrics := TargetMetrics{}
+
+	metrics.LoggedCount = atomic.LoadUint64(&b.loggedCount)
+	metrics.Queue = SizeAndCap{
+		Size: len(b.in),
+		Cap:  cap(b.in),
+	}
+	return metrics
+}
+
 // Start accepts log records via In channel and writes to the
 // supplied writer, until Done channel signaled.
 func (b *Basic) start() {
@@ -124,6 +139,8 @@ func (b *Basic) start() {
 			err := b.w.Write(rec)
 			if err != nil {
 				rec.Logger().Logr().ReportError(err)
+			} else {
+				atomic.AddUint64(&b.loggedCount, 1)
 			}
 		}
 	}
