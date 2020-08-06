@@ -45,7 +45,10 @@ type Basic struct {
 	done chan struct{}
 	w    RecordWriter
 
-	loggedCount uint64
+	loggedCount  uint64
+	errorCount   uint64
+	droppedCount uint64
+	blockedCount uint64
 }
 
 // Start initializes this target helper and starts accepting log records for processing.
@@ -100,8 +103,11 @@ func (b *Basic) Log(rec *LogRec) {
 	default:
 		handler := lgr.OnTargetQueueFull
 		if handler != nil && handler(b.target, rec, cap(b.in)) {
+			atomic.AddUint64(&b.droppedCount, 1)
 			return // drop the record
 		}
+		atomic.AddUint64(&b.blockedCount, 1)
+
 		select {
 		case <-time.After(lgr.enqueueTimeout()):
 			lgr.ReportError(fmt.Errorf("target enqueue timeout for log rec [%v]", rec))
@@ -115,6 +121,9 @@ func (b *Basic) GetMetrics() TargetMetrics {
 	metrics := TargetMetrics{}
 
 	metrics.LoggedCount = atomic.LoadUint64(&b.loggedCount)
+	metrics.ErrorCount = atomic.LoadUint64(&b.errorCount)
+	metrics.DroppedCount = atomic.LoadUint64(&b.droppedCount)
+	metrics.BlockedCount = atomic.LoadUint64(&b.blockedCount)
 	metrics.Queue = SizeAndCap{
 		Size: len(b.in),
 		Cap:  cap(b.in),
@@ -138,6 +147,7 @@ func (b *Basic) start() {
 		} else {
 			err := b.w.Write(rec)
 			if err != nil {
+				atomic.AddUint64(&b.errorCount, 1)
 				rec.Logger().Logr().ReportError(err)
 			} else {
 				atomic.AddUint64(&b.loggedCount, 1)
@@ -158,6 +168,7 @@ func (b *Basic) flush(done chan<- struct{}) {
 			if rec.flush == nil {
 				err = b.w.Write(rec)
 				if err != nil {
+					atomic.AddUint64(&b.errorCount, 1)
 					rec.Logger().Logr().ReportError(err)
 				}
 			}

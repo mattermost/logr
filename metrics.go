@@ -15,8 +15,11 @@ type SizeAndCap struct {
 // TargetMetrics provides a snapshot of a target's metrics such as
 // current queue size and capacity.
 type TargetMetrics struct {
-	Queue       SizeAndCap
-	LoggedCount uint64
+	Queue        SizeAndCap
+	LoggedCount  uint64
+	ErrorCount   uint64
+	DroppedCount uint64
+	BlockedCount uint64
 }
 
 // TargetWithMetrics is a target that provides metrics.
