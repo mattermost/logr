@@ -1,60 +1,59 @@
 package logr
 
-import (
-	"fmt"
-	"sync/atomic"
+import "errors"
+
+const (
+	DefMetricsUpdateFreqMillis = 15000 // 15 seconds
 )
 
-// SizeAndCap represents the metrics of something that has a current size
-// and capacity such as a channel or buffer.
-type SizeAndCap struct {
-	Size int
-	Cap  int
+type Counter interface {
+	// Inc increments the counter by 1. Use Add to increment it by arbitrary non-negative values.
+	Inc()
+	// Add adds the given value to the counter. It panics if the value is < 0.
+	Add(float64)
 }
 
-// TargetMetrics provides a snapshot of a target's metrics such as
-// current queue size and capacity.
-type TargetMetrics struct {
-	Queue        SizeAndCap
-	LoggedCount  uint64
-	ErrorCount   uint64
-	DroppedCount uint64
-	BlockedCount uint64
+type Gauge interface {
+	// Set sets the Gauge to an arbitrary value.
+	Set(float64)
+	// Add adds the given value to the Gauge. (The value can be negative, resulting in a decrease of the Gauge.)
+	Add(float64)
+	// Sub subtracts the given value from the Gauge. (The value can be negative, resulting in an increase of the Gauge.)
+	Sub(float64)
+}
+
+type MetricsCollector interface {
+	// QueueSizeGauge returns a Gauge that will be updated by the named target.
+	QueueSizeGauge(target string) Gauge
+	// LoggedCounter returns a Counter that will be incremented by the named target.
+	LoggedCounter(target string) Counter
+	// ErrorCounter returns a Counter that will be incremented by the named target.
+	ErrorCounter(target string) Counter
+	// DroppedCounter returns a Counter that will be incremented by the named target.
+	DroppedCounter(target string) Counter
+	// BlockedCounter returns a Counter that will be incremented by the named target.
+	BlockedCounter(target string) Counter
 }
 
 // TargetWithMetrics is a target that provides metrics.
 type TargetWithMetrics interface {
-	GetMetrics() TargetMetrics
+	Metrics(collector MetricsCollector, updateFreqMillis int64)
 }
 
-// Metrics provides a snapshot of Logr metrics, including queue sizes.
-type Metrics struct {
-	MainQueue   SizeAndCap
-	LoggedCount uint64
-	ErrorCount  uint64
-
-	Targets map[string]TargetMetrics
-}
-
-// GetMetrics returns a snapshot of current logging metrics.
-func (logr *Logr) GetMetrics() Metrics {
-	metrics := Metrics{}
-
-	metrics.LoggedCount = atomic.LoadUint64(&logr.loggedCount)
-	metrics.ErrorCount = atomic.LoadUint64(&logr.errorCount)
-	metrics.MainQueue = SizeAndCap{
-		Size: len(logr.in),
-		Cap:  cap(logr.in),
+// SetMetricsCollector enables metrics collection by supplying a MetricsCollector.
+// The MetricsCollector provides counters and gauges that are updated by log targets.
+// This MUST be called before any log targets are added.
+func (logr *Logr) SetMetricsCollector(collector MetricsCollector) error {
+	if logr.HasTargets() {
+		return errors.New("Logr.SetMetricsCollector must be called before any targets are added.")
 	}
-	metrics.Targets = make(map[string]TargetMetrics)
-
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	for _, target := range logr.targets {
-		if tt, ok := target.(TargetWithMetrics); ok {
-			name := fmt.Sprintf("%v", target)
-			metrics.Targets[name] = tt.GetMetrics()
-		}
+	if collector == nil {
+		return errors.New("collector cannot be nil")
 	}
-	return metrics
+
+	logr.metrics = collector
+	logr.queueSizeGauge = collector.QueueSizeGauge("_logr")
+	logr.loggedCounter = collector.LoggedCounter("_logr")
+	logr.errorCounter = collector.ErrorCounter("_logr")
+	return nil
 }

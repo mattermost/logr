@@ -52,15 +52,24 @@ func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize in
 }
 
 func main() {
+	// add metrics
+	collector := test.NewTestMetricsCollector()
+	if err := lgr.SetMetricsCollector(collector); err != nil {
+		panic(err)
+	}
+	lgr.MetricsUpdateFreqMillis = 1000
+
 	// create writer target to stdout
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.JSON{}
 	t = target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
+	t.SetName("stdout")
 	_ = lgr.AddTarget(t)
 
 	// create writer target to /dev/null
 	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
+	t.SetName("discard")
 	_ = lgr.AddTarget(t)
 
 	// create syslog target to local using custom filter.
@@ -69,10 +78,15 @@ func main() {
 	fltr.Add(lvl)
 	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
 	t, err := target.NewSyslogTarget(fltr, formatter, params, 1000)
+	t.SetName("syslog")
 	if err != nil {
 		panic(err)
 	}
 	_ = lgr.AddTarget(t)
+
+	done := make(chan struct{})
+	targetNames := []string{"_logr", "stdout", "discard", "syslog"}
+	go startMetricsUpdater(targetNames, collector, done)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,
@@ -97,9 +111,14 @@ func main() {
 		atomic.LoadUint32(&queueFullCount),
 		atomic.LoadUint32(&targetQueueFullCount))
 
+	close(done)
 	err = lgr.Shutdown()
 	if err != nil {
 		panic(err)
+	}
+
+	for _, name := range targetNames {
+		printMetrics(name, collector)
 	}
 
 	fmt.Fprintf(os.Stderr, "Exiting normally. logged=%d, filtered=%d, errors=%d, queueFull=%d, targetFull=%d\n",
@@ -108,4 +127,24 @@ func main() {
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),
 		atomic.LoadUint32(&targetQueueFullCount))
+}
+
+func startMetricsUpdater(targets []string, collector *test.TestMetricsCollector, done chan struct{}) {
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(5 * time.Second):
+			for _, name := range targets {
+				printMetrics(name, collector)
+			}
+		}
+	}
+}
+
+func printMetrics(target string, collector *test.TestMetricsCollector) {
+	metrics := collector.Get(target)
+
+	fmt.Fprintf(os.Stderr, "\n%s metrics:\n\tqueue: %g\n\tlogged: %g\n\terrors: %g\n\tdropped: %g\n\tblocked: %g\n",
+		target, metrics.QueueSize, metrics.Logged, metrics.Errors, metrics.Dropped, metrics.Blocked)
 }

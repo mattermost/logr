@@ -40,6 +40,6 @@ func (w *Writer) Write(rec *logr.LogRec) error {
 }
 
 // String returns a string representation of this target.
-func (w *Writer) String() string {
-	return "WriterTarget"
-}
+//func (w *Writer) String() string {
+//	return "WriterTarget"
+//}

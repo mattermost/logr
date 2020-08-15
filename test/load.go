@@ -2,6 +2,7 @@ package test
 
 import (
 	"math/rand"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -52,6 +53,7 @@ func DoSomeLogging(cfg DoSomeLoggingCfg) (logged int32, filtered int32) {
 			if cfg.Delay > 0 {
 				time.Sleep(cfg.Delay)
 			}
+			runtime.Gosched()
 		}
 	}
 

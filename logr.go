@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/wiggin77/cfg"
@@ -28,8 +27,10 @@ type Logr struct {
 	shutdown           bool
 	lvlCache           levelCache
 
-	loggedCount uint64
-	errorCount  uint64
+	metrics        MetricsCollector
+	queueSizeGauge Gauge
+	loggedCounter  Counter
+	errorCounter   Counter
 
 	bufferPool sync.Pool
 
@@ -99,6 +100,10 @@ type Logr struct {
 
 	// DisableBufferPool when true disables the buffer pool. See MaxPooledBuffer.
 	DisableBufferPool bool
+
+	// MetricsUpdateFreqMillis determines how often polled metrics are updated
+	// when metrics are enabled.
+	MetricsUpdateFreqMillis int64
 }
 
 // Configure adds/removes targets via the supplied `Config`.
@@ -120,6 +125,12 @@ func (logr *Logr) AddTarget(target Target) error {
 	logr.tmux.Lock()
 	defer logr.tmux.Unlock()
 	logr.targets = append(logr.targets, target)
+
+	if logr.metrics != nil {
+		if tm, ok := target.(TargetWithMetrics); ok {
+			tm.Metrics(logr.metrics, logr.MetricsUpdateFreqMillis)
+		}
+	}
 
 	logr.once.Do(func() {
 		logr.maxQueueSizeActual = logr.MaxQueueSize
@@ -146,6 +157,10 @@ func (logr *Logr) AddTarget(target Target) error {
 		}
 		logr.lvlCache.setup()
 		go logr.start()
+
+		if logr.queueSizeGauge != nil {
+			go logr.updateMetrics()
+		}
 	})
 	logr.resetLevelCache()
 	return nil
@@ -203,6 +218,13 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 		return LevelStatus{}
 	}
 	return status
+}
+
+// HasTargets returns true only if at least one target exists within the Logr.
+func (logr *Logr) HasTargets() bool {
+	logr.tmux.RLock()
+	defer logr.tmux.RUnlock()
+	return len(logr.targets) > 0
 }
 
 // ResetLevelCache resets the cached results of `IsLevelEnabled`. This is
@@ -348,7 +370,9 @@ func (logr *Logr) Shutdown() error {
 // If `OnLoggerError` is not nil, it is called with the error, otherwise the error is
 // output to `os.Stderr`.
 func (logr *Logr) ReportError(err interface{}) {
-	atomic.AddUint64(&logr.errorCount, 1)
+	if logr.errorCounter != nil {
+		logr.errorCounter.Inc()
+	}
 	if logr.OnLoggerError == nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
@@ -420,6 +444,29 @@ func (logr *Logr) start() {
 	close(logr.done)
 }
 
+// updateMetrics updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
+// logr is closed.
+func (logr *Logr) updateMetrics() {
+	for {
+		updateFreq := logr.MetricsUpdateFreqMillis
+		if updateFreq == 0 {
+			updateFreq = DefMetricsUpdateFreqMillis
+		}
+		if updateFreq < 250 {
+			updateFreq = 250 // don't peg the CPU
+		}
+
+		select {
+		case <-logr.done:
+			return
+		case <-time.After(time.Duration(updateFreq) * time.Millisecond):
+			if logr.queueSizeGauge != nil {
+				logr.queueSizeGauge.Set(float64(len(logr.in)))
+			}
+		}
+	}
+}
+
 // fanout pushes a LogRec to all targets.
 func (logr *Logr) fanout(rec *LogRec) {
 	var target Target
@@ -440,8 +487,8 @@ func (logr *Logr) fanout(rec *LogRec) {
 		}
 	}
 
-	if logged {
-		atomic.AddUint64(&logr.loggedCount, 1)
+	if logged && logr.loggedCounter != nil {
+		logr.loggedCounter.Inc()
 	}
 }
 

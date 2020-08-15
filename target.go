@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sync/atomic"
 	"time"
 )
 
 // Target represents a destination for log records such as file,
 // database, TCP socket, etc.
 type Target interface {
+	// SetName provides an option name for the target.
+	SetName(name string)
+
 	// IsLevelEnabled returns true if this target should emit
 	// logs for the specified level. Also determines if
 	// a stack trace is required.
@@ -34,9 +36,10 @@ type RecordWriter interface {
 
 // Basic provides the basic functionality of a Target that can be used
 // to more easily compose your own Targets. To use, just embed Basic
-// in your target type, implement `RecordWriter`, and call `Start`.
+// in your target type, implement `RecordWriter`, and call `(*Basic).Start`.
 type Basic struct {
 	target Target
+	name   string
 
 	filter    Filter
 	formatter Formatter
@@ -45,10 +48,13 @@ type Basic struct {
 	done chan struct{}
 	w    RecordWriter
 
-	loggedCount  uint64
-	errorCount   uint64
-	droppedCount uint64
-	blockedCount uint64
+	queueSizeGauge Gauge
+	loggedCounter  Counter
+	errorCounter   Counter
+	droppedCounter Counter
+	blockedCounter Counter
+
+	metricsUpdateFreqMillis int64
 }
 
 // Start initializes this target helper and starts accepting log records for processing.
@@ -67,6 +73,14 @@ func (b *Basic) Start(target Target, rw RecordWriter, filter Filter, formatter F
 	b.done = make(chan struct{}, 1)
 	b.w = rw
 	go b.start()
+
+	if b.queueSizeGauge != nil {
+		go b.updateMetrics()
+	}
+}
+
+func (b *Basic) SetName(name string) {
+	b.name = name
 }
 
 // IsLevelEnabled returns true if this target should emit
@@ -103,10 +117,14 @@ func (b *Basic) Log(rec *LogRec) {
 	default:
 		handler := lgr.OnTargetQueueFull
 		if handler != nil && handler(b.target, rec, cap(b.in)) {
-			atomic.AddUint64(&b.droppedCount, 1)
+			if b.droppedCounter != nil {
+				b.droppedCounter.Inc()
+			}
 			return // drop the record
 		}
-		atomic.AddUint64(&b.blockedCount, 1)
+		if b.blockedCounter != nil {
+			b.blockedCounter.Inc()
+		}
 
 		select {
 		case <-time.After(lgr.enqueueTimeout()):
@@ -116,19 +134,25 @@ func (b *Basic) Log(rec *LogRec) {
 	}
 }
 
-// GetMetrics returns metrics for this target such as queue size and capacity.
-func (b *Basic) GetMetrics() TargetMetrics {
-	metrics := TargetMetrics{}
+// Metrics enables metrics collection using the provided MetricsCollector.
+func (b *Basic) Metrics(collector MetricsCollector, updateFreqMillis int64) {
+	b.metricsUpdateFreqMillis = updateFreqMillis
 
-	metrics.LoggedCount = atomic.LoadUint64(&b.loggedCount)
-	metrics.ErrorCount = atomic.LoadUint64(&b.errorCount)
-	metrics.DroppedCount = atomic.LoadUint64(&b.droppedCount)
-	metrics.BlockedCount = atomic.LoadUint64(&b.blockedCount)
-	metrics.Queue = SizeAndCap{
-		Size: len(b.in),
-		Cap:  cap(b.in),
+	name := fmt.Sprintf("%v", b)
+
+	b.queueSizeGauge = collector.QueueSizeGauge(name)
+	b.loggedCounter = collector.LoggedCounter(name)
+	b.errorCounter = collector.ErrorCounter(name)
+	b.droppedCounter = collector.DroppedCounter(name)
+	b.blockedCounter = collector.BlockedCounter(name)
+}
+
+// String returns a name for this target. Use `SetName` to specify a name.
+func (b *Basic) String() string {
+	if b.name != "" {
+		return b.name
 	}
-	return metrics
+	return fmt.Sprintf("%T", b.target)
 }
 
 // Start accepts log records via In channel and writes to the
@@ -147,14 +171,39 @@ func (b *Basic) start() {
 		} else {
 			err := b.w.Write(rec)
 			if err != nil {
-				atomic.AddUint64(&b.errorCount, 1)
+				if b.errorCounter != nil {
+					b.errorCounter.Inc()
+				}
 				rec.Logger().Logr().ReportError(err)
-			} else {
-				atomic.AddUint64(&b.loggedCount, 1)
+			} else if b.loggedCounter != nil {
+				b.loggedCounter.Inc()
 			}
 		}
 	}
 	close(b.done)
+}
+
+// updateMetrics updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
+// target is closed.
+func (b *Basic) updateMetrics() {
+	for {
+		updateFreq := b.metricsUpdateFreqMillis
+		if updateFreq == 0 {
+			updateFreq = DefMetricsUpdateFreqMillis
+		}
+		if updateFreq < 250 {
+			updateFreq = 250 // don't peg the CPU
+		}
+
+		select {
+		case <-b.done:
+			return
+		case <-time.After(time.Duration(updateFreq) * time.Millisecond):
+			if b.queueSizeGauge != nil {
+				b.queueSizeGauge.Set(float64(len(b.in)))
+			}
+		}
+	}
 }
 
 // flush drains the queue and notifies when done.
@@ -168,7 +217,9 @@ func (b *Basic) flush(done chan<- struct{}) {
 			if rec.flush == nil {
 				err = b.w.Write(rec)
 				if err != nil {
-					atomic.AddUint64(&b.errorCount, 1)
+					if b.errorCounter != nil {
+						b.errorCounter.Inc()
+					}
 					rec.Logger().Logr().ReportError(err)
 				}
 			}
