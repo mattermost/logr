@@ -159,7 +159,7 @@ func (logr *Logr) AddTarget(target Target) error {
 		go logr.start()
 
 		if logr.queueSizeGauge != nil {
-			go logr.updateMetrics()
+			go logr.startMetricsUpdater()
 		}
 	})
 	logr.resetLevelCache()
@@ -444,9 +444,9 @@ func (logr *Logr) start() {
 	close(logr.done)
 }
 
-// updateMetrics updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
+// startMetricsUpdater updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
 // logr is closed.
-func (logr *Logr) updateMetrics() {
+func (logr *Logr) startMetricsUpdater() {
 	for {
 		updateFreq := logr.MetricsUpdateFreqMillis
 		if updateFreq == 0 {

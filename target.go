@@ -75,7 +75,7 @@ func (b *Basic) Start(target Target, rw RecordWriter, filter Filter, formatter F
 	go b.start()
 
 	if b.queueSizeGauge != nil {
-		go b.updateMetrics()
+		go b.startMetricsUpdater()
 	}
 }
 
@@ -183,9 +183,9 @@ func (b *Basic) start() {
 	close(b.done)
 }
 
-// updateMetrics updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
+// startMetricsUpdater updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
 // target is closed.
-func (b *Basic) updateMetrics() {
+func (b *Basic) startMetricsUpdater() {
 	for {
 		updateFreq := b.metricsUpdateFreqMillis
 		if updateFreq == 0 {

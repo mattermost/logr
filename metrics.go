@@ -6,6 +6,8 @@ const (
 	DefMetricsUpdateFreqMillis = 15000 // 15 seconds
 )
 
+// Counter is a simple metrics sink that can only increment a value.
+// Implementations are external to Logr and provided via `MetricsCollector`.
 type Counter interface {
 	// Inc increments the counter by 1. Use Add to increment it by arbitrary non-negative values.
 	Inc()
@@ -13,6 +15,8 @@ type Counter interface {
 	Add(float64)
 }
 
+// Gauge is a simple metrics sink that can receive values and increase or decrease.
+// Implementations are external to Logr and provided via `MetricsCollector`.
 type Gauge interface {
 	// Set sets the Gauge to an arbitrary value.
 	Set(float64)
@@ -22,6 +26,10 @@ type Gauge interface {
 	Sub(float64)
 }
 
+// MetricsCollector provides a way for users of this Logr package to have metrics pushed
+// in an efficient way to any backend, e.g. Prometheus.
+// For each target added to Logr, the supplied MetricsCollector will provide a Gauge
+// and Counters that will be called frequently as logging occurs.
 type MetricsCollector interface {
 	// QueueSizeGauge returns a Gauge that will be updated by the named target.
 	QueueSizeGauge(target string) Gauge
