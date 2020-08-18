@@ -19,25 +19,41 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
-	t.Run("metrics after AddTarget should fail", func(t *testing.T) {
+	t.Run("metrics after AddTarget should pass", func(t *testing.T) {
 		lgr := &logr.Logr{}
 		defer func() {
 			err := lgr.Shutdown()
 			require.NoError(t, err)
 		}()
 
-		// create target
+		// Create target
 		buf := &bytes.Buffer{}
 		tgt := target.NewWriterTarget(filter, formatter, buf, 100)
 		tgt.SetName(TestTargetName)
 
-		// add target before adding metrics
 		err := lgr.AddTarget(tgt)
 		require.NoError(t, err)
 
+		// Add metrics after AddTarget
 		collector := test.NewTestMetricsCollector()
 		err = lgr.SetMetricsCollector(collector)
-		require.Error(t, err)
+		require.NoError(t, err)
+
+		logger := lgr.NewLogger()
+		logger.Info("These go to eleven.")
+		logger.Info("Pay no attention to that man behind the curtain!")
+
+		err = lgr.Flush()
+		require.NoError(t, err)
+
+		metricsLogr := collector.Get("_logr")
+		metricsTarget := collector.Get(TestTargetName)
+
+		require.EqualValues(t, 2, metricsLogr.Logged)
+		require.EqualValues(t, 2, metricsTarget.Logged)
+
+		require.EqualValues(t, 0, metricsLogr.Errors)
+		require.EqualValues(t, 0, metricsTarget.Errors)
 	})
 
 	t.Run("metrics before AddTarget should pass", func(t *testing.T) {
