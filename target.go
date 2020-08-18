@@ -135,16 +135,28 @@ func (b *Basic) Log(rec *LogRec) {
 }
 
 // Metrics enables metrics collection using the provided MetricsCollector.
-func (b *Basic) Metrics(collector MetricsCollector, updateFreqMillis int64) {
+func (b *Basic) EnableMetrics(collector MetricsCollector, updateFreqMillis int64) error {
 	b.metricsUpdateFreqMillis = updateFreqMillis
 
 	name := fmt.Sprintf("%v", b)
+	var err error
 
-	b.queueSizeGauge = collector.QueueSizeGauge(name)
-	b.loggedCounter = collector.LoggedCounter(name)
-	b.errorCounter = collector.ErrorCounter(name)
-	b.droppedCounter = collector.DroppedCounter(name)
-	b.blockedCounter = collector.BlockedCounter(name)
+	if b.queueSizeGauge, err = collector.QueueSizeGauge(name); err != nil {
+		return err
+	}
+	if b.loggedCounter, err = collector.LoggedCounter(name); err != nil {
+		return err
+	}
+	if b.errorCounter, err = collector.ErrorCounter(name); err != nil {
+		return err
+	}
+	if b.droppedCounter, err = collector.DroppedCounter(name); err != nil {
+		return err
+	}
+	if b.blockedCounter, err = collector.BlockedCounter(name); err != nil {
+		return err
+	}
+	return nil
 }
 
 // String returns a name for this target. Use `SetName` to specify a name.

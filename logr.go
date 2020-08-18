@@ -126,9 +126,10 @@ func (logr *Logr) AddTarget(target Target) error {
 	defer logr.tmux.Unlock()
 	logr.targets = append(logr.targets, target)
 
+	var err error
 	if logr.metrics != nil {
 		if tm, ok := target.(TargetWithMetrics); ok {
-			tm.Metrics(logr.metrics, logr.MetricsUpdateFreqMillis)
+			err = tm.EnableMetrics(logr.metrics, logr.MetricsUpdateFreqMillis)
 		}
 	}
 
@@ -163,7 +164,7 @@ func (logr *Logr) AddTarget(target Target) error {
 		}
 	})
 	logr.resetLevelCache()
-	return nil
+	return err
 }
 
 // NewLogger creates a Logger using defaults. A `Logger` is light-weight

@@ -42,49 +42,49 @@ func (c *TestMetricsCollector) Get(target string) TestMetrics {
 	}
 }
 
-func (c *TestMetricsCollector) QueueSizeGauge(target string) logr.Gauge {
+func (c *TestMetricsCollector) QueueSizeGauge(target string) (logr.Gauge, error) {
 	gauge, ok := c.queueSizeGauges[target]
 	if !ok {
 		gauge = &TestGauge{}
 		c.queueSizeGauges[target] = gauge
 	}
-	return gauge
+	return gauge, nil
 }
 
-func (c *TestMetricsCollector) LoggedCounter(target string) logr.Counter {
+func (c *TestMetricsCollector) LoggedCounter(target string) (logr.Counter, error) {
 	counter, ok := c.loggedCounters[target]
 	if !ok {
 		counter = &TestCounter{}
 		c.loggedCounters[target] = counter
 	}
-	return counter
+	return counter, nil
 }
 
-func (c *TestMetricsCollector) ErrorCounter(target string) logr.Counter {
+func (c *TestMetricsCollector) ErrorCounter(target string) (logr.Counter, error) {
 	counter, ok := c.errorCounters[target]
 	if !ok {
 		counter = &TestCounter{}
 		c.errorCounters[target] = counter
 	}
-	return counter
+	return counter, nil
 }
 
-func (c *TestMetricsCollector) DroppedCounter(target string) logr.Counter {
+func (c *TestMetricsCollector) DroppedCounter(target string) (logr.Counter, error) {
 	counter, ok := c.droppedCounters[target]
 	if !ok {
 		counter = &TestCounter{}
 		c.droppedCounters[target] = counter
 	}
-	return counter
+	return counter, nil
 }
 
-func (c *TestMetricsCollector) BlockedCounter(target string) logr.Counter {
+func (c *TestMetricsCollector) BlockedCounter(target string) (logr.Counter, error) {
 	counter, ok := c.blockedCounters[target]
 	if !ok {
 		counter = &TestCounter{}
 		c.blockedCounters[target] = counter
 	}
-	return counter
+	return counter, nil
 }
 
 type TestGauge struct {

@@ -32,20 +32,20 @@ type Gauge interface {
 // and Counters that will be called frequently as logging occurs.
 type MetricsCollector interface {
 	// QueueSizeGauge returns a Gauge that will be updated by the named target.
-	QueueSizeGauge(target string) Gauge
+	QueueSizeGauge(target string) (Gauge, error)
 	// LoggedCounter returns a Counter that will be incremented by the named target.
-	LoggedCounter(target string) Counter
+	LoggedCounter(target string) (Counter, error)
 	// ErrorCounter returns a Counter that will be incremented by the named target.
-	ErrorCounter(target string) Counter
+	ErrorCounter(target string) (Counter, error)
 	// DroppedCounter returns a Counter that will be incremented by the named target.
-	DroppedCounter(target string) Counter
+	DroppedCounter(target string) (Counter, error)
 	// BlockedCounter returns a Counter that will be incremented by the named target.
-	BlockedCounter(target string) Counter
+	BlockedCounter(target string) (Counter, error)
 }
 
 // TargetWithMetrics is a target that provides metrics.
 type TargetWithMetrics interface {
-	Metrics(collector MetricsCollector, updateFreqMillis int64)
+	EnableMetrics(collector MetricsCollector, updateFreqMillis int64) error
 }
 
 // SetMetricsCollector enables metrics collection by supplying a MetricsCollector.
@@ -60,8 +60,8 @@ func (logr *Logr) SetMetricsCollector(collector MetricsCollector) error {
 	}
 
 	logr.metrics = collector
-	logr.queueSizeGauge = collector.QueueSizeGauge("_logr")
-	logr.loggedCounter = collector.LoggedCounter("_logr")
-	logr.errorCounter = collector.ErrorCounter("_logr")
+	logr.queueSizeGauge, _ = collector.QueueSizeGauge("_logr")
+	logr.loggedCounter, _ = collector.LoggedCounter("_logr")
+	logr.errorCounter, _ = collector.ErrorCounter("_logr")
 	return nil
 }
