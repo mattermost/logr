@@ -64,3 +64,76 @@ func TestFlush(t *testing.T) {
 		t.Errorf("missing last log record")
 	}
 }
+
+func TestFlushAfterShutdown(t *testing.T) {
+	buf := &bytes.Buffer{}
+	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	target := test.NewSlowTarget(filter, formatter, buf, 3000)
+	target.Delay = time.Millisecond * 2
+	lgr := &logr.Logr{}
+	err := lgr.AddTarget(target)
+	if err != nil {
+		t.Error(err)
+	}
+
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: 20,
+		Loops:      100,
+		Lvl:        logr.Error,
+	}
+	test.DoSomeLogging(cfg)
+
+	err = lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Should error since shutdown already called. Shouldn't crash.
+	err = lgr.Flush()
+	if err == nil {
+		t.Errorf("Expected error")
+	}
+}
+
+func TestLogAfterShutdown(t *testing.T) {
+	buf := &bytes.Buffer{}
+	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	target := test.NewSlowTarget(filter, formatter, buf, 3000)
+	target.Delay = time.Millisecond * 2
+	lgr := &logr.Logr{}
+	err := lgr.AddTarget(target)
+	if err != nil {
+		t.Error(err)
+	}
+
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: 20,
+		Loops:      100,
+		Lvl:        logr.Error,
+	}
+	test.DoSomeLogging(cfg)
+
+	err = lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Should NOP since shutdown already called. Shouldn't crash.
+	logger := lgr.NewLogger().WithField("test", "yes")
+	logger.Info("This shouldn't get logged")
+
+	// Second shutdown should error, but not crash.
+	err = lgr.Shutdown()
+	if err == nil {
+		t.Errorf("Expected error calling shutdown after shutdown")
+	}
+
+	output := buf.String()
+	if strings.Contains(output, "This shouldn't get logged") {
+		t.Errorf("log record should not appear after shutdown")
+	}
+}

@@ -304,6 +304,17 @@ func (logr *Logr) panic(err interface{}) {
 // timing out. Use `IsTimeoutError` to determine if the returned error is
 // due to a timeout.
 func (logr *Logr) Flush() error {
+	ctx, cancel := context.WithTimeout(context.Background(), logr.flushTimeout())
+	defer cancel()
+	return logr.FlushWithTimeout(ctx)
+}
+
+// Flush blocks while flushing the logr queue and all target queues, by
+// writing existing log records to valid targets.
+// Any attempts to add new log records will block until flush is complete.
+// Use `IsTimeoutError` to determine if the returned error is
+// due to a timeout.
+func (logr *Logr) FlushWithTimeout(ctx context.Context) error {
 	if !logr.HasTargets() {
 		return nil
 	}
@@ -311,8 +322,9 @@ func (logr *Logr) Flush() error {
 	logr.mux.Lock()
 	defer logr.mux.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), logr.flushTimeout())
-	defer cancel()
+	if logr.shutdown {
+		return errors.New("Flush called on shut down Logr")
+	}
 
 	rec := newFlushLogRec(logr.NewLogger())
 	logr.enqueue(rec)
@@ -332,6 +344,17 @@ func (logr *Logr) Flush() error {
 // timing out. Use `IsTimeoutError` to determine if the returned error is
 // due to a timeout.
 func (logr *Logr) Shutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), logr.shutdownTimeout())
+	defer cancel()
+	return logr.ShutdownWithTimeout(ctx)
+}
+
+// Shutdown cleanly stops the logging engine after making best efforts
+// to flush all targets. Call this function right before application
+// exit - logr cannot be restarted once shut down.
+// Use `IsTimeoutError` to determine if the returned error is due to a
+// timeout.
+func (logr *Logr) ShutdownWithTimeout(ctx context.Context) error {
 	logr.mux.Lock()
 	if logr.shutdown {
 		logr.mux.Unlock()
@@ -346,9 +369,6 @@ func (logr *Logr) Shutdown() error {
 	logr.mux.Unlock()
 
 	errs := merror.New()
-
-	ctx, cancel := context.WithTimeout(context.Background(), logr.shutdownTimeout())
-	defer cancel()
 
 	// close the incoming channel and wait for read loop to exit.
 	if logr.in != nil {
