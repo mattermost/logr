@@ -42,8 +42,3 @@ func (st *SlowTarget) Write(rec *logr.LogRec) error {
 	_, err = st.out.Write(buf.Bytes())
 	return err
 }
-
-// String returns a string representation of this target.
-func (st *SlowTarget) String() string {
-	return "SlowTarget"
-}
