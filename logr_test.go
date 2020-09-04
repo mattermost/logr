@@ -2,6 +2,7 @@ package logr_test
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/mattermost/logr"
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/test"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFlush(t *testing.T) {
@@ -135,5 +137,45 @@ func TestLogAfterShutdown(t *testing.T) {
 	output := buf.String()
 	if strings.Contains(output, "This shouldn't get logged") {
 		t.Errorf("log record should not appear after shutdown")
+	}
+}
+
+func TestRemoveTarget(t *testing.T) {
+	buf := &bytes.Buffer{}
+	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+
+	target1 := test.NewSlowTarget(filter, formatter, buf, 3000)
+	target1.SetName("t1")
+	target1.Delay = time.Millisecond * 2
+
+	target2 := test.NewSlowTarget(filter, formatter, buf, 3000)
+	target2.SetName("t2")
+	target2.Delay = time.Millisecond * 2
+
+	lgr := &logr.Logr{}
+	err := lgr.AddTarget(target1, target2)
+	assert.NoError(t, err)
+
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: 20,
+		Loops:      100,
+		Lvl:        logr.Error,
+	}
+	test.DoSomeLogging(cfg)
+
+	err = lgr.RemoveTargets(context.Background(), func(ti logr.TargetInfo) bool {
+		return ti.Name == "t2"
+	})
+	assert.NoError(t, err)
+
+	tarr := lgr.TargetInfos()
+	assert.Len(t, tarr, 1)
+	assert.Equal(t, tarr[0].Name, "t1")
+
+	err = lgr.Shutdown()
+	if err != nil {
+		t.Error(err)
 	}
 }
