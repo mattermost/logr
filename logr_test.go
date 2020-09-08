@@ -141,15 +141,16 @@ func TestLogAfterShutdown(t *testing.T) {
 }
 
 func TestRemoveTarget(t *testing.T) {
-	buf := &bytes.Buffer{}
 	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
-	target1 := test.NewSlowTarget(filter, formatter, buf, 3000)
+	buf1 := &bytes.Buffer{}
+	target1 := test.NewSlowTarget(filter, formatter, buf1, 3000)
 	target1.SetName("t1")
 	target1.Delay = time.Millisecond * 2
 
-	target2 := test.NewSlowTarget(filter, formatter, buf, 3000)
+	buf2 := &bytes.Buffer{}
+	target2 := test.NewSlowTarget(filter, formatter, buf2, 3000)
 	target2.SetName("t2")
 	target2.Delay = time.Millisecond * 2
 

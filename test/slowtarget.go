@@ -2,6 +2,7 @@ package test
 
 import (
 	"io"
+	"sync"
 	"time"
 
 	"github.com/mattermost/logr"
@@ -14,6 +15,7 @@ type SlowTarget struct {
 	logr.Basic
 	out   io.Writer
 	Delay time.Duration
+	mux   sync.Mutex
 }
 
 // NewSlowTarget creates a new SlowTarget.
@@ -38,6 +40,9 @@ func (st *SlowTarget) Write(rec *logr.LogRec) error {
 	}
 
 	time.Sleep(st.Delay)
+
+	st.mux.Lock()
+	defer st.mux.Unlock()
 
 	_, err = st.out.Write(buf.Bytes())
 	return err
