@@ -14,7 +14,7 @@ import (
 )
 
 func ExampleWriter() {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
@@ -48,7 +48,7 @@ func TestWriterJSON(t *testing.T) {
 }
 
 func writer(t *testing.T, formatter logr.Formatter) {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 	target := target.NewWriterTarget(filter, formatter, buf, 1000)

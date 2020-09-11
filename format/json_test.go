@@ -12,7 +12,7 @@ import (
 )
 
 func TestJSON(t *testing.T) {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 	formatter := &format.JSON{DisableTimestamp: true, DisableStacktrace: true}
 

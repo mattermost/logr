@@ -20,12 +20,14 @@ const (
 	QSIZE  = 10010
 )
 
-var lgr = &logr.Logr{
-	MaxQueueSize:      QSIZE,
-	OnLoggerError:     handleLoggerError,
-	OnQueueFull:       handleQueueFull,
-	OnTargetQueueFull: handleTargetQueueFull,
+var opts = []logr.Option{
+	logr.MaxQueueSize(QSIZE),
+	logr.OnLoggerError(handleLoggerError),
+	logr.OnQueueFull(handleQueueFull),
+	logr.OnTargetQueueFull(handleTargetQueueFull),
 }
+
+var lgr, _ = logr.New(opts...)
 
 var (
 	errorCount           uint32

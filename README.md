@@ -26,7 +26,7 @@ It is very much inspired by [Logrus](https://github.com/sirupsen/logrus) but add
 
 ```go
 // Create Logr instance.
-lgr := &logr.Logr{}
+lgr := logr.New()
 
 // Create a filter and formatter. Both can be shared by multiple
 // targets.
@@ -56,7 +56,7 @@ Fields allow for contextual logging, meaning information can be added to log sta
 Fields are added via Loggers:
 
 ```go
-lgr := &Logr{}
+lgr,_ := &Logr{}
 // ... add targets ...
 logger := lgr.NewLogger().WithFields(logr.Fields{
   "user": user,
@@ -88,7 +88,7 @@ Logr also supports custom filters (logr.CustomFilter) which allow fine grained i
   LoginLevel := logr.Level{ID: 100, Name: "login ", Stacktrace: false}
   LogoutLevel := logr.Level{ID: 101, Name: "logout", Stacktrace: false}
 
-  lgr := &logr.Logr{}
+  lgr,_ := logr.New()
 
   // create a custom filter with custom levels.
   filter := &logr.CustomFilter{}

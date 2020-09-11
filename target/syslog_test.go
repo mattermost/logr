@@ -13,10 +13,11 @@ import (
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/target"
 	"github.com/mattermost/logr/test"
+	"github.com/stretchr/testify/require"
 )
 
 func ExampleSyslog() {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.Plain{Delim: " | "}
 	params := &target.SyslogParams{Network: "", Raddr: "", Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtest"}
@@ -45,11 +46,11 @@ func TestSyslogPlain(t *testing.T) {
 }
 
 func syslogger(t *testing.T, formatter logr.Formatter) {
-	lgr := &logr.Logr{}
-
-	lgr.OnLoggerError = func(err error) {
+	opt := logr.OnLoggerError(func(err error) {
 		t.Error(err)
-	}
+	})
+	lgr, err := logr.New(opt)
+	require.NoError(t, err)
 
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Panic}
 	params := &target.SyslogParams{Network: "", Raddr: "", Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtest"}

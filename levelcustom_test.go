@@ -10,6 +10,7 @@ import (
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/target"
 	"github.com/mattermost/logr/test"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -19,7 +20,7 @@ var (
 )
 
 func TestCustomLevel(t *testing.T) {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 
 	// create a custom filter with custom levels.
@@ -59,13 +60,13 @@ func TestCustomLevel(t *testing.T) {
 }
 
 func TestLevelIDTooLarge(t *testing.T) {
-	lgr := &logr.Logr{}
-	buf := &test.Buffer{}
 	var count int32
-
-	lgr.OnLoggerError = func(err error) {
+	opt := logr.OnLoggerError(func(err error) {
 		atomic.AddInt32(&count, 1)
-	}
+	})
+	lgr, err := logr.New(opt)
+	require.NoError(t, err)
+	buf := &test.Buffer{}
 
 	// create a custom filter with custom level.
 	filter := &logr.CustomFilter{}
@@ -73,7 +74,7 @@ func TestLevelIDTooLarge(t *testing.T) {
 
 	formatter := &format.Plain{Delim: " | "}
 	tgr := target.NewWriterTarget(filter, formatter, buf, 1000)
-	err := lgr.AddTarget(tgr)
+	err = lgr.AddTarget(tgr)
 	if err != nil {
 		t.Error(err)
 	}

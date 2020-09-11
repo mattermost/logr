@@ -121,7 +121,7 @@ func (b *Basic) Log(rec *LogRec) {
 	select {
 	case b.in <- rec:
 	default:
-		handler := lgr.OnTargetQueueFull
+		handler := lgr.options.onTargetQueueFull
 		if handler != nil && handler(b.target, rec, cap(b.in)) {
 			b.incDroppedCounter()
 			return // drop the record
@@ -129,7 +129,7 @@ func (b *Basic) Log(rec *LogRec) {
 		b.incBlockedCounter()
 
 		select {
-		case <-time.After(lgr.enqueueTimeout()):
+		case <-time.After(lgr.options.enqueueTimeout):
 			lgr.ReportError(fmt.Errorf("target enqueue timeout for log rec [%v]", rec))
 		case b.in <- rec: // block until success or timeout
 		}

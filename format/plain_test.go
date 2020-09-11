@@ -11,7 +11,7 @@ import (
 )
 
 func TestPlain(t *testing.T) {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
 	formatter := &format.Plain{DisableStacktrace: true, Delim: " | "}

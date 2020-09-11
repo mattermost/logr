@@ -15,7 +15,7 @@ import (
 )
 
 func ExampleFile() {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.JSON{}
 	opts := target.FileOptions{
@@ -52,8 +52,9 @@ func TestFileJSON(t *testing.T) {
 }
 
 func file(t *testing.T, formatter logr.Formatter, filename string) {
-	lgr := &logr.Logr{}
-	opts := target.FileOptions{
+	lgr, _ := logr.New()
+
+	fileOpts := target.FileOptions{
 		Filename:   filename,
 		MaxSize:    1,
 		MaxAge:     2,
@@ -62,7 +63,7 @@ func file(t *testing.T, formatter logr.Formatter, filename string) {
 	}
 
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	target := target.NewFileTarget(filter, formatter, opts, 1000)
+	target := target.NewFileTarget(filter, formatter, fileOpts, 1000)
 	_ = lgr.AddTarget(target)
 
 	const goodToken = "Woot!"

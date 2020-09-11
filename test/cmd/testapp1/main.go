@@ -19,14 +19,9 @@ const (
 	GOROUTINES = 10
 	// LOOPS is the number of loops per goroutine.
 	LOOPS = 10000
+	// QSIZE is the size of the Loge inbound queue.
+	QSIZE = 1000
 )
-
-var lgr = &logr.Logr{
-	MaxQueueSize:      1000,
-	OnLoggerError:     handleLoggerError,
-	OnQueueFull:       handleQueueFull,
-	OnTargetQueueFull: handleTargetQueueFull,
-}
 
 var (
 	errorCount           uint32
@@ -52,12 +47,20 @@ func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize in
 }
 
 func main() {
-	// add metrics
 	collector := test.NewTestMetricsCollector()
-	if err := lgr.SetMetricsCollector(collector); err != nil {
+
+	opts := []logr.Option{
+		logr.MaxQueueSize(QSIZE),
+		logr.OnLoggerError(handleLoggerError),
+		logr.OnQueueFull(handleQueueFull),
+		logr.OnTargetQueueFull(handleTargetQueueFull),
+		logr.SetMetricsCollector(collector, 1000),
+	}
+
+	lgr, err := logr.New(opts...)
+	if err != nil {
 		panic(err)
 	}
-	lgr.MetricsUpdateFreqMillis = 1000
 
 	// create writer target to stdout
 	var t logr.Target
@@ -77,7 +80,7 @@ func main() {
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
 	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
-	t, err := target.NewSyslogTarget(fltr, formatter, params, 1000)
+	t, err = target.NewSyslogTarget(fltr, formatter, params, 1000)
 	t.SetName("syslog")
 	if err != nil {
 		panic(err)

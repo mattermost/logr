@@ -5,15 +5,17 @@ import (
 	"time"
 
 	"github.com/mattermost/logr"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShutdown_NoTargetsAdded(t *testing.T) {
-	lgr := &logr.Logr{MaxQueueSize: 1000}
+	opt := logr.MaxQueueSize(1000)
+
+	lgr, err := logr.New(opt)
+	require.NoError(t, err)
 
 	time.Sleep(2 * time.Second)
 
-	err := lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	err = lgr.Shutdown()
+	require.NoError(t, err)
 }

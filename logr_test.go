@@ -19,7 +19,7 @@ func TestFlush(t *testing.T) {
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(filter, formatter, buf, 3000)
 	target.Delay = time.Millisecond * 2
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	err := lgr.AddTarget(target)
 	if err != nil {
 		t.Error(err)
@@ -73,7 +73,7 @@ func TestFlushAfterShutdown(t *testing.T) {
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(filter, formatter, buf, 3000)
 	target.Delay = time.Millisecond * 2
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	err := lgr.AddTarget(target)
 	if err != nil {
 		t.Error(err)
@@ -105,7 +105,7 @@ func TestLogAfterShutdown(t *testing.T) {
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(filter, formatter, buf, 3000)
 	target.Delay = time.Millisecond * 2
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	err := lgr.AddTarget(target)
 	if err != nil {
 		t.Error(err)
@@ -154,7 +154,7 @@ func TestRemoveTarget(t *testing.T) {
 	target2.SetName("t2")
 	target2.Delay = time.Millisecond * 2
 
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	err := lgr.AddTarget(target1, target2)
 	assert.NoError(t, err)
 
