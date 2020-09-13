@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/v2"
 	syslog "github.com/wiggin77/srslog"
 )
 

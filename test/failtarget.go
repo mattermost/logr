@@ -3,7 +3,7 @@ package test
 import (
 	"errors"
 
-	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/v2"
 )
 
 // FailingTarget is a test target that always fails.

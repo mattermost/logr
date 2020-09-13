@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/mattermost/logr"
-	"github.com/mattermost/logr/format"
-	"github.com/mattermost/logr/target"
-	"github.com/mattermost/logr/test"
+	"github.com/mattermost/logr/v2"
+	"github.com/mattermost/logr/v2/format"
+	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/require"
 )
 

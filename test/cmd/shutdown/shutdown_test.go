@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/v2"
 	"github.com/stretchr/testify/require"
 )
 

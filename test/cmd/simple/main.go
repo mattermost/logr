@@ -8,9 +8,9 @@ import (
 	"runtime/pprof"
 	"sync/atomic"
 
-	"github.com/mattermost/logr"
-	"github.com/mattermost/logr/format"
-	"github.com/mattermost/logr/target"
+	"github.com/mattermost/logr/v2"
+	"github.com/mattermost/logr/v2/format"
+	"github.com/mattermost/logr/v2/target"
 )
 
 // Settings

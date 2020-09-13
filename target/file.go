@@ -3,7 +3,7 @@ package target
 import (
 	"io"
 
-	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/v2"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

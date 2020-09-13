@@ -1,4 +1,4 @@
-module github.com/mattermost/logr
+module github.com/mattermost/logr/v2
 
 go 1.12
 
