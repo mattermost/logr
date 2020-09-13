@@ -60,9 +60,7 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Panic}
 	params := &SyslogParams{
-		IP:   "localhost",
-		Port: 514,
-		Tag:  "logrtest",
+		Tag: "logrtest",
 	}
 	target, err := NewSyslogTarget(params)
 	require.NoError(t, err)

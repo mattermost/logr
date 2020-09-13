@@ -112,7 +112,7 @@ func TestLogAfterShutdown(t *testing.T) {
 
 	// Second shutdown should error, but not crash.
 	err = lgr.Shutdown()
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	output := buf.String()
 	if strings.Contains(output, "This shouldn't get logged") {
