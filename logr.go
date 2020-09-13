@@ -20,8 +20,8 @@ type Logr struct {
 	targetHosts []*TargetHost
 
 	in         chan *LogRec
-	quit       chan struct{}
-	done       chan struct{}
+	quit       chan struct{} // closed by Shutdown to exit read loop
+	done       chan struct{} // closed when read loop exited
 	lvlCache   levelCache
 	bufferPool sync.Pool
 	options    *options
@@ -52,8 +52,8 @@ func New(opts ...Option) (*Logr, error) {
 	}
 
 	logr.in = make(chan *LogRec, logr.options.maxQueueSize)
-	logr.done = make(chan struct{})
 	logr.quit = make(chan struct{})
+	logr.done = make(chan struct{})
 
 	if logr.options.useSyncMapLevelCache {
 		logr.lvlCache = &syncMapLevelCache{}

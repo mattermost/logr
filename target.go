@@ -51,8 +51,8 @@ type TargetHost struct {
 	formatter Formatter
 
 	in      chan *LogRec
-	quit    chan struct{}
-	done    chan struct{}
+	quit    chan struct{} // closed by Shutdown to exit read loop
+	done    chan struct{} // closed when read loop exited
 	metrics *targetMetrics
 
 	shutdown int32
@@ -65,8 +65,8 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 		filter:    options.filter,
 		formatter: options.formatter,
 		in:        make(chan *LogRec, options.maxQueueSize),
-		done:      make(chan struct{}),
 		quit:      make(chan struct{}),
+		done:      make(chan struct{}),
 	}
 
 	if host.name == "" {
