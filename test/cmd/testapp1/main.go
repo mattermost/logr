@@ -53,7 +53,7 @@ func main() {
 		logr.OnLoggerError(handleLoggerError),
 		logr.OnQueueFull(handleQueueFull),
 		logr.OnTargetQueueFull(handleTargetQueueFull),
-		logr.SetMetricsCollector(collector, 1000),
+		logr.SetMetricsCollector(collector, 250),
 	}
 
 	lgr, err := logr.New(opts...)
@@ -135,6 +135,10 @@ func main() {
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),
 		atomic.LoadUint32(&targetQueueFullCount))
+
+	if atomic.LoadUint32(&errorCount) > 0 || atomic.LoadUint32(&queueFullCount) > 0 || atomic.LoadUint32(&targetQueueFullCount) > 0 {
+		os.Exit(1)
+	}
 }
 
 func startMetricsUpdater(targets []string, collector *test.TestMetricsCollector, done chan struct{}) {

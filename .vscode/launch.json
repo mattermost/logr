@@ -6,6 +6,16 @@
 	"configurations": [
 
 		{
+			"name": "SimpleApp",
+			"type": "go",
+			"request": "launch",
+			"mode": "auto",
+			"program": "${workspaceFolder}/test/cmd/simple/main.go",
+			"env": {},
+			"args": []
+		},
+		
+		{
 			"name": "TestApp",
 			"type": "go",
 			"request": "launch",

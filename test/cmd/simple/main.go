@@ -66,6 +66,7 @@ func main() {
 	}
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
+	logger.Error("One test error.")
 
 	var file *os.File
 

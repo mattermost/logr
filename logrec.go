@@ -88,11 +88,12 @@ func (rec *LogRec) prep() {
 			}
 		}
 
-		// remove leading logr package entries.
+		// remove leading package entries from filter.
+		filter := rec.logger.logr.options.stackFilter
 		var start int
 		for i, frame := range rec.frames {
 			pkg := getPackageName(frame.Function)
-			if pkg != "" && pkg != logrPkg {
+			if _, ok := filter[pkg]; !ok && pkg != "" {
 				start = i
 				break
 			}

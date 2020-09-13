@@ -22,6 +22,7 @@ type options struct {
 	disableBufferPool       bool
 	metricsCollector        MetricsCollector
 	metricsUpdateFreqMillis int64
+	stackFilter             map[string]struct{}
 }
 
 // MaxQueueSize is the maximum number of log records that can be queued.
@@ -169,6 +170,23 @@ func SetMetricsCollector(collector MetricsCollector, updateFreqMillis int64) Opt
 		}
 		l.options.metricsCollector = collector
 		l.options.metricsUpdateFreqMillis = updateFreqMillis
+		return nil
+	}
+}
+
+// StackFilter provides a list of package names to exclude from the top of
+// stack traces.  The Logr package is automatically filtered.
+func StackFilter(pkg ...string) Option {
+	return func(l *Logr) error {
+		if l.options.stackFilter == nil {
+			l.options.stackFilter = make(map[string]struct{})
+		}
+
+		for _, p := range pkg {
+			if p != "" {
+				l.options.stackFilter[p] = struct{}{}
+			}
+		}
 		return nil
 	}
 }
