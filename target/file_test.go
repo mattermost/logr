@@ -25,8 +25,8 @@ func ExampleFile() {
 		MaxBackups: 3,
 		Compress:   false,
 	}
-	t := target.NewFileTarget(filter, formatter, opts, 1000)
-	_ = lgr.AddTarget(t)
+	t := target.NewFileTarget(opts)
+	_ = lgr.AddTarget(t, "test", filter, formatter, 1000)
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
 
@@ -63,8 +63,8 @@ func file(t *testing.T, formatter logr.Formatter, filename string) {
 	}
 
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	target := target.NewFileTarget(filter, formatter, fileOpts, 1000)
-	_ = lgr.AddTarget(target)
+	tgt := target.NewFileTarget(fileOpts)
+	_ = lgr.AddTarget(tgt, "test2", filter, formatter, 1000)
 
 	const goodToken = "Woot!"
 	const badToken = "XXX!!XXX"

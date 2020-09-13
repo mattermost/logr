@@ -11,19 +11,17 @@ import (
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFlush(t *testing.T) {
 	buf := &bytes.Buffer{}
 	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
-	target := test.NewSlowTarget(filter, formatter, buf, 3000)
-	target.Delay = time.Millisecond * 2
+	target := test.NewSlowTarget(buf, 2)
 	lgr, _ := logr.New()
-	err := lgr.AddTarget(target)
-	if err != nil {
-		t.Error(err)
-	}
+	err := lgr.AddTarget(target, "flushTest", filter, formatter, 3000)
+	require.NoError(t, err)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,
@@ -39,9 +37,7 @@ func TestFlush(t *testing.T) {
 
 	// blocks until flush is finished.
 	err = lgr.Flush()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	dur := time.Since(start)
 	t.Logf("Flush duration: %v", dur)
@@ -57,9 +53,7 @@ func TestFlush(t *testing.T) {
 
 	// blocks until flush is finished.
 	err = lgr.Flush()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	output = buf.String()
 	if !strings.Contains(output, "%^^%") {
@@ -71,13 +65,10 @@ func TestFlushAfterShutdown(t *testing.T) {
 	buf := &bytes.Buffer{}
 	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
-	target := test.NewSlowTarget(filter, formatter, buf, 3000)
-	target.Delay = time.Millisecond * 2
+	target := test.NewSlowTarget(buf, 2)
 	lgr, _ := logr.New()
-	err := lgr.AddTarget(target)
-	if err != nil {
-		t.Error(err)
-	}
+	err := lgr.AddTarget(target, "flushTest", filter, formatter, 3000)
+	require.NoError(t, err)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,
@@ -88,28 +79,21 @@ func TestFlushAfterShutdown(t *testing.T) {
 	test.DoSomeLogging(cfg)
 
 	err = lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	// Should error since shutdown already called. Shouldn't crash.
 	err = lgr.Flush()
-	if err == nil {
-		t.Errorf("Expected error")
-	}
+	require.Error(t, err)
 }
 
 func TestLogAfterShutdown(t *testing.T) {
 	buf := &bytes.Buffer{}
 	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
-	target := test.NewSlowTarget(filter, formatter, buf, 3000)
-	target.Delay = time.Millisecond * 2
+	target := test.NewSlowTarget(buf, 2)
 	lgr, _ := logr.New()
-	err := lgr.AddTarget(target)
-	if err != nil {
-		t.Error(err)
-	}
+	err := lgr.AddTarget(target, "shutdownTest", filter, formatter, 3000)
+	require.NoError(t, err)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,
@@ -120,9 +104,7 @@ func TestLogAfterShutdown(t *testing.T) {
 	test.DoSomeLogging(cfg)
 
 	err = lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	// Should NOP since shutdown already called. Shouldn't crash.
 	logger := lgr.NewLogger().WithField("test", "yes")
@@ -130,9 +112,7 @@ func TestLogAfterShutdown(t *testing.T) {
 
 	// Second shutdown should error, but not crash.
 	err = lgr.Shutdown()
-	if err == nil {
-		t.Errorf("Expected error calling shutdown after shutdown")
-	}
+	require.NoError(t, err)
 
 	output := buf.String()
 	if strings.Contains(output, "This shouldn't get logged") {
@@ -143,20 +123,17 @@ func TestLogAfterShutdown(t *testing.T) {
 func TestRemoveTarget(t *testing.T) {
 	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	lgr, _ := logr.New()
 
 	buf1 := &bytes.Buffer{}
-	target1 := test.NewSlowTarget(filter, formatter, buf1, 3000)
-	target1.SetName("t1")
-	target1.Delay = time.Millisecond * 2
+	target1 := test.NewSlowTarget(buf1, 2)
+	err := lgr.AddTarget(target1, "t1", filter, formatter, 3000)
+	require.NoError(t, err)
 
 	buf2 := &bytes.Buffer{}
-	target2 := test.NewSlowTarget(filter, formatter, buf2, 3000)
-	target2.SetName("t2")
-	target2.Delay = time.Millisecond * 2
-
-	lgr, _ := logr.New()
-	err := lgr.AddTarget(target1, target2)
-	assert.NoError(t, err)
+	target2 := test.NewSlowTarget(buf2, 2)
+	err = lgr.AddTarget(target2, "t2", filter, formatter, 3000)
+	require.NoError(t, err)
 
 	cfg := test.DoSomeLoggingCfg{
 		Lgr:        lgr,

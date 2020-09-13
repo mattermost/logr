@@ -2,11 +2,13 @@ package test
 
 import (
 	"io/ioutil"
+	"strconv"
 	"testing"
 
 	"github.com/mattermost/logr"
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/target"
+	"github.com/stretchr/testify/require"
 )
 
 // Enabled avoids compiler optimization.
@@ -21,8 +23,9 @@ func BenchmarkFilterOut(b *testing.B) {
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		_ = lgr.AddTarget(target)
+		target := target.NewWriterTarget(ioutil.Discard)
+		err := lgr.AddTarget(target, "benchmarkTest", filter, formatter, 1000)
+		require.NoError(b, err)
 	}
 
 	b.ResetTimer()
@@ -33,9 +36,7 @@ func BenchmarkFilterOut(b *testing.B) {
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
-	if err != nil {
-		b.Error(err)
-	}
+	require.NoError(b, err)
 }
 
 // BenchmarkLog measures adding a log record to the queue without stack trace.
@@ -47,8 +48,9 @@ func BenchmarkLog(b *testing.B) {
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
 		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		_ = lgr.AddTarget(target)
+		target := target.NewWriterTarget(ioutil.Discard)
+		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
+		require.NoError(b, err)
 	}
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
@@ -60,9 +62,7 @@ func BenchmarkLog(b *testing.B) {
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
-	if err != nil {
-		b.Error(err)
-	}
+	require.NoError(b, err)
 }
 
 // BenchmarkLogFiltered measures a logging call for a level that has no
@@ -73,8 +73,9 @@ func BenchmarkLogFiltered(b *testing.B) {
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Fatal}
 		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		_ = lgr.AddTarget(target)
+		target := target.NewWriterTarget(ioutil.Discard)
+		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
+		require.NoError(b, err)
 	}
 
 	logger := lgr.NewLogger()
@@ -86,9 +87,7 @@ func BenchmarkLogFiltered(b *testing.B) {
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
-	if err != nil {
-		b.Error(err)
-	}
+	require.NoError(b, err)
 }
 
 // BenchmarkLogStacktrace measures adding a log record to the queue with stack trace.
@@ -101,8 +100,9 @@ func BenchmarkLogStacktrace(b *testing.B) {
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
 		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		_ = lgr.AddTarget(target)
+		target := target.NewWriterTarget(ioutil.Discard)
+		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
+		require.NoError(b, err)
 	}
 
 	logger := lgr.NewLogger()
@@ -114,9 +114,7 @@ func BenchmarkLogStacktrace(b *testing.B) {
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
-	if err != nil {
-		b.Error(err)
-	}
+	require.NoError(b, err)
 }
 
 // BenchmarkLogger measures creating Loggers with context.
@@ -125,8 +123,9 @@ func BenchmarkLogger(b *testing.B) {
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
 		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-		_ = lgr.AddTarget(target)
+		target := target.NewWriterTarget(ioutil.Discard)
+		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
+		require.NoError(b, err)
 	}
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
@@ -138,7 +137,5 @@ func BenchmarkLogger(b *testing.B) {
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
-	if err != nil {
-		b.Error(err)
-	}
+	require.NoError(b, err)
 }

@@ -16,10 +16,11 @@ import (
 // Logr maintains a list of log targets and accepts incoming
 // log records.  Use `New` to create instances.
 type Logr struct {
-	tmux    sync.RWMutex // target mutex
-	targets []Target
+	tmux        sync.RWMutex // targetHosts mutex
+	targetHosts []*TargetHost
 
 	in         chan *LogRec
+	quit       chan struct{}
 	done       chan struct{}
 	lvlCache   levelCache
 	bufferPool sync.Pool
@@ -52,6 +53,7 @@ func New(opts ...Option) (*Logr, error) {
 
 	logr.in = make(chan *LogRec, logr.options.maxQueueSize)
 	logr.done = make(chan struct{})
+	logr.quit = make(chan struct{})
 
 	if logr.options.useSyncMapLevelCache {
 		logr.lvlCache = &syncMapLevelCache{}
@@ -73,35 +75,35 @@ func New(opts ...Option) (*Logr, error) {
 	return logr, nil
 }
 
-// AddTarget adds one or more targets to the logger which will receive
+// AddTarget adds a target to the logger which will receive
 // log records for outputting.
-func (logr *Logr) AddTarget(targets ...Target) error {
+func (logr *Logr) AddTarget(target Target, name string, filter Filter, formatter Formatter, maxQueueSize int) error {
 	if logr.IsShutdown() {
 		return fmt.Errorf("AddTarget called after Logr shut down")
+	}
+
+	hostOpts := targetHostOptions{
+		name:                    name,
+		filter:                  filter,
+		formatter:               formatter,
+		maxQueueSize:            maxQueueSize,
+		collector:               logr.options.metricsCollector,
+		metricsUpdateFreqMillis: logr.options.metricsUpdateFreqMillis,
+	}
+
+	host, err := newTargetHost(target, hostOpts)
+	if err != nil {
+		return err
 	}
 
 	logr.tmux.Lock()
 	defer logr.tmux.Unlock()
 
-	errs := merror.New()
-	for _, t := range targets {
-		if t == nil {
-			continue
-		}
-
-		logr.targets = append(logr.targets, t)
-		if logr.metrics != nil {
-			if tm, ok := t.(TargetWithMetrics); ok {
-				if err := tm.EnableMetrics(logr.metrics.collector, logr.options.metricsUpdateFreqMillis); err != nil {
-					errs.Append(err)
-				}
-			}
-		}
-	}
+	logr.targetHosts = append(logr.targetHosts, host)
 
 	logr.ResetLevelCache()
 
-	return errs.ErrorOrNil()
+	return nil
 }
 
 // NewLogger creates a Logger using defaults. A `Logger` is light-weight
@@ -131,8 +133,8 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	// Cache miss; check each target.
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
-	for _, t := range logr.targets {
-		e, s := t.IsLevelEnabled(lvl)
+	for _, host := range logr.targetHosts {
+		e, s := host.IsLevelEnabled(lvl)
 		if e {
 			status.Enabled = true
 			if s {
@@ -154,7 +156,7 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 func (logr *Logr) HasTargets() bool {
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
-	return len(logr.targets) > 0
+	return len(logr.targetHosts) > 0
 }
 
 // TargetInfo provides name and type for a Target.
@@ -166,15 +168,15 @@ type TargetInfo struct {
 // TargetInfos enumerates all the targets added to this Logr.
 // The resulting slice represents a snapshot at time of calling.
 func (logr *Logr) TargetInfos() []TargetInfo {
+	infos := make([]TargetInfo, 0)
+
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
 
-	infos := make([]TargetInfo, 0)
-
-	for _, t := range logr.targets {
+	for _, host := range logr.targetHosts {
 		inf := TargetInfo{
-			Name: fmt.Sprintf("%v", t),
-			Type: fmt.Sprintf("%T", t),
+			Name: host.String(),
+			Type: fmt.Sprintf("%T", host.target),
 		}
 		infos = append(infos, inf)
 	}
@@ -187,38 +189,29 @@ func (logr *Logr) TargetInfos() []TargetInfo {
 // closing, with cxt determining how much time can be spent in total.
 // Note, keep the timeout short since this method blocks certain logging operations.
 func (logr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool) error {
-	var removed bool
-	defer func() {
-		if removed {
-			// call this after tmux is released since
-			// it will lock mux and we don't want to
-			// introduce possible deadlock.
-			logr.ResetLevelCache()
-		}
-	}()
-
 	errs := merror.New()
+	hosts := make([]*TargetHost, 0)
 
 	logr.tmux.Lock()
 	defer logr.tmux.Unlock()
 
-	cp := make([]Target, 0)
-
-	for _, t := range logr.targets {
+	for _, host := range logr.targetHosts {
 		inf := TargetInfo{
-			Name: fmt.Sprintf("%v", t),
-			Type: fmt.Sprintf("%T", t),
+			Name: host.String(),
+			Type: fmt.Sprintf("%T", host.target),
 		}
 		if f(inf) {
-			if err := t.Shutdown(cxt); err != nil {
+			if err := host.Shutdown(cxt); err != nil {
 				errs.Append(err)
 			}
-			removed = true
 		} else {
-			cp = append(cp, t)
+			hosts = append(hosts, host)
 		}
 	}
-	logr.targets = cp
+
+	logr.targetHosts = hosts
+	logr.ResetLevelCache()
+
 	return errs.ErrorOrNil()
 }
 
@@ -235,7 +228,7 @@ func (logr *Logr) enqueue(rec *LogRec) {
 	select {
 	case logr.in <- rec:
 	default:
-		if logr.options.onQueueFull != nil && logr.options.onQueueFull(rec, logr.options.maxQueueSize) {
+		if logr.options.onQueueFull != nil && logr.options.onQueueFull(rec, cap(logr.in)) {
 			return // drop the record
 		}
 		select {
@@ -345,24 +338,23 @@ func (logr *Logr) ShutdownWithTimeout(ctx context.Context) error {
 	logr.ResetLevelCache()
 	logr.stopMetricsUpdater()
 
+	close(logr.quit)
+
 	errs := merror.New()
 
-	// close the incoming channel and wait for read loop to exit.
-	if logr.in != nil {
-		close(logr.in)
-		select {
-		case <-ctx.Done():
-			errs.Append(newTimeoutError("logr queue shutdown timeout"))
-		case <-logr.done:
-		}
+	// Wait for read loop to exit
+	select {
+	case <-ctx.Done():
+		errs.Append(newTimeoutError("logr queue shutdown timeout"))
+	case <-logr.done:
 	}
 
 	// logr.in channel should now be drained to targets and no more log records
 	// can be added.
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
-	for _, t := range logr.targets {
-		err := t.Shutdown(ctx)
+	for _, host := range logr.targetHosts {
+		err := host.Shutdown(ctx)
 		if err != nil {
 			errs.Append(err)
 		}
@@ -400,33 +392,40 @@ func (logr *Logr) ReleaseBuffer(buf *bytes.Buffer) {
 	}
 }
 
-// start selects on incoming log records until done channel signals.
+// start selects on incoming log records until shutdown record is received.
 // Incoming log records are fanned out to all log targets.
 func (logr *Logr) start() {
 	defer func() {
 		if r := recover(); r != nil {
 			logr.ReportError(r)
 			go logr.start()
+		} else {
+			close(logr.done)
 		}
 	}()
 
-	for rec := range logr.in {
-		if rec.flush != nil {
-			logr.flush(rec.flush)
-		} else {
-			rec.prep()
-			logr.fanout(rec)
+	for {
+		var rec *LogRec
+		select {
+		case rec = <-logr.in:
+			if rec.flush != nil {
+				logr.flush(rec.flush)
+			} else {
+				rec.prep()
+				logr.fanout(rec)
+			}
+		case <-logr.quit:
+			return
 		}
 	}
-	close(logr.done)
 }
 
 // fanout pushes a LogRec to all targets.
 func (logr *Logr) fanout(rec *LogRec) {
-	var target Target
+	var host *TargetHost
 	defer func() {
 		if r := recover(); r != nil {
-			logr.ReportError(fmt.Errorf("fanout failed for target %s, %v", target, r))
+			logr.ReportError(fmt.Errorf("fanout failed for target %s, %v", host.String(), r))
 		}
 	}()
 
@@ -434,9 +433,9 @@ func (logr *Logr) fanout(rec *LogRec) {
 
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
-	for _, target = range logr.targets {
-		if enabled, _ := target.IsLevelEnabled(rec.Level()); enabled {
-			target.Log(rec)
+	for _, host = range logr.targetHosts {
+		if enabled, _ := host.IsLevelEnabled(rec.Level()); enabled {
+			host.Log(rec)
 			logged = true
 		}
 	}
@@ -468,9 +467,9 @@ loop:
 	// drain all the targets; block until finished.
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()
-	for _, target := range logr.targets {
+	for _, host := range logr.targetHosts {
 		rec := newFlushLogRec(logger)
-		target.Log(rec)
+		host.Log(rec)
 		<-rec.flush
 	}
 	done <- struct{}{}

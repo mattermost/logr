@@ -3,87 +3,129 @@
 package target
 
 import (
-	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"errors"
 	"fmt"
-	"log/syslog"
+	"io/ioutil"
 
 	"github.com/mattermost/logr"
-	"github.com/wiggin77/merror"
+	syslog "github.com/wiggin77/srslog"
 )
 
 // Syslog outputs log records to local or remote syslog.
 type Syslog struct {
-	logr.Basic
-	w *syslog.Writer
+	params *SyslogParams
+	writer *syslog.Writer
 }
 
 // SyslogParams provides parameters for dialing a syslog daemon.
 type SyslogParams struct {
-	Network  string
-	Raddr    string
-	Priority syslog.Priority
+	IP       string
+	Port     int
 	Tag      string
+	TLS      bool
+	Cert     string
+	Insecure bool
 }
 
-// NewSyslogTarget creates a target capable of outputting log records to remote or local syslog.
-func NewSyslogTarget(filter logr.Filter, formatter logr.Formatter, params *SyslogParams, maxQueue int) (*Syslog, error) {
-	writer, err := syslog.Dial(params.Network, params.Raddr, params.Priority, params.Tag)
-	if err != nil {
-		return nil, err
+// NewSyslogTarget creates a target capable of outputting log records to remote or local syslog, with or without TLS.
+func NewSyslogTarget(params *SyslogParams) (*Syslog, error) {
+	if params == nil {
+		return nil, errors.New("params cannot be nil")
 	}
 
-	s := &Syslog{w: writer}
-	s.Basic.Start(s, s, filter, formatter, maxQueue)
-
+	s := &Syslog{
+		params: params,
+	}
 	return s, nil
 }
 
-// Shutdown stops processing log records after making best
-// effort to flush queue.
-func (s *Syslog) Shutdown(ctx context.Context) error {
-	errs := merror.New()
+// Init is called once to initialize the target.
+func (s *Syslog) Init() error {
+	network := "tcp"
+	var config *tls.Config
 
-	err := s.Basic.Shutdown(ctx)
-	errs.Append(err)
+	if s.params.TLS {
+		network = "tcp+tls"
+		config = &tls.Config{InsecureSkipVerify: s.params.Insecure}
+		if s.params.Cert != "" {
+			pool, err := getCertPool(s.params.Cert)
+			if err != nil {
+				return err
+			}
+			config.RootCAs = pool
+		}
+	}
+	raddr := fmt.Sprintf("%s:%d", s.params.IP, s.params.Port)
+	if raddr == ":0" {
+		// If no IP:port provided then connect to local syslog.
+		raddr = ""
+		network = ""
+	}
 
-	err = s.w.Close()
-	errs.Append(err)
-
-	return errs.ErrorOrNil()
+	var err error
+	s.writer, err = syslog.DialWithTLSConfig(network, raddr, syslog.LOG_INFO, s.params.Tag, config)
+	return err
 }
 
-// Write converts the log record to bytes, via the Formatter,
-// and outputs to syslog.
-func (s *Syslog) Write(rec *logr.LogRec) error {
-	_, stacktrace := s.IsLevelEnabled(rec.Level())
-
-	buf := rec.Logger().Logr().BorrowBuffer()
-	defer rec.Logger().Logr().ReleaseBuffer(buf)
-
-	buf, err := s.Formatter().Format(rec, stacktrace, buf)
-	if err != nil {
-		return err
-	}
-	txt := buf.String()
+// Write outputs bytes to this file target.
+func (s *Syslog) Write(p []byte, rec *logr.LogRec) (int, error) {
+	txt := string(p)
+	n := len(txt)
+	var err error
 
 	switch rec.Level() {
 	case logr.Panic, logr.Fatal:
-		err = s.w.Crit(txt)
+		err = s.writer.Crit(txt)
 	case logr.Error:
-		err = s.w.Err(txt)
+		err = s.writer.Err(txt)
 	case logr.Warn:
-		err = s.w.Warning(txt)
+		err = s.writer.Warning(txt)
 	case logr.Debug, logr.Trace:
-		err = s.w.Debug(txt)
+		err = s.writer.Debug(txt)
 	default:
 		// logr.Info plus all custom levels.
-		err = s.w.Info(txt)
+		err = s.writer.Info(txt)
 	}
 
 	if err != nil {
+		n = 0
 		reporter := rec.Logger().Logr().ReportError
 		reporter(fmt.Errorf("syslog write fail: %w", err))
 		// syslog writer will try to reconnect.
 	}
-	return err
+	return n, err
+}
+
+// Shutdown is called once to free/close any resources.
+// Target queue is already drained when this is called.
+func (s *Syslog) Shutdown() error {
+	return s.writer.Close()
+}
+
+// getCertPool returns a x509.CertPool containing the cert(s)
+// from `cert`, which can be a path to a .pem or .crt file,
+// or a base64 encoded cert.
+func getCertPool(cert string) (*x509.CertPool, error) {
+	if cert == "" {
+		return nil, errors.New("no cert provided")
+	}
+
+	// first treat as a file and try to read.
+	serverCert, err := ioutil.ReadFile(cert)
+	if err != nil {
+		// maybe it's a base64 encoded cert
+		serverCert, err = base64.StdEncoding.DecodeString(cert)
+		if err != nil {
+			return nil, errors.New("cert cannot be read")
+		}
+	}
+
+	pool := x509.NewCertPool()
+	if ok := pool.AppendCertsFromPEM(serverCert); ok {
+		return pool, nil
+	}
+	return nil, errors.New("cannot parse cert")
 }

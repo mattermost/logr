@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log/syslog"
 	"os"
 	"sync/atomic"
 	"time"
@@ -66,26 +65,32 @@ func main() {
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &format.JSON{}
-	t = target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
-	t.SetName("stdout")
-	_ = lgr.AddTarget(t)
+	t = target.NewWriterTarget(os.Stdout)
+	err = lgr.AddTarget(t, "stdout", filter, formatter, 1000)
+	if err != nil {
+		panic(err)
+	}
 
 	// create writer target to /dev/null
-	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-	t.SetName("discard")
-	_ = lgr.AddTarget(t)
+	t = target.NewWriterTarget(ioutil.Discard)
+	err = lgr.AddTarget(t, "discard", filter, formatter, 1000)
+	if err != nil {
+		panic(err)
+	}
 
 	// create syslog target to local using custom filter.
 	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
-	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
-	t, err = target.NewSyslogTarget(fltr, formatter, params, 1000)
-	t.SetName("syslog")
+	params := &target.SyslogParams{Tag: "logrtestapp"}
+	t, err = target.NewSyslogTarget(params)
 	if err != nil {
 		panic(err)
 	}
-	_ = lgr.AddTarget(t)
+	err = lgr.AddTarget(t, "syslog", fltr, formatter, 1000)
+	if err != nil {
+		panic(err)
+	}
 
 	done := make(chan struct{})
 	targetNames := []string{"_logr", "stdout", "discard", "syslog"}

@@ -1,11 +1,9 @@
 package target
 
 import (
-	"context"
 	"io"
 
 	"github.com/mattermost/logr"
-	"github.com/wiggin77/merror"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -39,12 +37,11 @@ type FileOptions struct {
 // File outputs log records to a file which can be log rotated based on size or age.
 // Uses `https://github.com/natefinch/lumberjack` for rotation.
 type File struct {
-	logr.Basic
 	out io.WriteCloser
 }
 
 // NewFileTarget creates a target capable of outputting log records to a rotated file.
-func NewFileTarget(filter logr.Filter, formatter logr.Formatter, opts FileOptions, maxQueue int) *File {
+func NewFileTarget(opts FileOptions) *File {
 	lumber := &lumberjack.Logger{
 		Filename:   opts.Filename,
 		MaxSize:    opts.MaxSize,
@@ -53,35 +50,21 @@ func NewFileTarget(filter logr.Filter, formatter logr.Formatter, opts FileOption
 		Compress:   opts.Compress,
 	}
 	f := &File{out: lumber}
-	f.Basic.Start(f, f, filter, formatter, maxQueue)
 	return f
 }
 
-// Write converts the log record to bytes, via the Formatter,
-// and outputs to a file.
-func (f *File) Write(rec *logr.LogRec) error {
-	_, stacktrace := f.IsLevelEnabled(rec.Level())
-
-	buf := rec.Logger().Logr().BorrowBuffer()
-	defer rec.Logger().Logr().ReleaseBuffer(buf)
-
-	buf, err := f.Formatter().Format(rec, stacktrace, buf)
-	if err != nil {
-		return err
-	}
-	_, err = f.out.Write(buf.Bytes())
-	return err
+// Init is called once to initialize the target.
+func (f *File) Init() error {
+	return nil
 }
 
-// Shutdown flushes any remaining log records and closes the file.
-func (f *File) Shutdown(ctx context.Context) error {
-	errs := merror.New()
+// Write outputs bytes to this file target.
+func (f *File) Write(p []byte, rec *logr.LogRec) (int, error) {
+	return f.out.Write(p)
+}
 
-	err := f.Basic.Shutdown(ctx)
-	errs.Append(err)
-
-	err = f.out.Close()
-	errs.Append(err)
-
-	return errs.ErrorOrNil()
+// Shutdown is called once to free/close any resources.
+// Target queue is already drained when this is called.
+func (f *File) Shutdown() error {
+	return f.out.Close()
 }

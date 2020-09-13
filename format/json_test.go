@@ -9,6 +9,7 @@ import (
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/target"
 	"github.com/mattermost/logr/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJSON(t *testing.T) {
@@ -18,8 +19,8 @@ func TestJSON(t *testing.T) {
 
 	t.Run("default sorter, one field", func(t *testing.T) {
 		buf := &test.Buffer{}
-		target := target.NewWriterTarget(filter, formatter, buf, 1000)
-		err := lgr.AddTarget(target)
+		target := target.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatter, 1000)
 		if err != nil {
 			t.Error(err)
 		}
@@ -38,8 +39,8 @@ func TestJSON(t *testing.T) {
 
 	t.Run("default sorter, zero fields", func(t *testing.T) {
 		buf := &test.Buffer{}
-		target := target.NewWriterTarget(filter, formatter, buf, 1000)
-		err := lgr.AddTarget(target)
+		target := target.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatter, 1000)
 		if err != nil {
 			t.Error(err)
 		}
@@ -47,7 +48,8 @@ func TestJSON(t *testing.T) {
 		logger := lgr.NewLogger()
 
 		logger.Error("This is an error.")
-		lgr.Flush()
+		err = lgr.Flush()
+		require.NoError(t, err)
 
 		want := NL(`{"level":"error","msg":"This is an error."}`)
 
@@ -58,11 +60,9 @@ func TestJSON(t *testing.T) {
 
 	t.Run("default sorter, three fields", func(t *testing.T) {
 		buf := &test.Buffer{}
-		target := target.NewWriterTarget(filter, formatter, buf, 1000)
-		err := lgr.AddTarget(target)
-		if err != nil {
-			t.Error(err)
-		}
+		target := target.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatter, 1000)
+		require.NoError(t, err)
 
 		fields := logr.Fields{}
 		fields["middle_name"] = "Thomas"
@@ -71,7 +71,8 @@ func TestJSON(t *testing.T) {
 		logger := lgr.NewLogger().WithFields(fields)
 
 		logger.Error("This is an error.")
-		lgr.Flush()
+		err = lgr.Flush()
+		require.NoError(t, err)
 
 		want := NL(`{"level":"error","msg":"This is an error.","first_name":"Ender","last_name":"Wiggin","middle_name":"Thomas"}`)
 
@@ -81,13 +82,11 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("default sorter, three fields, context grouped", func(t *testing.T) {
-		f := &format.JSON{DisableTimestamp: true, DisableStacktrace: true, KeyContextFields: "ctx"}
+		formatter := &format.JSON{DisableTimestamp: true, DisableStacktrace: true, KeyContextFields: "ctx"}
 		buf := &test.Buffer{}
-		target := target.NewWriterTarget(filter, f, buf, 1000)
-		err := lgr.AddTarget(target)
-		if err != nil {
-			t.Error(err)
-		}
+		target := target.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatter, 1000)
+		require.NoError(t, err)
 
 		fields := logr.Fields{}
 		fields["middle_name"] = "Thomas"
@@ -96,7 +95,8 @@ func TestJSON(t *testing.T) {
 		logger := lgr.NewLogger().WithFields(fields)
 
 		logger.Error("This is an error.")
-		lgr.Flush()
+		err = lgr.Flush()
+		require.NoError(t, err)
 
 		want := NL(`{"level":"error","msg":"This is an error.","ctx":{"first_name":"Ender","last_name":"Wiggin","middle_name":"Thomas"}}`)
 
@@ -108,11 +108,9 @@ func TestJSON(t *testing.T) {
 	t.Run("reverse sorter, three fields", func(t *testing.T) {
 		formatterWithReverseSort := &format.JSON{DisableTimestamp: true, DisableStacktrace: true, ContextSorter: reverseSort}
 		buf := &test.Buffer{}
-		target := target.NewWriterTarget(filter, formatterWithReverseSort, buf, 1000)
-		err := lgr.AddTarget(target)
-		if err != nil {
-			t.Error(err)
-		}
+		target := target.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatterWithReverseSort, 1000)
+		require.NoError(t, err)
 
 		fields := logr.Fields{}
 		fields["last_name"] = "Wiggin"
@@ -121,7 +119,8 @@ func TestJSON(t *testing.T) {
 		logger := lgr.NewLogger().WithFields(fields)
 
 		logger.Error("This is an error.")
-		lgr.Flush()
+		err = lgr.Flush()
+		require.NoError(t, err)
 
 		want := NL(`{"level":"error","msg":"This is an error.","middle_name":"Thomas","last_name":"Wiggin","first_name":"Ender"}`)
 
@@ -131,13 +130,11 @@ func TestJSON(t *testing.T) {
 	})
 
 	t.Run("reverse sorter, three fields, context grouped", func(t *testing.T) {
-		f := &format.JSON{DisableTimestamp: true, DisableStacktrace: true, ContextSorter: reverseSort, KeyContextFields: "ctx"}
+		formatter := &format.JSON{DisableTimestamp: true, DisableStacktrace: true, ContextSorter: reverseSort, KeyContextFields: "ctx"}
 		buf := &test.Buffer{}
-		target := target.NewWriterTarget(filter, f, buf, 1000)
-		err := lgr.AddTarget(target)
-		if err != nil {
-			t.Error(err)
-		}
+		target := target.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatter, 1000)
+		require.NoError(t, err)
 
 		fields := logr.Fields{}
 		fields["last_name"] = "Wiggin"
@@ -146,7 +143,8 @@ func TestJSON(t *testing.T) {
 		logger := lgr.NewLogger().WithFields(fields)
 
 		logger.Error("This is an error.")
-		lgr.Flush()
+		err = lgr.Flush()
+		require.NoError(t, err)
 
 		want := NL(`{"level":"error","msg":"This is an error.","ctx":{"middle_name":"Thomas","last_name":"Wiggin","first_name":"Ender"}}`)
 
@@ -156,9 +154,7 @@ func TestJSON(t *testing.T) {
 	})
 
 	err := lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 }
 
 func reverseSort(fields logr.Fields) []format.ContextField {

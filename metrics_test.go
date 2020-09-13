@@ -33,10 +33,9 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 
 		// Create target
 		buf := &bytes.Buffer{}
-		tgt := target.NewWriterTarget(filter, formatter, buf, 100)
-		tgt.SetName(TestTargetName)
+		tgt := target.NewWriterTarget(buf)
 
-		err = lgr.AddTarget(tgt)
+		err = lgr.AddTarget(tgt, TestTargetName, filter, formatter, 100)
 		require.NoError(t, err)
 
 		logger := lgr.NewLogger()
@@ -77,10 +76,8 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 		}()
 
 		// Create target
-		tgt := test.NewFailingTarget(filter, formatter)
-		tgt.SetName(TestTargetName)
-
-		err = lgr.AddTarget(tgt)
+		tgt := test.NewFailingTarget()
+		err = lgr.AddTarget(tgt, TestTargetName, filter, formatter, 300)
 		require.NoError(t, err)
 
 		logger := lgr.NewLogger()
@@ -114,14 +111,12 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 		// Create targets
 		buf1 := &bytes.Buffer{}
 		buf2 := &bytes.Buffer{}
-		tgt1 := target.NewWriterTarget(filter, formatter, buf1, 100)
-		tgt2 := target.NewWriterTarget(filter, formatter, buf2, 100)
-		tgt1.SetName(TestTargetName + "1")
-		tgt2.SetName(TestTargetName + "2")
+		tgt1 := target.NewWriterTarget(buf1)
+		tgt2 := target.NewWriterTarget(buf2)
 
-		err = lgr.AddTarget(tgt1)
+		err = lgr.AddTarget(tgt1, TestTargetName+"1", filter, formatter, 100)
 		require.NoError(t, err)
-		err = lgr.AddTarget(tgt2)
+		err = lgr.AddTarget(tgt2, TestTargetName+"2", filter, formatter, 300)
 		require.NoError(t, err)
 
 		logger := lgr.NewLogger()

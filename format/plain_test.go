@@ -8,6 +8,7 @@ import (
 	"github.com/mattermost/logr/format"
 	"github.com/mattermost/logr/target"
 	"github.com/mattermost/logr/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPlain(t *testing.T) {
@@ -15,8 +16,8 @@ func TestPlain(t *testing.T) {
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
 	formatter := &format.Plain{DisableStacktrace: true, Delim: " | "}
-	target := target.NewWriterTarget(filter, formatter, buf, 1000)
-	err := lgr.AddTarget(target)
+	target := target.NewWriterTarget(buf)
+	err := lgr.AddTarget(target, "plainTest", filter, formatter, 1000)
 	if err != nil {
 		t.Error(err)
 	}
@@ -36,7 +37,5 @@ func TestPlain(t *testing.T) {
 	t.Log(got)
 
 	err = lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 }

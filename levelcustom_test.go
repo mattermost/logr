@@ -28,11 +28,9 @@ func TestCustomLevel(t *testing.T) {
 	filter.Add(LoginLevel, LogoutLevel)
 
 	formatter := &format.Plain{Delim: " | "}
-	tgr := target.NewWriterTarget(filter, formatter, buf, 1000)
-	err := lgr.AddTarget(tgr)
-	if err != nil {
-		t.Error(err)
-	}
+	tgr := target.NewWriterTarget(buf)
+	err := lgr.AddTarget(tgr, "customLevelTest", filter, formatter, 1000)
+	require.NoError(t, err)
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
 
@@ -42,9 +40,7 @@ func TestCustomLevel(t *testing.T) {
 	logger.Log(LogoutLevel, "will get logged")
 
 	err = lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	output := buf.String()
 	fmt.Println(output)
@@ -56,7 +52,6 @@ func TestCustomLevel(t *testing.T) {
 	if strings.Contains(output, "XXX") {
 		t.Error("wrong level(s) output")
 	}
-
 }
 
 func TestLevelIDTooLarge(t *testing.T) {
@@ -73,20 +68,16 @@ func TestLevelIDTooLarge(t *testing.T) {
 	filter.Add(BadLevel)
 
 	formatter := &format.Plain{Delim: " | "}
-	tgr := target.NewWriterTarget(filter, formatter, buf, 1000)
-	err = lgr.AddTarget(tgr)
-	if err != nil {
-		t.Error(err)
-	}
+	tgr := target.NewWriterTarget(buf)
+	err = lgr.AddTarget(tgr, "levelTest", filter, formatter, 1000)
+	require.NoError(t, err)
 
 	logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
 
 	logger.Log(BadLevel, "this item will trigger OnLoggerError")
 
 	err = lgr.Shutdown()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	if atomic.LoadInt32(&count) != 1 {
 		t.Error("OnLoggerError should be called once")
