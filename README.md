@@ -31,10 +31,10 @@ lgr,_ := logr.New()
 // Create a filter and formatter. Both can be shared by multiple
 // targets.
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-formatter := &format.Plain{Delim: " | "}
+formatter := &formatters.Plain{Delim: " | "}
 
 // WriterTarget outputs to any io.Writer
-t := target.NewWriterTarget(filter, formatter, os.StdOut, 1000)
+t := targets.NewWriterTarget(filter, formatter, os.StdOut, 1000)
 lgr.AddTarget(t)
 
 // One or more Loggers can be created, shared, used concurrently,
@@ -94,8 +94,8 @@ Logr also supports custom filters (logr.CustomFilter) which allow fine grained i
   filter := &logr.CustomFilter{}
   filter.Add(LoginLevel, LogoutLevel)
 
-  formatter := &format.Plain{Delim: " | "}
-  tgr := target.NewWriterTarget(filter, formatter, os.StdOut, 1000)
+  formatter := &formatters.Plain{Delim: " | "}
+  tgr := targets.NewWriterTarget(filter, formatter, os.StdOut, 1000)
   lgr.AddTarget(tgr)
   logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
 
@@ -113,36 +113,31 @@ You can use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) vi
 
 You can create your own target by implementing the [Target](./target.go) interface.
 
-An easier method is to use the [logr.Basic](./target.go) type target and build your functionality on that. Basic handles all the queuing and other plumbing so you only need to implement two methods. Example target that outputs to `io.Writer`:
+Example target that outputs to `io.Writer`:
 
 ```go
 type Writer struct {
-  logr.Basic
   out io.Writer
 }
 
-func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, maxQueue int) *Writer {
+func NewWriterTarget(out io.Writer) *Writer {
   w := &Writer{out: out}
-  w.Basic.Start(w, w, filter, formatter, maxQueue)
   return w
 }
 
+// Called once to initialize target.
+func (w *Writer) Init() error {
+  return nil
+}
+
 // Write will always be called by a single goroutine, so no locking needed.
-// Just convert a log record to a []byte using the formatter and output the
-// bytes to your sink.
-func (w *Writer) Write(rec *logr.LogRec) error {
-  _, stacktrace := w.IsLevelEnabled(rec.Level())
+func (w *Writer) Write(p []byte, rec *logr.LogRec) (int, error) {
+  return w.out.Write(buf.Bytes())
+}
 
-  // take a buffer from the pool to avoid allocations or just allocate a new one.
-  buf := rec.Logger().Logr().BorrowBuffer()
-  defer rec.Logger().Logr().ReleaseBuffer(buf)
-
-  buf, err := w.Formatter().Format(rec, stacktrace, buf)
-  if err != nil {
-    return err
-  }
-  _, err = w.out.Write(buf.Bytes())
-  return err
+// Called once to cleanup/free resources for target.
+func (w *Writer) Shutdown() error {
+  return nil
 }
 ```
 
