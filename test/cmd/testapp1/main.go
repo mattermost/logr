@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 )
 
@@ -64,15 +64,15 @@ func main() {
 	// create writer target to stdout
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.JSON{}
-	t = target.NewWriterTarget(os.Stdout)
+	formatter := &formatters.JSON{}
+	t = targets.NewWriterTarget(os.Stdout)
 	err = lgr.AddTarget(t, "stdout", filter, formatter, 1000)
 	if err != nil {
 		panic(err)
 	}
 
 	// create writer target to /dev/null
-	t = target.NewWriterTarget(ioutil.Discard)
+	t = targets.NewWriterTarget(ioutil.Discard)
 	err = lgr.AddTarget(t, "discard", filter, formatter, 1000)
 	if err != nil {
 		panic(err)
@@ -82,8 +82,8 @@ func main() {
 	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
-	params := &target.SyslogParams{Tag: "logrtestapp"}
-	t, err = target.NewSyslogTarget(params)
+	params := &targets.SyslogParams{Tag: "logrtestapp"}
+	t, err = targets.NewSyslogTarget(params)
 	if err != nil {
 		panic(err)
 	}

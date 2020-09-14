@@ -1,12 +1,12 @@
-package format_test
+package formatters_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/require"
 )
@@ -15,8 +15,8 @@ func TestPlain(t *testing.T) {
 	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
-	formatter := &format.Plain{DisableStacktrace: true, Delim: " | "}
-	target := target.NewWriterTarget(buf)
+	formatter := &formatters.Plain{DisableStacktrace: true, Delim: " | "}
+	target := targets.NewWriterTarget(buf)
 	err := lgr.AddTarget(target, "plainTest", filter, formatter, 1000)
 	if err != nil {
 		t.Error(err)

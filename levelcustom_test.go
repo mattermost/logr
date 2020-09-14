@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/require"
 )
@@ -27,8 +27,8 @@ func TestCustomLevel(t *testing.T) {
 	filter := &logr.CustomFilter{}
 	filter.Add(LoginLevel, LogoutLevel)
 
-	formatter := &format.Plain{Delim: " | "}
-	tgr := target.NewWriterTarget(buf)
+	formatter := &formatters.Plain{Delim: " | "}
+	tgr := targets.NewWriterTarget(buf)
 	err := lgr.AddTarget(tgr, "customLevelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 
@@ -67,8 +67,8 @@ func TestLevelIDTooLarge(t *testing.T) {
 	filter := &logr.CustomFilter{}
 	filter.Add(BadLevel)
 
-	formatter := &format.Plain{Delim: " | "}
-	tgr := target.NewWriterTarget(buf)
+	formatter := &formatters.Plain{Delim: " | "}
+	tgr := targets.NewWriterTarget(buf)
 	err = lgr.AddTarget(tgr, "levelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 

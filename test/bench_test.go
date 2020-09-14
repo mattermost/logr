@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,8 +22,8 @@ func BenchmarkFilterOut(b *testing.B) {
 	lgr, _ := logr.New()
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error}
-		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(ioutil.Discard)
+		formatter := &formatters.Plain{Delim: " | "}
+		target := targets.NewWriterTarget(ioutil.Discard)
 		err := lgr.AddTarget(target, "benchmarkTest", filter, formatter, 1000)
 		require.NoError(b, err)
 	}
@@ -47,8 +47,8 @@ func BenchmarkLog(b *testing.B) {
 	lgr, _ := logr.New()
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
-		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(ioutil.Discard)
+		formatter := &formatters.Plain{Delim: " | "}
+		target := targets.NewWriterTarget(ioutil.Discard)
 		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
 		require.NoError(b, err)
 	}
@@ -72,8 +72,8 @@ func BenchmarkLogFiltered(b *testing.B) {
 	lgr, _ := logr.New()
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Fatal}
-		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(ioutil.Discard)
+		formatter := &formatters.Plain{Delim: " | "}
+		target := targets.NewWriterTarget(ioutil.Discard)
 		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
 		require.NoError(b, err)
 	}
@@ -99,8 +99,8 @@ func BenchmarkLogStacktrace(b *testing.B) {
 	lgr, _ := logr.New()
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(ioutil.Discard)
+		formatter := &formatters.Plain{Delim: " | "}
+		target := targets.NewWriterTarget(ioutil.Discard)
 		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
 		require.NoError(b, err)
 	}
@@ -122,8 +122,8 @@ func BenchmarkLogger(b *testing.B) {
 	lgr, _ := logr.New()
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Warn}
-		formatter := &format.Plain{Delim: " | "}
-		target := target.NewWriterTarget(ioutil.Discard)
+		formatter := &formatters.Plain{Delim: " | "}
+		target := targets.NewWriterTarget(ioutil.Discard)
 		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
 		require.NoError(b, err)
 	}

@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"bufio"
@@ -9,23 +9,23 @@ import (
 	"time"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 )
 
 func ExampleFile() {
 	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.JSON{}
-	opts := target.FileOptions{
+	formatter := &formatters.JSON{}
+	opts := targets.FileOptions{
 		Filename:   "./logs/test_lumberjack.log",
 		MaxSize:    1,
 		MaxAge:     2,
 		MaxBackups: 3,
 		Compress:   false,
 	}
-	t := target.NewFileTarget(opts)
+	t := targets.NewFileTarget(opts)
 	_ = lgr.AddTarget(t, "test", filter, formatter, 1000)
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
@@ -42,19 +42,19 @@ func ExampleFile() {
 }
 
 func TestFilePlain(t *testing.T) {
-	plain := &format.Plain{Delim: " | "}
+	plain := &formatters.Plain{Delim: " | "}
 	file(t, plain, "./logs/test_lumberjack_plain.log")
 }
 
 func TestFileJSON(t *testing.T) {
-	json := &format.JSON{Indent: "\n  "}
+	json := &formatters.JSON{Indent: "\n  "}
 	file(t, json, "./logs/test_lumberjack_json.log")
 }
 
 func file(t *testing.T, formatter logr.Formatter, filename string) {
 	lgr, _ := logr.New()
 
-	fileOpts := target.FileOptions{
+	fileOpts := targets.FileOptions{
 		Filename:   filename,
 		MaxSize:    1,
 		MaxAge:     2,
@@ -63,7 +63,7 @@ func file(t *testing.T, formatter logr.Formatter, filename string) {
 	}
 
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	tgt := target.NewFileTarget(fileOpts)
+	tgt := targets.NewFileTarget(fileOpts)
 	_ = lgr.AddTarget(tgt, "test2", filter, formatter, 1000)
 
 	const goodToken = "Woot!"

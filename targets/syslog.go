@@ -1,6 +1,6 @@
 // +build !windows,!nacl,!plan9
 
-package target
+package targets
 
 import (
 	"crypto/tls"
@@ -51,7 +51,7 @@ func (s *Syslog) Init() error {
 		network = "tcp+tls"
 		config = &tls.Config{InsecureSkipVerify: s.params.Insecure}
 		if s.params.Cert != "" {
-			pool, err := getCertPool(s.params.Cert)
+			pool, err := GetCertPool(s.params.Cert)
 			if err != nil {
 				return err
 			}
@@ -105,10 +105,10 @@ func (s *Syslog) Shutdown() error {
 	return s.writer.Close()
 }
 
-// getCertPool returns a x509.CertPool containing the cert(s)
+// GetCertPool returns a x509.CertPool containing the cert(s)
 // from `cert`, which can be a path to a .pem or .crt file,
 // or a base64 encoded cert.
-func getCertPool(cert string) (*x509.CertPool, error) {
+func GetCertPool(cert string) (*x509.CertPool, error) {
 	if cert == "" {
 		return nil, errors.New("no cert provided")
 	}

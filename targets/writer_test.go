@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"fmt"
@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 )
 
@@ -17,8 +17,8 @@ func ExampleWriter() {
 	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.Plain{Delim: " | "}
-	t := target.NewWriterTarget(buf)
+	formatter := &formatters.Plain{Delim: " | "}
+	t := targets.NewWriterTarget(buf)
 	_ = lgr.AddTarget(t, "example", filter, formatter, 1000)
 
 	logger := lgr.NewLogger().WithField("name", "wiggin")
@@ -38,12 +38,12 @@ func ExampleWriter() {
 }
 
 func TestWriterPlain(t *testing.T) {
-	plain := &format.Plain{Delim: " | "}
+	plain := &formatters.Plain{Delim: " | "}
 	writer(t, plain)
 }
 
 func TestWriterJSON(t *testing.T) {
-	json := &format.JSON{Indent: "  "}
+	json := &formatters.JSON{Indent: "  "}
 	writer(t, json)
 }
 
@@ -51,7 +51,7 @@ func writer(t *testing.T, formatter logr.Formatter) {
 	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	target := target.NewWriterTarget(buf)
+	target := targets.NewWriterTarget(buf)
 	_ = lgr.AddTarget(target, "writerTest", filter, formatter, 1000)
 
 	const goodToken = "Woot!"

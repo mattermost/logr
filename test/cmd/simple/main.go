@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 )
 
 // Settings
@@ -58,8 +58,8 @@ func main() {
 	// create writer target to stdout
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.Plain{Delim: " | "}
-	t = target.NewWriterTarget(ioutil.Discard)
+	formatter := &formatters.Plain{Delim: " | "}
+	t = targets.NewWriterTarget(ioutil.Discard)
 	err := lgr.AddTarget(t, "simple", filter, formatter, QSIZE)
 	if err != nil {
 		panic(err)

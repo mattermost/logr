@@ -1,6 +1,6 @@
 // +build !windows,!nacl,!plan9
 
-package target
+package targets_test
 
 import (
 	"fmt"
@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,13 +19,13 @@ import (
 func ExampleSyslog() {
 	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.Plain{Delim: " | "}
-	params := &SyslogParams{
+	formatter := &formatters.Plain{Delim: " | "}
+	params := &targets.SyslogParams{
 		IP:   "localhost",
 		Port: 514,
 		Tag:  "logrtest",
 	}
-	t, err := NewSyslogTarget(params)
+	t, err := targets.NewSyslogTarget(params)
 	if err != nil {
 		panic(err)
 	}
@@ -47,7 +48,7 @@ func ExampleSyslog() {
 }
 
 func TestSyslogPlain(t *testing.T) {
-	plain := &format.Plain{Delim: " | ", DisableTimestamp: true}
+	plain := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	syslogger(t, plain)
 }
 
@@ -59,10 +60,10 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	require.NoError(t, err)
 
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Panic}
-	params := &SyslogParams{
+	params := &targets.SyslogParams{
 		Tag: "logrtest",
 	}
-	target, err := NewSyslogTarget(params)
+	target, err := targets.NewSyslogTarget(params)
 	require.NoError(t, err)
 
 	err = lgr.AddTarget(target, "syslogTest2", filter, formatter, 1000)
@@ -95,7 +96,7 @@ func Test_getCertPool(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pool, err := getCertPool(tt.cert)
+			pool, err := targets.GetCertPool(tt.cert)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, pool)

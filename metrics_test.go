@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +16,7 @@ const (
 )
 
 func TestLogr_SetMetricsCollector(t *testing.T) {
-	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
 	t.Run("adding metrics should pass", func(t *testing.T) {
@@ -33,7 +33,7 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 
 		// Create target
 		buf := &bytes.Buffer{}
-		tgt := target.NewWriterTarget(buf)
+		tgt := targets.NewWriterTarget(buf)
 
 		err = lgr.AddTarget(tgt, TestTargetName, filter, formatter, 100)
 		require.NoError(t, err)
@@ -111,8 +111,8 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 		// Create targets
 		buf1 := &bytes.Buffer{}
 		buf2 := &bytes.Buffer{}
-		tgt1 := target.NewWriterTarget(buf1)
-		tgt2 := target.NewWriterTarget(buf2)
+		tgt1 := targets.NewWriterTarget(buf1)
+		tgt2 := targets.NewWriterTarget(buf2)
 
 		err = lgr.AddTarget(tgt1, TestTargetName+"1", filter, formatter, 100)
 		require.NoError(t, err)

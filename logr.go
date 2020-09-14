@@ -131,6 +131,8 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 		return status
 	}
 
+	status = LevelStatus{}
+
 	// Cache miss; check each target.
 	logr.tmux.RLock()
 	defer logr.tmux.RUnlock()

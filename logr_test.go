@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
+	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ import (
 
 func TestFlush(t *testing.T) {
 	buf := &bytes.Buffer{}
-	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 2)
 	lgr, _ := logr.New()
@@ -63,7 +63,7 @@ func TestFlush(t *testing.T) {
 
 func TestFlushAfterShutdown(t *testing.T) {
 	buf := &bytes.Buffer{}
-	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 2)
 	lgr, _ := logr.New()
@@ -88,7 +88,7 @@ func TestFlushAfterShutdown(t *testing.T) {
 
 func TestLogAfterShutdown(t *testing.T) {
 	buf := &bytes.Buffer{}
-	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 2)
 	lgr, _ := logr.New()
@@ -121,7 +121,7 @@ func TestLogAfterShutdown(t *testing.T) {
 }
 
 func TestRemoveTarget(t *testing.T) {
-	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	lgr, _ := logr.New()
 

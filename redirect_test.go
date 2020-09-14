@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/mattermost/logr/v2"
-	"github.com/mattermost/logr/v2/format"
-	"github.com/mattermost/logr/v2/target"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,13 +19,13 @@ func TestLogr_RedirectStdLog(t *testing.T) {
 	require.NoError(t, err)
 
 	filter := &logr.StdFilter{logr.Info, logr.Error}
-	formatter := &format.Plain{Delim: " | "}
+	formatter := &formatters.Plain{Delim: " | "}
 
-	tgt := target.NewWriterTarget(buf)
+	tgt := targets.NewWriterTarget(buf)
 	err = lgr.AddTarget(tgt, "buf", filter, formatter, 1000)
 	require.NoError(t, err)
 
-	tgt = target.NewWriterTarget(os.Stdout)
+	tgt = targets.NewWriterTarget(os.Stdout)
 	err = lgr.AddTarget(tgt, "stdout", filter, formatter, 1000)
 	require.NoError(t, err)
 
