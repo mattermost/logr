@@ -242,36 +242,6 @@ func (logr *Logr) enqueue(rec *LogRec) {
 	}
 }
 
-// exit is called by one of the FatalXXX style APIS. If `logr.OnExit` is not nil
-// then that method is called, otherwise the default behavior is to shut down this
-// Logr cleanly then call `os.Exit(code)`.
-func (logr *Logr) exit(code int) {
-	if logr.options.onExit != nil {
-		logr.options.onExit(code)
-		return
-	}
-
-	if err := logr.Shutdown(); err != nil {
-		logr.ReportError(err)
-	}
-	os.Exit(code)
-}
-
-// panic is called by one of the PanicXXX style APIS. If `logr.OnPanic` is not nil
-// then that method is called, otherwise the default behavior is to shut down this
-// Logr cleanly then call `panic(err)`.
-func (logr *Logr) panic(err interface{}) {
-	if logr.options.onPanic != nil {
-		logr.options.onPanic(err)
-		return
-	}
-
-	if err := logr.Shutdown(); err != nil {
-		logr.ReportError(err)
-	}
-	panic(err)
-}
-
 // Flush blocks while flushing the logr queue and all target queues, by
 // writing existing log records to valid targets.
 // Any attempts to add new log records will block until flush is complete.
