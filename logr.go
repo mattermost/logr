@@ -304,6 +304,10 @@ func (logr *Logr) Shutdown() error {
 // Use `IsTimeoutError` to determine if the returned error is due to a
 // timeout.
 func (logr *Logr) ShutdownWithTimeout(ctx context.Context) error {
+	if err := logr.FlushWithTimeout(ctx); err != nil {
+		return err
+	}
+
 	if atomic.SwapInt32(&logr.shutdown, 1) != 0 {
 		return errors.New("Shutdown called again after shut down")
 	}

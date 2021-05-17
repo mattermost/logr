@@ -1,7 +1,6 @@
 package logr_test
 
 import (
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,8 +13,8 @@ import (
 )
 
 var (
-	LoginLevel  = logr.Level{ID: 100, Name: "login ", Stacktrace: false}
-	LogoutLevel = logr.Level{ID: 101, Name: "logout", Stacktrace: false}
+	LoginLevel  = logr.Level{ID: 250, Name: "login ", Stacktrace: false}
+	LogoutLevel = logr.Level{ID: 251, Name: "logout", Stacktrace: false}
 	BadLevel    = logr.Level{ID: logr.MaxLevelID + 1, Name: "invalid", Stacktrace: false}
 )
 
@@ -32,21 +31,28 @@ func TestCustomLevel(t *testing.T) {
 	err := lgr.AddTarget(tgr, "customLevelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 
-	logger := lgr.NewLogger().With(logr.String("user", "Bob"), logr.String("role", "admin"))
+	logger := lgr.NewLogger().With(
+		logr.String("user", "Bob"),
+		logr.String("role", "admin"),
+	)
 
-	logger.Log(LoginLevel, "this item will get logged")
+	logger.Log(LoginLevel, "LoginLevel will get logged")
 	logger.Log(logr.Error, "XXX - won't be logged as Error was not added to custom filter.")
 	logger.Debug("XXX - won't be logged")
-	logger.Log(LogoutLevel, "will get logged")
+	logger.Log(LogoutLevel, "LogoutLevel will get logged")
 
 	err = lgr.Shutdown()
 	require.NoError(t, err)
 
 	output := buf.String()
-	fmt.Println(output)
+	t.Log(output)
 
-	if !strings.Contains(output, "will get logged") {
-		t.Error("missing levels")
+	if !strings.Contains(output, "LoginLevel") {
+		t.Error("missing LoginLevel")
+	}
+
+	if !strings.Contains(output, "LogoutLevel") {
+		t.Error("missing LogoutLevel")
 	}
 
 	if strings.Contains(output, "XXX") {
