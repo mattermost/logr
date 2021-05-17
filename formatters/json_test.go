@@ -82,7 +82,7 @@ func TestJSONFieldTypes(t *testing.T) {
 		err = lgr.Flush()
 		require.NoError(t, err)
 
-		want := NL(`{"level":"error","msg":"Time types test","f1":"2021-05-16 22:23:10.989 -04:00","f2":"May 16 22:33:39.966","f3":"1h34m17.23s"}`)
+		want := NL(`{"level":"error","msg":"Time types test","f1":"2021-05-16 22:23:10.989 -04:00","f2":"May 17 02:33:39.966","f3":"1h34m17.23s"}`)
 
 		if strings.Compare(want, buf.String()) != 0 {
 			t.Errorf("JSON does not match: expected %s   got %s", want, buf.String())

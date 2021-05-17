@@ -15,9 +15,11 @@ type Formatter interface {
 }
 
 const (
-	// DefTimestampFormat is the default time stamp format used by
-	// Plain formatter and others.
+	// DefTimestampFormat is the default time stamp format used by Plain formatter and others.
 	DefTimestampFormat = "2006-01-02 15:04:05.000 Z07:00"
+
+	// TimestampMillisFormat is the format for logging milliseconds UTC
+	TimestampMillisFormat = "Jan _2 15:04:05.000"
 )
 
 type Writer struct {

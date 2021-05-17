@@ -122,7 +122,7 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 
 	case TimestampMillisType:
 		ts := time.Unix(f.Integer/1000, (f.Integer%1000)*int64(time.Millisecond))
-		_, err = io.WriteString(w, ts.Format(time.StampMilli))
+		_, err = io.WriteString(w, ts.UTC().Format(TimestampMillisFormat))
 
 	case TimeType:
 		t, ok := f.Interface.(time.Time)
