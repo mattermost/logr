@@ -52,7 +52,10 @@ func TestFileJSON(t *testing.T) {
 }
 
 func file(t *testing.T, formatter logr.Formatter, filename string) {
-	lgr, _ := logr.New()
+	opt := logr.OnLoggerError(func(err error) {
+		t.Error(err)
+	})
+	lgr, _ := logr.New(opt)
 
 	fileOpts := targets.FileOptions{
 		Filename:   filename,
