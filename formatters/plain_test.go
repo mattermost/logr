@@ -22,7 +22,7 @@ func TestPlain(t *testing.T) {
 		t.Error(err)
 	}
 
-	logger := lgr.NewLogger().WithField("name", "wiggin")
+	logger := lgr.NewLogger().With(logr.String("name", "wiggin"))
 
 	logger.Error("This is an error.")
 	lgr.Flush()

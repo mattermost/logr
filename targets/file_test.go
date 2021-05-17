@@ -28,7 +28,7 @@ func ExampleFile() {
 	t := targets.NewFileTarget(opts)
 	_ = lgr.AddTarget(t, "test", filter, formatter, 1000)
 
-	logger := lgr.NewLogger().WithField("name", "wiggin")
+	logger := lgr.NewLogger().With(logr.String("name", "wiggin")).Sugar()
 
 	logger.Errorf("the erroneous data is %s", test.StringRnd(10))
 	logger.Warnf("strange data: %s", test.StringRnd(5))
@@ -47,7 +47,7 @@ func TestFilePlain(t *testing.T) {
 }
 
 func TestFileJSON(t *testing.T) {
-	json := &formatters.JSON{Indent: "\n  "}
+	json := &formatters.JSON{}
 	file(t, json, "./logs/test_lumberjack_json.log")
 }
 

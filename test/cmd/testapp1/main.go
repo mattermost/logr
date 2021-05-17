@@ -114,10 +114,11 @@ func main() {
 
 	logged2, filtered2 := test.DoSomeLogging(cfg)
 
-	lgr.NewLogger().Logf(lvl, "Logr test completed. errors=%d, queueFull=%d, targetFull=%d",
-		atomic.LoadUint32(&errorCount),
-		atomic.LoadUint32(&queueFullCount),
-		atomic.LoadUint32(&targetQueueFullCount))
+	lgr.NewLogger().Log(lvl, "Logr test completed.",
+		logr.Uint32("errors", atomic.LoadUint32(&errorCount)),
+		logr.Uint32("queueFull", atomic.LoadUint32(&queueFullCount)),
+		logr.Uint32("targetFull", atomic.LoadUint32(&targetQueueFullCount)),
+	)
 
 	close(done)
 	err = lgr.Shutdown()

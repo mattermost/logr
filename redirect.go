@@ -17,7 +17,7 @@ func (logr *Logr) RedirectStdLog() func() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 
-	logger := logr.NewLogger().WithField("src", "stdlog")
+	logger := logr.NewLogger().With(String("src", "stdlog"))
 	adapter := newStdLogAdapter(logger)
 	log.SetOutput(adapter)
 

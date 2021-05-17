@@ -32,7 +32,7 @@ func TestCustomLevel(t *testing.T) {
 	err := lgr.AddTarget(tgr, "customLevelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 
-	logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
+	logger := lgr.NewLogger().With(logr.String("user", "Bob"), logr.String("role", "admin"))
 
 	logger.Log(LoginLevel, "this item will get logged")
 	logger.Log(logr.Error, "XXX - won't be logged as Error was not added to custom filter.")
@@ -72,7 +72,7 @@ func TestLevelIDTooLarge(t *testing.T) {
 	err = lgr.AddTarget(tgr, "levelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 
-	logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
+	logger := lgr.NewLogger().With(logr.String("user", "Bob"), logr.String("role", "admin"))
 
 	logger.Log(BadLevel, "this item will trigger OnLoggerError")
 

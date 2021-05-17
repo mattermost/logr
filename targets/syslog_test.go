@@ -34,7 +34,7 @@ func ExampleSyslog() {
 		panic(err)
 	}
 
-	logger := lgr.NewLogger().WithField("name", "wiggin")
+	logger := lgr.NewLogger().With(logr.String("name", "wiggin")).Sugar()
 
 	logger.Errorf("the erroneous data is %s", test.StringRnd(10))
 	logger.Warnf("strange data: %s", test.StringRnd(5))
