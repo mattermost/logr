@@ -5,9 +5,9 @@ type LevelID uint
 
 // Level provides a mechanism to enable/disable specific log lines.
 type Level struct {
-	ID         LevelID
-	Name       string
-	Stacktrace bool
+	ID         LevelID `json:"id"`
+	Name       string  `json:"name"`
+	Stacktrace bool    `json:"stacktrace"`
 }
 
 // String returns the name of this level.

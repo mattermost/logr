@@ -23,7 +23,7 @@ type JSON struct {
 	// DisableFields disables output of all fields.
 	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
-	DisableStacktrace bool `json:"disable_stack_trace"`
+	DisableStacktrace bool `json:"disable_stacktrace"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
@@ -43,7 +43,7 @@ type JSON struct {
 	KeyGroupFields string `json:"key_group_fields"`
 
 	// KeyStacktrace overrides the stacktrace field key name.
-	KeyStacktrace string `json:"key_stack_trace"`
+	KeyStacktrace string `json:"key_stacktrace"`
 
 	// FieldSorter allows custom sorting of the fields. If nil then
 	// no sorting is done.

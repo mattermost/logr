@@ -19,7 +19,7 @@ type Plain struct {
 	// DisableFields disables output of all fields.
 	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
-	DisableStacktrace bool `json:"disable_stack_trace"`
+	DisableStacktrace bool `json:"disable_stacktrace"`
 
 	// Delim is an optional delimiter output between each log field.
 	// Defaults to a single space.

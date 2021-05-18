@@ -15,11 +15,11 @@ import (
 )
 
 type TargetCfg struct {
-	Type          string          `json:"type"`   // one of "console", "file", "tcp", "syslog", "none".
+	Type          string          `json:"type"` // one of "console", "file", "tcp", "syslog", "none".
+	Options       json.RawMessage `json:"options,omitempty"`
 	Format        string          `json:"format"` // one of "json", "plain", "gelf"
 	FormatOptions json.RawMessage `json:"format_options,omitempty"`
 	Levels        []logr.Level    `json:"levels"`
-	Options       json.RawMessage `json:"options,omitempty"`
 	MaxQueueSize  int             `json:"maxqueuesize,omitempty"`
 }
 
@@ -49,6 +49,10 @@ var removeAll = func(ti logr.TargetInfo) bool { return true }
 func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Factories) error {
 	if err := lgr.RemoveTargets(context.Background(), removeAll); err != nil {
 		return fmt.Errorf("error removing existing log targets: %w", err)
+	}
+
+	if factories == nil {
+		factories = &Factories{nil, nil}
 	}
 
 	for name, tcfg := range config {
@@ -150,6 +154,7 @@ func newTarget(targetType string, options json.RawMessage, factory TargetFactory
 			if err != nil || t == nil {
 				return nil, fmt.Errorf("error from target factory: %w", err)
 			}
+			return t, nil
 		}
 	}
 	return nil, fmt.Errorf("target type '%s' is unrecogized", targetType)
