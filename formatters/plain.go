@@ -11,23 +11,23 @@ import (
 // no colors.
 type Plain struct {
 	// DisableTimestamp disables output of timestamp field.
-	DisableTimestamp bool
+	DisableTimestamp bool `json:"disable_timestamp"`
 	// DisableLevel disables output of level field.
-	DisableLevel bool
+	DisableLevel bool `json:"disable_level"`
 	// DisableMsg disables output of msg field.
-	DisableMsg bool
+	DisableMsg bool `json:"disable_msg"`
 	// DisableFields disables output of all fields.
-	DisableFields bool
+	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
-	DisableStacktrace bool
+	DisableStacktrace bool `json:"disable_stack_trace"`
 
 	// Delim is an optional delimiter output between each log field.
 	// Defaults to a single space.
-	Delim string
+	Delim string `json:"delim"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
-	TimestampFormat string
+	TimestampFormat string `json:"timestamp_format"`
 }
 
 // Format converts a log record to bytes.

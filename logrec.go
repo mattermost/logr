@@ -80,7 +80,7 @@ func (rec *LogRec) prep() {
 		}
 
 		// remove leading package entries from filter.
-		filter := rec.logger.logr.options.stackFilter
+		filter := rec.logger.lgr.options.stackFilter
 		var start int
 		for i, frame := range rec.frames {
 			pkg := getPackageName(frame.Function)
@@ -158,8 +158,8 @@ func (rec *LogRec) String() string {
 	}
 
 	f := &DefaultFormatter{}
-	buf := rec.logger.logr.BorrowBuffer()
-	defer rec.logger.logr.ReleaseBuffer(buf)
+	buf := rec.logger.lgr.BorrowBuffer()
+	defer rec.logger.lgr.ReleaseBuffer(buf)
 	buf, _ = f.Format(rec, true, buf)
 	return strings.TrimSpace(buf.String())
 }

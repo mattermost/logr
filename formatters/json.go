@@ -15,39 +15,39 @@ import (
 // JSON formats log records as JSON.
 type JSON struct {
 	// DisableTimestamp disables output of timestamp field.
-	DisableTimestamp bool
+	DisableTimestamp bool `json:"disable_timestamp"`
 	// DisableLevel disables output of level field.
-	DisableLevel bool
+	DisableLevel bool `json:"disable_level"`
 	// DisableMsg disables output of msg field.
-	DisableMsg bool
+	DisableMsg bool `json:"disable_msg"`
 	// DisableFields disables output of all fields.
-	DisableFields bool
+	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
-	DisableStacktrace bool
+	DisableStacktrace bool `json:"disable_stack_trace"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
-	TimestampFormat string
+	TimestampFormat string `json:"timestamp_format"`
 
 	// KeyTimestamp overrides the timestamp field key name.
-	KeyTimestamp string
+	KeyTimestamp string `json:"key_timestamp"`
 
 	// KeyLevel overrides the level field key name.
-	KeyLevel string
+	KeyLevel string `json:"key_level"`
 
 	// KeyMsg overrides the msg field key name.
-	KeyMsg string
+	KeyMsg string `json:"key_msg"`
 
 	// KeyGroupFields when not empty will group all context fields
 	// under this key.
-	KeyGroupFields string
+	KeyGroupFields string `json:"key_group_fields"`
 
 	// KeyStacktrace overrides the stacktrace field key name.
-	KeyStacktrace string
+	KeyStacktrace string `json:"key_stack_trace"`
 
 	// FieldSorter allows custom sorting of the fields. If nil then
 	// no sorting is done.
-	FieldSorter func(fields []logr.Field) []logr.Field
+	FieldSorter func(fields []logr.Field) []logr.Field `json:"-"`
 
 	once sync.Once
 }

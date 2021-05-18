@@ -10,7 +10,7 @@ type Sugar struct {
 }
 
 func (s Sugar) sugarLog(lvl Level, msg string, args ...interface{}) {
-	status := s.logr.IsLevelEnabled(lvl)
+	status := s.lgr.IsLevelEnabled(lvl)
 	if status.Enabled {
 		fields := make([]Field, 0, len(args))
 		for _, arg := range args {
@@ -68,7 +68,7 @@ func (s Sugar) Panic(msg string, args ...interface{}) {
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Printf.
 func (s Sugar) Logf(lvl Level, format string, args ...interface{}) {
-	status := s.logr.IsLevelEnabled(lvl)
+	status := s.lgr.IsLevelEnabled(lvl)
 	if status.Enabled {
 		var msg string
 		if format == "" {

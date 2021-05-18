@@ -253,8 +253,8 @@ func (h *TargetHost) start() {
 func (h *TargetHost) writeRec(rec *LogRec) error {
 	_, stacktrace := h.IsLevelEnabled(rec.Level())
 
-	buf := rec.logger.logr.BorrowBuffer()
-	defer rec.logger.logr.ReleaseBuffer(buf)
+	buf := rec.logger.lgr.BorrowBuffer()
+	defer rec.logger.lgr.ReleaseBuffer(buf)
 
 	buf, err := h.formatter.Format(rec, stacktrace, buf)
 	if err != nil {

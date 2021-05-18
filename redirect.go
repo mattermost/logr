@@ -11,13 +11,13 @@ import (
 // it automatically disables the standard library's annotations and prefixing.
 // A function is returned that restores the original prefix and flags and resets the standard
 // library's output to os.Stderr.
-func (logr *Logr) RedirectStdLog() func() {
+func (lgr *Logr) RedirectStdLog() func() {
 	flags := log.Flags()
 	prefix := log.Prefix()
 	log.SetFlags(0)
 	log.SetPrefix("")
 
-	logger := logr.NewLogger().With(String("src", "stdlog"))
+	logger := lgr.NewLogger().With(String("src", "stdlog"))
 	adapter := newStdLogAdapter(logger)
 	log.SetOutput(adapter)
 

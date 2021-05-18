@@ -24,10 +24,10 @@ const (
 // Gelf formats log records as GELF rcords (https://docs.graylog.org/en/4.0/pages/gelf.html).
 type Gelf struct {
 	// Hostname allows a custom hostname, otherwise os.Hostname is used
-	Hostname string
+	Hostname string `json:"hostname"`
 
 	// FieldSorter allows custom sorting for the context fields.
-	FieldSorter func(fields []logr.Field) []logr.Field
+	FieldSorter func(fields []logr.Field) []logr.Field `json:"-"`
 }
 
 // Format converts a log record to bytes in GELF format.

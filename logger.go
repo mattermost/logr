@@ -2,18 +2,18 @@ package logr
 
 // Logger provides context for logging via fields.
 type Logger struct {
-	logr   *Logr
+	lgr    *Logr
 	fields []Field
 }
 
 // Logr returns the `Logr` instance that created this `Logger`.
 func (logger Logger) Logr() *Logr {
-	return logger.logr
+	return logger.lgr
 }
 
 // With creates a new `Logger` with any existing fields plus the new ones.
 func (logger Logger) With(fields ...Field) Logger {
-	l := Logger{logr: logger.logr}
+	l := Logger{lgr: logger.lgr}
 	size := len(logger.fields) + len(fields)
 	if size > 0 {
 		l.fields = make([]Field, 0, size)
@@ -35,10 +35,10 @@ func (logger Logger) Sugar(fields ...Field) Sugar {
 // if so, generates a log record that is added to the Logr queue.
 // Arguments are handled in the manner of fmt.Print.
 func (logger Logger) Log(lvl Level, msg string, fields ...Field) {
-	status := logger.logr.IsLevelEnabled(lvl)
+	status := logger.lgr.IsLevelEnabled(lvl)
 	if status.Enabled {
 		rec := NewLogRec(lvl, logger, msg, fields, status.Stacktrace)
-		logger.logr.enqueue(rec)
+		logger.lgr.enqueue(rec)
 	}
 }
 
