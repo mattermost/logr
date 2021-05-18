@@ -82,7 +82,7 @@ func main() {
 	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
-	params := &targets.SyslogParams{Tag: "logrtestapp"}
+	params := &targets.SyslogOptions{Tag: "logrtestapp"}
 	t, err = targets.NewSyslogTarget(params)
 	if err != nil {
 		panic(err)

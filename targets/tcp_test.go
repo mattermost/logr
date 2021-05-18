@@ -32,7 +32,7 @@ func TestNewTcpTarget(t *testing.T) {
 
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	formatter := &formatters.JSON{}
-	opts := &TcpParams{
+	opts := &TcpOptions{
 		IP:   Server,
 		Port: TestPort,
 	}

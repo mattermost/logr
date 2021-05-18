@@ -20,7 +20,7 @@ func ExampleSyslog() {
 	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &formatters.Plain{Delim: " | "}
-	params := &targets.SyslogParams{
+	params := &targets.SyslogOptions{
 		IP:   "localhost",
 		Port: 514,
 		Tag:  "logrtest",
@@ -60,7 +60,7 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	require.NoError(t, err)
 
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Panic}
-	params := &targets.SyslogParams{
+	params := &targets.SyslogOptions{
 		Tag: "logrtest",
 	}
 	target, err := targets.NewSyslogTarget(params)

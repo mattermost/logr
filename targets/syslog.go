@@ -13,22 +13,33 @@ import (
 
 // Syslog outputs log records to local or remote syslog.
 type Syslog struct {
-	params *SyslogParams
+	params *SyslogOptions
 	writer *syslog.Writer
 }
 
-// SyslogParams provides parameters for dialing a syslog daemon.
-type SyslogParams struct {
-	IP       string
-	Port     int
-	Tag      string
-	TLS      bool
-	Cert     string
-	Insecure bool
+// SyslogOptions provides parameters for dialing a syslog daemon.
+type SyslogOptions struct {
+	IP       string `json:"ip,omitempty"` // deprecated
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	TLS      bool   `json:"tls"`
+	Cert     string `json:"cert"`
+	Insecure bool   `json:"insecure"`
+	Tag      string `json:"tag"`
+}
+
+func (so SyslogOptions) CheckValid() error {
+	if so.Host == "" && so.IP == "" {
+		return errors.New("missing host")
+	}
+	if so.Port == 0 {
+		return errors.New("missing port")
+	}
+	return nil
 }
 
 // NewSyslogTarget creates a target capable of outputting log records to remote or local syslog, with or without TLS.
-func NewSyslogTarget(params *SyslogParams) (*Syslog, error) {
+func NewSyslogTarget(params *SyslogOptions) (*Syslog, error) {
 	if params == nil {
 		return nil, errors.New("params cannot be nil")
 	}

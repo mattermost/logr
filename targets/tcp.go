@@ -24,8 +24,8 @@ const (
 
 // Tcp outputs log records to raw socket server.
 type Tcp struct {
-	params *TcpParams
-	addy   string
+	options *TcpOptions
+	addy    string
 
 	mutex    sync.Mutex
 	conn     net.Conn
@@ -33,20 +33,31 @@ type Tcp struct {
 	shutdown chan struct{}
 }
 
-// TcpParams provides parameters for dialing a socket server.
-type TcpParams struct {
-	IP       string `json:"IP"`
-	Port     int    `json:"Port"`
-	TLS      bool   `json:"TLS"`
-	Cert     string `json:"Cert"`
-	Insecure bool   `json:"Insecure"`
+// TcpOptions provides parameters for dialing a socket server.
+type TcpOptions struct {
+	IP       string `json:"ip,omitempty"` // deprecated
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	TLS      bool   `json:"tls"`
+	Cert     string `json:"cert"`
+	Insecure bool   `json:"insecure"`
+}
+
+func (to TcpOptions) CheckValid() error {
+	if to.Host == "" && to.IP == "" {
+		return errors.New("missing host")
+	}
+	if to.Port == 0 {
+		return errors.New("missing port")
+	}
+	return nil
 }
 
 // NewTcpTarget creates a target capable of outputting log records to a raw socket, with or without TLS.
-func NewTcpTarget(params *TcpParams) *Tcp {
+func NewTcpTarget(options *TcpOptions) *Tcp {
 	tcp := &Tcp{
-		params:   params,
-		addy:     fmt.Sprintf("%s:%d", params.IP, params.Port),
+		options:  options,
+		addy:     fmt.Sprintf("%s:%d", options.IP, options.Port),
 		monitor:  make(chan struct{}),
 		shutdown: make(chan struct{}),
 	}
@@ -102,21 +113,21 @@ func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
 func (tcp *Tcp) dial(ctx context.Context) (net.Conn, error) {
 	var dialer net.Dialer
 	dialer.Timeout = time.Second * DialTimeoutSecs
-	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", tcp.params.IP, tcp.params.Port))
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", tcp.options.IP, tcp.options.Port))
 	if err != nil {
 		return nil, err
 	}
 
-	if !tcp.params.TLS {
+	if !tcp.options.TLS {
 		return conn, nil
 	}
 
 	tlsconfig := &tls.Config{
-		ServerName:         tcp.params.IP,
-		InsecureSkipVerify: tcp.params.Insecure,
+		ServerName:         tcp.options.IP,
+		InsecureSkipVerify: tcp.options.Insecure,
 	}
-	if tcp.params.Cert != "" {
-		pool, err := GetCertPool(tcp.params.Cert)
+	if tcp.options.Cert != "" {
+		pool, err := GetCertPool(tcp.options.Cert)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +234,7 @@ func monitor(conn net.Conn, done <-chan struct{}) {
 
 // String returns a string representation of this target.
 func (tcp *Tcp) String() string {
-	return fmt.Sprintf("TcpTarget[%s:%d]", tcp.params.IP, tcp.params.Port)
+	return fmt.Sprintf("TcpTarget[%s:%d]", tcp.options.IP, tcp.options.Port)
 }
 
 func (tcp *Tcp) sleep(backoff int64) int64 {

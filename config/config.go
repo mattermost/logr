@@ -3,11 +3,15 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
 )
 
 type TargetCfg struct {
@@ -19,6 +23,10 @@ type TargetCfg struct {
 	MaxQueueSize  int             `json:"maxqueuesize,omitempty"`
 }
 
+type ConsoleOptions struct {
+	Out string `json:"out"` // one of "stdout", "stderr"
+}
+
 type TargetFactory func(targetType string, options json.RawMessage) (logr.Target, error)
 type FormatterFactory func(format string, options json.RawMessage) (logr.Formatter, error)
 
@@ -28,22 +36,6 @@ type Factories struct {
 }
 
 var removeAll = func(ti logr.TargetInfo) bool { return true }
-
-type errUnrecognizedFormat struct {
-	format string
-}
-
-func (e *errUnrecognizedFormat) Error() string {
-	return e.format + " is not recognized"
-}
-
-type errUnrecognizedTargetType struct {
-	targetType string
-}
-
-func (e *errUnrecognizedTargetType) Error() string {
-	return e.targetType + " is not recognized"
-}
 
 // ConfigureTargets replaces the current list of log targets with a new one based on a map
 // of name->TargetCfg. The map of TargetCfg's would typically be serialized from a JSON
@@ -98,9 +90,58 @@ func newFilter(levels []logr.Level) logr.Filter {
 func newTarget(targetType string, options json.RawMessage, factory TargetFactory) (logr.Target, error) {
 	switch strings.ToLower(targetType) {
 	case "console":
+		c := ConsoleOptions{}
+		if len(options) != 0 {
+			if err := json.Unmarshal(options, &c); err != nil {
+				return nil, fmt.Errorf("error decoding console target options: %w", err)
+			}
+		}
+		var w io.Writer
+		switch c.Out {
+		case "stderr":
+			w = os.Stderr
+		case "stdout", "":
+			w = os.Stdout
+		default:
+			return nil, fmt.Errorf("invalid console target option '%s'", c.Out)
+		}
+		return targets.NewWriterTarget(w), nil
 	case "file":
+		fo := targets.FileOptions{}
+		if len(options) == 0 {
+			return nil, errors.New("missing file target options")
+		}
+		if err := json.Unmarshal(options, &fo); err != nil {
+			return nil, fmt.Errorf("error decoding file target options: %w", err)
+		}
+		if err := fo.CheckValid(); err != nil {
+			return nil, fmt.Errorf("invalid file target options: %w", err)
+		}
+		return targets.NewFileTarget(fo), nil
 	case "tcp":
+		to := targets.TcpOptions{}
+		if len(options) == 0 {
+			return nil, errors.New("missing TCP target options")
+		}
+		if err := json.Unmarshal(options, &to); err != nil {
+			return nil, fmt.Errorf("error decoding TCP target options: %w", err)
+		}
+		if err := to.CheckValid(); err != nil {
+			return nil, fmt.Errorf("invalid TCP target options: %w", err)
+		}
+		return targets.NewTcpTarget(&to), nil
 	case "syslog":
+		so := targets.SyslogOptions{}
+		if len(options) == 0 {
+			return nil, errors.New("missing SysLog target options")
+		}
+		if err := json.Unmarshal(options, &so); err != nil {
+			return nil, fmt.Errorf("error decoding Syslog target options: %w", err)
+		}
+		if err := so.CheckValid(); err != nil {
+			return nil, fmt.Errorf("invalid SysLog target options: %w", err)
+		}
+		return targets.NewSyslogTarget(&so)
 	case "none":
 		return nil, nil
 	default:

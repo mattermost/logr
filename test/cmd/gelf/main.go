@@ -58,7 +58,7 @@ func main() {
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	formatter := &formatters.Gelf{}
 
-	params := &targets.TcpParams{
+	params := &targets.TcpOptions{
 		IP:   Server,
 		Port: Port,
 	}
