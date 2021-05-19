@@ -23,6 +23,13 @@ func (logger Logger) With(fields ...Field) Logger {
 	return l
 }
 
+// IsLevelEnabled determines if the specified level is enabled for at least
+// one log target.
+func (logger Logger) IsLevelEnabled(level Level) bool {
+	status := logger.Logr().IsLevelEnabled(level)
+	return status.Enabled
+}
+
 // Sugar creates a new `Logger` with a less structured API. Any fields are preserved.
 func (logger Logger) Sugar(fields ...Field) Sugar {
 	l := logger.With()
@@ -39,6 +46,13 @@ func (logger Logger) Log(lvl Level, msg string, fields ...Field) {
 	if status.Enabled {
 		rec := NewLogRec(lvl, logger, msg, fields, status.Stacktrace)
 		logger.lgr.enqueue(rec)
+	}
+}
+
+// LogM calls `Log` multiple times, one for each level provided.
+func (logger Logger) LogM(levels []Level, msg string, fields ...Field) {
+	for _, lvl := range levels {
+		logger.Log(lvl, msg, fields...)
 	}
 }
 
