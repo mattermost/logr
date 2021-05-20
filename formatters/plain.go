@@ -3,6 +3,7 @@ package formatters
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/mattermost/logr/v2"
 )
@@ -25,9 +26,23 @@ type Plain struct {
 	// Defaults to a single space.
 	Delim string `json:"delim"`
 
+	// MinMessageLen sets the minimum msg length. If the msg text is less
+	// than the minimum it will be padded with spaces.
+	MinMessageLen int `json:"min_msg_len"`
+
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
 	TimestampFormat string `json:"timestamp_format"`
+
+	// LineEnd sets the end of line character(s). Defaults to '\n'.
+	LineEnd string `json:"line_end"`
+}
+
+func (p *Plain) CheckValid() error {
+	if p.MinMessageLen < 0 || p.MinMessageLen > 1024 {
+		return fmt.Errorf("min_msg_len is invaid(%d)", p.MinMessageLen)
+	}
+	return nil
 }
 
 // Format converts a log record to bytes.
@@ -45,18 +60,28 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 		timestampFmt = logr.DefTimestampFormat
 	}
 
+	if !p.DisableLevel {
+		buf.WriteString(rec.Level().Name)
+		buf.WriteString(delim)
+	}
+
 	if !p.DisableTimestamp {
 		var arr [128]byte
 		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
+		buf.WriteByte('[')
 		buf.Write(tbuf)
+		buf.WriteByte(']')
 		buf.WriteString(delim)
 	}
-	if !p.DisableLevel {
-		fmt.Fprintf(buf, "%v%s", rec.Level().Name, delim)
-	}
+
 	if !p.DisableMsg {
-		fmt.Fprint(buf, rec.Msg(), delim)
+		count, _ := buf.WriteString(rec.Msg())
+		if p.MinMessageLen > count {
+			_, _ = buf.WriteString(strings.Repeat(" ", p.MinMessageLen-count))
+		}
+		_, _ = buf.WriteString(delim)
 	}
+
 	if !p.DisableFields {
 		fields := rec.Fields()
 		if len(fields) > 0 {
@@ -65,6 +90,7 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 			}
 		}
 	}
+
 	if stacktrace && !p.DisableStacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
@@ -74,6 +100,12 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 			}
 		}
 	}
-	buf.WriteString("\n")
+
+	if p.LineEnd == "" {
+		buf.WriteString("\n")
+	} else {
+		buf.WriteString(p.LineEnd)
+	}
+
 	return buf, nil
 }

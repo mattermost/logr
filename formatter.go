@@ -81,8 +81,7 @@ func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffe
 }
 
 // WriteFields writes zero or more name value pairs to the io.Writer.
-// The pairs are sorted by key name and output in key=value format
-// with optional separator between fields.
+// The pairs output in key=value format with optional separator between fields.
 func WriteFields(w io.Writer, fields []Field, separator []byte) error {
 	ws := Writer{w}
 
@@ -116,7 +115,8 @@ func shouldQuote(val string) bool {
 	for _, c := range val {
 		if !((c >= '0' && c <= '9') ||
 			(c >= 'a' && c <= 'z') ||
-			(c >= 'A' && c <= 'Z')) {
+			(c >= 'A' && c <= 'Z') ||
+			c == '-' || c == '.' || c == '_' || c == '/' || c == '@' || c == '^' || c == '+') {
 			return true
 		}
 	}

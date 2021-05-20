@@ -168,6 +168,9 @@ func newFormatter(format string, options json.RawMessage, factory FormatterFacto
 			if err := json.Unmarshal(options, &j); err != nil {
 				return nil, fmt.Errorf("error decoding JSON formatter options: %w", err)
 			}
+			if err := j.CheckValid(); err != nil {
+				return nil, fmt.Errorf("invalid JSON formatter options: %w", err)
+			}
 		}
 		return &j, nil
 	case "plain":
@@ -176,6 +179,9 @@ func newFormatter(format string, options json.RawMessage, factory FormatterFacto
 			if err := json.Unmarshal(options, &p); err != nil {
 				return nil, fmt.Errorf("error decoding Plain formatter options: %w", err)
 			}
+			if err := p.CheckValid(); err != nil {
+				return nil, fmt.Errorf("invalid plain formatter options: %w", err)
+			}
 		}
 		return &p, nil
 	case "gelf":
@@ -183,6 +189,9 @@ func newFormatter(format string, options json.RawMessage, factory FormatterFacto
 		if len(options) != 0 {
 			if err := json.Unmarshal(options, &g); err != nil {
 				return nil, fmt.Errorf("error decoding Gelf formatter options: %w", err)
+			}
+			if err := g.CheckValid(); err != nil {
+				return nil, fmt.Errorf("invalid GELF formatter options: %w", err)
 			}
 		}
 		return &g, nil

@@ -111,7 +111,7 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 
 	case ErrorType:
 		// TODO: create custom error encoder.
-		_, err = fmt.Fprintf(w, "%v", f.Interface)
+		err = quoteString(w, fmt.Sprintf("%v", f.Interface), shouldQuote)
 
 	case BoolType:
 		var b bool
@@ -122,7 +122,7 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 
 	case TimestampMillisType:
 		ts := time.Unix(f.Integer/1000, (f.Integer%1000)*int64(time.Millisecond))
-		_, err = io.WriteString(w, ts.UTC().Format(TimestampMillisFormat))
+		err = quoteString(w, ts.UTC().Format(TimestampMillisFormat), shouldQuote)
 
 	case TimeType:
 		t, ok := f.Interface.(time.Time)
@@ -130,7 +130,7 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 			err = errors.New("invalid time")
 			break
 		}
-		_, err = io.WriteString(w, t.Format(DefTimestampFormat))
+		err = quoteString(w, t.Format(DefTimestampFormat), shouldQuote)
 
 	case DurationType:
 		_, err = fmt.Fprintf(w, "%s", time.Duration(f.Integer))
@@ -146,7 +146,7 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 		if f.Type == Float32Type {
 			size = 32
 		}
-		_, err = io.WriteString(w, strconv.FormatFloat(f.Float, 'f', -1, size))
+		err = quoteString(w, strconv.FormatFloat(f.Float, 'f', -1, size), shouldQuote)
 
 	case BinaryType:
 		b, ok := f.Interface.([]byte)

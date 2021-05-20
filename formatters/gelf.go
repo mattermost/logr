@@ -30,6 +30,10 @@ type Gelf struct {
 	FieldSorter func(fields []logr.Field) []logr.Field `json:"-"`
 }
 
+func (g *Gelf) CheckValid() error {
+	return nil
+}
+
 // Format converts a log record to bytes in GELF format.
 func (g *Gelf) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	if buf == nil {

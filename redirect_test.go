@@ -19,7 +19,7 @@ func TestLogr_RedirectStdLog(t *testing.T) {
 	require.NoError(t, err)
 
 	filter := &logr.StdFilter{logr.Info, logr.Error}
-	formatter := &formatters.Plain{Delim: " | "}
+	formatter := &formatters.Plain{Delim: " ", MinMessageLen: 40}
 
 	tgt := targets.NewWriterTarget(buf)
 	err = lgr.AddTarget(tgt, "buf", filter, formatter, 1000)
@@ -33,14 +33,17 @@ func TestLogr_RedirectStdLog(t *testing.T) {
 	flags := log.Flags()
 	prefix := log.Prefix()
 
-	restoreFunc := lgr.RedirectStdLog()
+	restoreFunc := lgr.RedirectStdLog(logr.Info, logr.String("foo", "bar stool"))
 
 	log.Println("Peaky Blinders!")
 
 	err = lgr.Flush()
 	require.NoError(t, err)
 
-	require.Contains(t, buf.String(), "Peaky Blinders!")
+	output := buf.String()
+	require.Contains(t, output, "foo")
+	require.Contains(t, output, "bar stool")
+	require.Contains(t, output, "Peaky Blinders!")
 
 	err = lgr.Shutdown()
 	require.NoError(t, err)

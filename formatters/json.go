@@ -52,6 +52,10 @@ type JSON struct {
 	once sync.Once
 }
 
+func (j *JSON) CheckValid() error {
+	return nil
+}
+
 // Format converts a log record to bytes in JSON format.
 func (j *JSON) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	j.once.Do(j.applyDefaultKeyNames)
