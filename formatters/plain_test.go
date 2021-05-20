@@ -12,10 +12,11 @@ import (
 )
 
 func TestPlain(t *testing.T) {
+	formatter := &formatters.Plain{DisableTimestamp: true, DisableStacktrace: true, Delim: " | "}
+
 	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Panic}
-	formatter := &formatters.Plain{DisableStacktrace: true, Delim: " | "}
 	target := targets.NewWriterTarget(buf)
 	err := lgr.AddTarget(target, "plainTest", filter, formatter, 1000)
 	if err != nil {
