@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+// NewStdLogger creates a standard logger backed by a Logr instance.
+// All log records are emitted with the specified log level.
+func NewStdLogger(level Level, logger Logger) *log.Logger {
+	adapter := newStdLogAdapter(logger, level)
+	return log.New(adapter, "", 0)
+}
+
 // RedirectStdLog redirects output from the standard library's package-global logger
 // to this logger at the specified level and with zero or more Field's. Since Logr already
 // handles caller annotations, timestamps, etc., it automatically disables the standard

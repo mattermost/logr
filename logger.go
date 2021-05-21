@@ -1,5 +1,7 @@
 package logr
 
+import "log"
+
 // Logger provides context for logging via fields.
 type Logger struct {
 	lgr    *Logr
@@ -21,6 +23,12 @@ func (logger Logger) With(fields ...Field) Logger {
 		l.fields = append(l.fields, fields...)
 	}
 	return l
+}
+
+// StdLogger creates a standard logger backed by this `Logr.Logger` instance.
+// All log records are emitted with the specified log level.
+func (logger Logger) StdLogger(level Level) *log.Logger {
+	return NewStdLogger(level, logger)
 }
 
 // IsLevelEnabled determines if the specified level is enabled for at least

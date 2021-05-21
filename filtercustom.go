@@ -4,10 +4,17 @@ import (
 	"sync"
 )
 
-// CustomFilter allows targets to enable logging via a list of levels.
+// CustomFilter allows targets to enable logging via a list of discrete levels.
 type CustomFilter struct {
 	mux    sync.RWMutex
 	levels map[LevelID]Level
+}
+
+// NewCustomFilter creates a filter supporting discrete log levels.
+func NewCustomFilter(levels ...Level) *CustomFilter {
+	filter := &CustomFilter{}
+	filter.Add(levels...)
+	return filter
 }
 
 // GetEnabledLevel returns the Level with the specified Level.ID and whether the level

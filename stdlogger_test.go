@@ -12,7 +12,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogr_RedirectStdLog(t *testing.T) {
+func TestNewStdLogger(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	lgr, err := logr.New(logr.StackFilter("log"))
+	require.NoError(t, err)
+
+	customLevel := logr.Level{ID: 1001, Name: "std", Color: logr.Green}
+
+	filter := logr.NewCustomFilter(customLevel)
+	formatter := &formatters.Plain{Delim: " ", Color: true}
+
+	tgt := targets.NewWriterTarget(buf)
+	err = lgr.AddTarget(tgt, "buf", filter, formatter, 1000)
+	require.NoError(t, err)
+
+	stdLogger := lgr.NewLogger().With(logr.String("foo", "bar hop")).StdLogger(customLevel)
+
+	stdLogger.Println("The Spirit Of Radio")
+
+	err = lgr.Shutdown()
+	require.NoError(t, err)
+
+	output := buf.String()
+	require.Contains(t, output, "foo")
+	require.Contains(t, output, "\"bar hop\"")
+	require.Contains(t, output, "The Spirit Of Radio")
+
+	t.Log(output)
+}
+
+func TestRedirectStdLog(t *testing.T) {
 	buf := &bytes.Buffer{}
 
 	lgr, err := logr.New(logr.StackFilter("log"))
@@ -37,16 +67,13 @@ func TestLogr_RedirectStdLog(t *testing.T) {
 
 	log.Println("Peaky Blinders!")
 
-	err = lgr.Flush()
+	err = lgr.Shutdown()
 	require.NoError(t, err)
 
 	output := buf.String()
 	require.Contains(t, output, "foo")
 	require.Contains(t, output, "bar stool")
 	require.Contains(t, output, "Peaky Blinders!")
-
-	err = lgr.Shutdown()
-	require.NoError(t, err)
 
 	restoreFunc()
 
