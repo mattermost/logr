@@ -137,10 +137,11 @@ func (lgr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	lgr.tmux.RLock()
 	defer lgr.tmux.RUnlock()
 	for _, host := range lgr.targetHosts {
-		e, s := host.IsLevelEnabled(lvl)
-		if e {
+		enabled, level := host.IsLevelEnabled(lvl)
+		if enabled {
 			status.Enabled = true
-			if s {
+			status.level = level
+			if level.Stacktrace {
 				status.Stacktrace = true
 				break // if both enabled then no sense checking more targets
 			}

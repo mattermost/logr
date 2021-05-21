@@ -131,11 +131,10 @@ func (h *TargetHost) initMetrics(collector MetricsCollector, updateFreqMillis in
 	return nil
 }
 
-// IsLevelEnabled returns true if this target should emit
-// logs for the specified level. Also determines if
-// a stack trace is required.
-func (h *TargetHost) IsLevelEnabled(lvl Level) (enabled bool, stacktrace bool) {
-	return h.filter.IsEnabled(lvl), h.filter.IsStacktraceEnabled(lvl)
+// IsLevelEnabled returns true if this target should emit logs for the specified level.
+func (h *TargetHost) IsLevelEnabled(lvl Level) (enabled bool, level Level) {
+	level, enabled = h.filter.GetEnabledLevel(lvl)
+	return enabled, level
 }
 
 // Shutdown stops processing log records after making best
@@ -251,12 +250,10 @@ func (h *TargetHost) start() {
 }
 
 func (h *TargetHost) writeRec(rec *LogRec) error {
-	_, stacktrace := h.IsLevelEnabled(rec.Level())
-
 	buf := rec.logger.lgr.BorrowBuffer()
 	defer rec.logger.lgr.ReleaseBuffer(buf)
 
-	buf, err := h.formatter.Format(rec, stacktrace, buf)
+	buf, err := h.formatter.Format(rec, rec.Level().Stacktrace, buf)
 	if err != nil {
 		return err
 	}

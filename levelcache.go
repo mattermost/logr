@@ -11,6 +11,7 @@ type LevelStatus struct {
 	Enabled    bool
 	Stacktrace bool
 	empty      bool
+	level      Level
 }
 
 type levelCache interface {

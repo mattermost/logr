@@ -7,6 +7,35 @@ type StdFilter struct {
 	Stacktrace Level
 }
 
+// GetEnabledLevel returns the Level with the specified Level.ID and whether the level
+// is enabled for this filter.
+func (lt StdFilter) GetEnabledLevel(level Level) (Level, bool) {
+	enabled := level.ID <= lt.Lvl.ID
+	var levelEnabled Level
+
+	if enabled {
+		switch level.ID {
+		case Panic.ID:
+			levelEnabled = Panic
+		case Fatal.ID:
+			levelEnabled = Fatal
+		case Error.ID:
+			levelEnabled = Error
+		case Warn.ID:
+			levelEnabled = Warn
+		case Info.ID:
+			levelEnabled = Info
+		case Debug.ID:
+			levelEnabled = Debug
+		case Trace.ID:
+			levelEnabled = Trace
+		default:
+			levelEnabled = level
+		}
+	}
+	return levelEnabled, enabled
+}
+
 // IsEnabled returns true if the specified Level is at or above this verbosity. Also
 // determines if a stack trace is required.
 func (lt StdFilter) IsEnabled(level Level) bool {
@@ -19,19 +48,18 @@ func (lt StdFilter) IsStacktraceEnabled(level Level) bool {
 }
 
 var (
-	// Panic is the highest level of severity. Logs the message and then panics.
-	Panic = Level{ID: 0, Name: "panic"}
-	// Fatal designates a catastrophic error. Logs the message and then calls
-	// `logr.Exit(1)`.
-	Fatal = Level{ID: 1, Name: "fatal"}
+	// Panic is the highest level of severity.
+	Panic = Level{ID: 0, Name: "panic", Color: Red}
+	// Fatal designates a catastrophic error.
+	Fatal = Level{ID: 1, Name: "fatal", Color: Red}
 	// Error designates a serious but possibly recoverable error.
-	Error = Level{ID: 2, Name: "error"}
+	Error = Level{ID: 2, Name: "error", Color: Red}
 	// Warn designates non-critical error.
-	Warn = Level{ID: 3, Name: "warn"}
+	Warn = Level{ID: 3, Name: "warn", Color: Yellow}
 	// Info designates information regarding application events.
-	Info = Level{ID: 4, Name: "info"}
+	Info = Level{ID: 4, Name: "info", Color: Cyan}
 	// Debug designates verbose information typically used for debugging.
-	Debug = Level{ID: 5, Name: "debug"}
+	Debug = Level{ID: 5, Name: "debug", Color: NoColor}
 	// Trace designates the highest verbosity of log output.
-	Trace = Level{ID: 6, Name: "trace"}
+	Trace = Level{ID: 6, Name: "trace", Color: NoColor}
 )

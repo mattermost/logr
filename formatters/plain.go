@@ -36,6 +36,9 @@ type Plain struct {
 
 	// LineEnd sets the end of line character(s). Defaults to '\n'.
 	LineEnd string `json:"line_end"`
+
+	// Color sets whether output should include color.
+	Color bool `json:"color"`
 }
 
 func (p *Plain) CheckValid() error {
@@ -60,8 +63,13 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 		timestampFmt = logr.DefTimestampFormat
 	}
 
+	color := logr.NoColor
+	if p.Color {
+		color = rec.Level().Color
+	}
+
 	if !p.DisableLevel {
-		buf.WriteString(rec.Level().Name)
+		_ = logr.WriteWithColor(buf, rec.Level().Name, color)
 		buf.WriteString(delim)
 	}
 
@@ -85,7 +93,7 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 	if !p.DisableFields {
 		fields := rec.Fields()
 		if len(fields) > 0 {
-			if err := logr.WriteFields(buf, fields, logr.Space); err != nil {
+			if err := logr.WriteFields(buf, fields, logr.Space, color); err != nil {
 				return nil, err
 			}
 		}

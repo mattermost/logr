@@ -61,7 +61,7 @@ func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffe
 
 	fields := rec.Fields()
 	if len(fields) > 0 {
-		if err := WriteFields(buf, fields, Space); err != nil {
+		if err := WriteFields(buf, fields, Space, NoColor); err != nil {
 			return nil, err
 		}
 	}
@@ -82,12 +82,12 @@ func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffe
 
 // WriteFields writes zero or more name value pairs to the io.Writer.
 // The pairs output in key=value format with optional separator between fields.
-func WriteFields(w io.Writer, fields []Field, separator []byte) error {
+func WriteFields(w io.Writer, fields []Field, separator []byte, color Color) error {
 	ws := Writer{w}
 
 	sep := []byte{}
 	for _, field := range fields {
-		if err := writeField(ws, field, sep); err != nil {
+		if err := writeField(ws, field, sep, color); err != nil {
 			return err
 		}
 		sep = separator
@@ -95,17 +95,18 @@ func WriteFields(w io.Writer, fields []Field, separator []byte) error {
 	return nil
 }
 
-func writeField(ws Writer, field Field, sep []byte) error {
+func writeField(ws Writer, field Field, sep []byte, color Color) error {
 	if len(sep) != 0 {
 		if _, err := ws.Write(sep); err != nil {
 			return err
 		}
 	}
-
-	if _, err := ws.Writes([]byte(field.Key), Equals); err != nil {
+	if err := WriteWithColor(ws, field.Key, color); err != nil {
 		return err
 	}
-
+	if _, err := ws.Write(Equals); err != nil {
+		return err
+	}
 	return field.ValueString(ws, shouldQuote)
 }
 
@@ -140,4 +141,33 @@ func WriteStacktrace(w io.Writer, frames []runtime.Frame) error {
 		}
 	}
 	return nil
+}
+
+// WriteWithColor outputs a string with the specified ANSI color.
+func WriteWithColor(w io.Writer, s string, color Color) error {
+	var err error
+
+	writer := func(buf []byte) {
+		if err != nil {
+			return
+		}
+		_, err = w.Write(buf)
+	}
+
+	if color != NoColor {
+		writer(AnsiColorPrefix)
+		writer([]byte(strconv.FormatInt(int64(color), 10)))
+		writer(AnsiColorSuffix)
+	}
+
+	if err == nil {
+		_, err = io.WriteString(w, s)
+	}
+
+	if color != NoColor {
+		writer(AnsiColorPrefix)
+		writer([]byte(strconv.FormatInt(int64(NoColor), 10)))
+		writer(AnsiColorSuffix)
+	}
+	return err
 }
