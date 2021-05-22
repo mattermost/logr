@@ -8,6 +8,7 @@ import (
 /*
 	UnknownType FieldType = iota
 	StringType
+	StringerType
 	StructType
 	ErrorType
 	BoolType
@@ -35,7 +36,8 @@ func TestField_ValueString(t *testing.T) {
 		wantErr bool
 	}{
 		// TODO: Add test cases.
-		{name: "StringType", field: Field{Key: "str", Type: StringType, String: "test"}, wantW: "test", wantErr: false},
+		{name: "StringType", field: String("str", "test"), wantW: "test", wantErr: false},
+		{name: "StringerType", field: Stringer("strgr", newTestStringer("Hello")), wantW: "Hello", wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,4 +51,18 @@ func TestField_ValueString(t *testing.T) {
 			}
 		})
 	}
+}
+
+type testStringer struct {
+	s string
+}
+
+func newTestStringer(s string) *testStringer {
+	return &testStringer{
+		s: s,
+	}
+}
+
+func (ts *testStringer) String() string {
+	return ts.s
 }

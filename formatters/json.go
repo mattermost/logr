@@ -236,7 +236,7 @@ func encodeField(enc *gojay.Encoder, field logr.Field) error {
 		embed := gojay.EmbeddedJSON(b)
 		enc.AddEmbeddedJSONKey(field.Key, &embed)
 
-	case logr.ErrorType, logr.TimestampMillisType, logr.TimeType, logr.DurationType, logr.BinaryType:
+	case logr.StringerType, logr.ErrorType, logr.TimestampMillisType, logr.TimeType, logr.DurationType, logr.BinaryType:
 		var buf strings.Builder
 		_ = field.ValueString(&buf, nil)
 		enc.AddStringKey(field.Key, buf.String())

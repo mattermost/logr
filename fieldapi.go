@@ -1,6 +1,9 @@
 package logr
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Any picks the best supported field type based on type of val.
 // For best performance when passing a struct (or struct pointer),
@@ -53,6 +56,12 @@ func Float32(key string, val float32) Field {
 // String constructs a field containing a key and String value.
 func String(key string, val string) Field {
 	return Field{Key: key, Type: StringType, String: val}
+}
+
+// Stringer constructs a field containing a key and a `fmt.Stringer` value.
+// The `String` method will be called in lazy fashion.
+func Stringer(key string, val fmt.Stringer) Field {
+	return Field{Key: key, Type: StringerType, Interface: val}
 }
 
 // Err constructs a field containing a default key ("error") and error value.

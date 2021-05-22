@@ -36,6 +36,7 @@ type FieldType uint8
 const (
 	UnknownType FieldType = iota
 	StringType
+	StringerType
 	StructType
 	ErrorType
 	BoolType
@@ -98,6 +99,15 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 	switch f.Type {
 	case StringType:
 		err = quoteString(w, f.String, shouldQuote)
+
+	case StringerType:
+		s, ok := f.Interface.(fmt.Stringer)
+		if ok {
+			err = quoteString(w, s.String(), shouldQuote)
+			break
+		} else {
+			err = fmt.Errorf("invalid fmt.Stringer for key %s", f.Key)
+		}
 
 	case StructType:
 		s, ok := f.Interface.(LogWriter)
@@ -303,9 +313,9 @@ func fieldForAny(key string, val interface{}) Field {
 	case error:
 		return NamedErr(key, v)
 	case fmt.Stringer:
-		return Field{Key: key, Type: StructType, Interface: v}
+		return Field{Key: key, Type: StringerType, Interface: v}
 	case *fmt.Stringer:
-		return Field{Key: key, Type: StructType, Interface: *v}
+		return Field{Key: key, Type: StringerType, Interface: *v}
 	default:
 		return Field{Key: key, Type: UnknownType, Interface: val}
 	}
