@@ -42,7 +42,7 @@ func TestPlain(t *testing.T) {
 }
 
 func TestPlainColorCustom(t *testing.T) {
-	formatter := &formatters.Plain{DisableTimestamp: true, DisableStacktrace: true, Delim: " | ", Color: true}
+	formatter := &formatters.Plain{DisableTimestamp: true, DisableStacktrace: true, Delim: " | ", EnableColor: true}
 
 	lgr, _ := logr.New()
 	buf := &test.Buffer{}
@@ -76,7 +76,7 @@ func TestPlainColorCustom(t *testing.T) {
 }
 
 func TestPlainColorStd(t *testing.T) {
-	formatter := &formatters.Plain{DisableTimestamp: true, DisableStacktrace: true, Delim: " | ", Color: true}
+	formatter := &formatters.Plain{DisableTimestamp: true, DisableStacktrace: true, Delim: " | ", EnableColor: true}
 
 	lgr, _ := logr.New()
 	buf := &test.Buffer{}
