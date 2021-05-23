@@ -21,7 +21,7 @@ func TestNewStdLogger(t *testing.T) {
 	customLevel := logr.Level{ID: 1001, Name: "std", Color: logr.Green}
 
 	filter := logr.NewCustomFilter(customLevel)
-	formatter := &formatters.Plain{Delim: " ", Color: true}
+	formatter := &formatters.Plain{Delim: " ", EnableColor: true}
 
 	tgt := targets.NewWriterTarget(buf)
 	err = lgr.AddTarget(tgt, "buf", filter, formatter, 1000)

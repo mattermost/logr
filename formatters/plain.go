@@ -37,8 +37,8 @@ type Plain struct {
 	// LineEnd sets the end of line character(s). Defaults to '\n'.
 	LineEnd string `json:"line_end"`
 
-	// Color sets whether output should include color.
-	Color bool `json:"color"`
+	// EnableColor sets whether output should include color.
+	EnableColor bool `json:"enable_color"`
 }
 
 func (p *Plain) CheckValid() error {
@@ -64,7 +64,7 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 	}
 
 	color := logr.NoColor
-	if p.Color {
+	if p.EnableColor {
 		color = rec.Level().Color
 	}
 
