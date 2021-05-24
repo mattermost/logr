@@ -64,32 +64,30 @@ func (rec *LogRec) prep() {
 	rec.mux.Lock()
 	defer rec.mux.Unlock()
 
+	// include log rec fields and logger fields added via "With"
 	rec.fieldsAll = make([]Field, 0, len(rec.fields)+len(rec.logger.fields))
 	rec.fieldsAll = append(rec.fieldsAll, rec.logger.fields...)
 	rec.fieldsAll = append(rec.fieldsAll, rec.fields...)
 
+	filter := rec.logger.lgr.options.stackFilter
+
 	// resolve stack trace
 	if rec.stackCount > 0 {
+		rec.frames = make([]runtime.Frame, 0, rec.stackCount)
 		frames := runtime.CallersFrames(rec.stackPC[:rec.stackCount])
 		for {
-			f, more := frames.Next()
-			rec.frames = append(rec.frames, f)
+			frame, more := frames.Next()
+
+			// remove all package entries that are in filter.
+			pkg := getPackageName(frame.Function)
+			if _, ok := filter[pkg]; !ok && pkg != "" {
+				rec.frames = append(rec.frames, frame)
+			}
+
 			if !more {
 				break
 			}
 		}
-
-		// remove leading package entries from filter.
-		filter := rec.logger.lgr.options.stackFilter
-		var start int
-		for i, frame := range rec.frames {
-			pkg := getPackageName(frame.Function)
-			if _, ok := filter[pkg]; !ok && pkg != "" {
-				start = i
-				break
-			}
-		}
-		rec.frames = rec.frames[start:]
 	}
 }
 

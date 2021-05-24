@@ -50,7 +50,8 @@ func New(opts ...Option) (*Logr, error) {
 			return nil, err
 		}
 	}
-	_ = StackFilter(logrPkg, logrPkg+"/target", logrPkg+"/format")(lgr)
+	opt := StackFilter(logrPkg, logrPkg+"/targets", logrPkg+"/formatters")
+	_ = opt(lgr)
 
 	lgr.in = make(chan *LogRec, lgr.options.maxQueueSize)
 	lgr.quit = make(chan struct{})
