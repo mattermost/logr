@@ -19,10 +19,10 @@ func NewCustomFilter(levels ...Level) *CustomFilter {
 
 // GetEnabledLevel returns the Level with the specified Level.ID and whether the level
 // is enabled for this filter.
-func (st *CustomFilter) GetEnabledLevel(level Level) (Level, bool) {
-	st.mux.RLock()
-	defer st.mux.RUnlock()
-	levelEnabled, ok := st.levels[level.ID]
+func (cf *CustomFilter) GetEnabledLevel(level Level) (Level, bool) {
+	cf.mux.RLock()
+	defer cf.mux.RUnlock()
+	levelEnabled, ok := cf.levels[level.ID]
 
 	if ok && levelEnabled.Name == "" {
 		levelEnabled.Name = level.Name
@@ -33,15 +33,15 @@ func (st *CustomFilter) GetEnabledLevel(level Level) (Level, bool) {
 
 // Add adds one or more levels to the list. Adding a level enables logging for
 // that level on any targets using this CustomFilter.
-func (st *CustomFilter) Add(levels ...Level) {
-	st.mux.Lock()
-	defer st.mux.Unlock()
+func (cf *CustomFilter) Add(levels ...Level) {
+	cf.mux.Lock()
+	defer cf.mux.Unlock()
 
-	if st.levels == nil {
-		st.levels = make(map[LevelID]Level)
+	if cf.levels == nil {
+		cf.levels = make(map[LevelID]Level)
 	}
 
 	for _, s := range levels {
-		st.levels[s.ID] = s
+		cf.levels[s.ID] = s
 	}
 }
