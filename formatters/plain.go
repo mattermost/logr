@@ -26,6 +26,10 @@ type Plain struct {
 	// Defaults to a single space.
 	Delim string `json:"delim"`
 
+	// MinLevelLen sets the minimum level name length. If the level name is less
+	// than the minimum it will be padded with spaces.
+	MinLevelLen int `json:"min_level_len"`
+
 	// MinMessageLen sets the minimum msg length. If the msg text is less
 	// than the minimum it will be padded with spaces.
 	MinMessageLen int `json:"min_msg_len"`
@@ -70,6 +74,10 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 
 	if !p.DisableLevel {
 		_ = logr.WriteWithColor(buf, rec.Level().Name, color)
+		count := len(rec.Level().Name)
+		if p.MinLevelLen > count {
+			_, _ = buf.WriteString(strings.Repeat(" ", p.MinLevelLen-count))
+		}
 		buf.WriteString(delim)
 	}
 
