@@ -52,7 +52,7 @@ func (logger Logger) Sugar(fields ...Field) Sugar {
 func (logger Logger) Log(lvl Level, msg string, fields ...Field) {
 	status := logger.lgr.IsLevelEnabled(lvl)
 	if status.Enabled {
-		rec := NewLogRec(status.level, logger, msg, fields, status.Stacktrace)
+		rec := NewLogRec(lvl, logger, msg, fields, status.Stacktrace)
 		logger.lgr.enqueue(rec)
 	}
 }

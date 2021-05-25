@@ -158,7 +158,7 @@ func (rec *LogRec) String() string {
 	f := &DefaultFormatter{}
 	buf := rec.logger.lgr.BorrowBuffer()
 	defer rec.logger.lgr.ReleaseBuffer(buf)
-	buf, _ = f.Format(rec, true, buf)
+	buf, _ = f.Format(rec, rec.Level(), buf)
 	return strings.TrimSpace(buf.String())
 }
 

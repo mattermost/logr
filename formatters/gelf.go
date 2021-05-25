@@ -35,7 +35,7 @@ func (g *Gelf) CheckValid() error {
 }
 
 // Format converts a log record to bytes in GELF format.
-func (g *Gelf) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
+func (g *Gelf) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	if buf == nil {
 		buf = &bytes.Buffer{}
 	}
@@ -45,10 +45,10 @@ func (g *Gelf) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*by
 	}()
 
 	gr := gelfRecord{
-		LogRec:     rec,
-		Gelf:       g,
-		stacktrace: stacktrace,
-		sorter:     g.FieldSorter,
+		LogRec: rec,
+		Gelf:   g,
+		level:  level,
+		sorter: g.FieldSorter,
 	}
 
 	err := enc.EncodeObject(gr)
@@ -63,8 +63,8 @@ func (g *Gelf) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*by
 type gelfRecord struct {
 	*logr.LogRec
 	*Gelf
-	stacktrace bool
-	sorter     func(fields []logr.Field) []logr.Field
+	level  logr.Level
+	sorter func(fields []logr.Field) []logr.Field
 }
 
 // MarshalJSONObject encodes the LogRec as JSON.
@@ -73,7 +73,7 @@ func (gr gelfRecord) MarshalJSONObject(enc *gojay.Encoder) {
 	enc.AddStringKey(GelfHostKey, gr.getHostname())
 	enc.AddStringKey(GelfShortKey, gr.Msg())
 
-	if gr.stacktrace {
+	if gr.level.Stacktrace {
 		frames := gr.StackFrames()
 		if len(frames) != 0 {
 			var sbuf strings.Builder
@@ -89,7 +89,7 @@ func (gr gelfRecord) MarshalJSONObject(enc *gojay.Encoder) {
 	ts := secs + (millis / 1000)
 	enc.AddFloat64Key(GelfTimestampKey, ts)
 
-	enc.AddUint32Key(GelfLevelKey, uint32(gr.Level().ID))
+	enc.AddUint32Key(GelfLevelKey, uint32(gr.level.ID))
 
 	fields := gr.Fields()
 	if gr.sorter != nil {

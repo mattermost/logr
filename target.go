@@ -250,10 +250,16 @@ func (h *TargetHost) start() {
 }
 
 func (h *TargetHost) writeRec(rec *LogRec) error {
+	level, enabled := h.filter.GetEnabledLevel(rec.Level())
+	if !enabled {
+		// how did we get here?
+		return fmt.Errorf("level %s not enabled for target %s", rec.Level().Name, h.name)
+	}
+
 	buf := rec.logger.lgr.BorrowBuffer()
 	defer rec.logger.lgr.ReleaseBuffer(buf)
 
-	buf, err := h.formatter.Format(rec, rec.Level().Stacktrace, buf)
+	buf, err := h.formatter.Format(rec, level, buf)
 	if err != nil {
 		return err
 	}

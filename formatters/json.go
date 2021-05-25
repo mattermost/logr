@@ -57,7 +57,7 @@ func (j *JSON) CheckValid() error {
 }
 
 // Format converts a log record to bytes in JSON format.
-func (j *JSON) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
+func (j *JSON) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	j.once.Do(j.applyDefaultKeyNames)
 
 	if buf == nil {
@@ -69,10 +69,10 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*by
 	}()
 
 	jlr := JSONLogRec{
-		LogRec:     rec,
-		JSON:       j,
-		stacktrace: stacktrace,
-		sorter:     j.FieldSorter,
+		LogRec: rec,
+		JSON:   j,
+		level:  level,
+		sorter: j.FieldSorter,
 	}
 
 	err := enc.EncodeObject(jlr)
@@ -102,37 +102,37 @@ func (j *JSON) applyDefaultKeyNames() {
 type JSONLogRec struct {
 	*logr.LogRec
 	*JSON
-	stacktrace bool
-	sorter     func(fields []logr.Field) []logr.Field
+	level  logr.Level
+	sorter func(fields []logr.Field) []logr.Field
 }
 
 // MarshalJSONObject encodes the LogRec as JSON.
-func (rec JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
-	if !rec.DisableTimestamp {
-		timestampFmt := rec.TimestampFormat
+func (jlr JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
+	if !jlr.DisableTimestamp {
+		timestampFmt := jlr.TimestampFormat
 		if timestampFmt == "" {
 			timestampFmt = logr.DefTimestampFormat
 		}
-		time := rec.Time()
-		enc.AddTimeKey(rec.KeyTimestamp, &time, timestampFmt)
+		time := jlr.Time()
+		enc.AddTimeKey(jlr.KeyTimestamp, &time, timestampFmt)
 	}
-	if !rec.DisableLevel {
-		enc.AddStringKey(rec.KeyLevel, rec.Level().Name)
+	if !jlr.DisableLevel {
+		enc.AddStringKey(jlr.KeyLevel, jlr.level.Name)
 	}
-	if !rec.DisableMsg {
-		enc.AddStringKey(rec.KeyMsg, rec.Msg())
+	if !jlr.DisableMsg {
+		enc.AddStringKey(jlr.KeyMsg, jlr.Msg())
 	}
-	if !rec.DisableFields {
-		fields := rec.Fields()
-		if rec.sorter != nil {
-			fields = rec.sorter(fields)
+	if !jlr.DisableFields {
+		fields := jlr.Fields()
+		if jlr.sorter != nil {
+			fields = jlr.sorter(fields)
 		}
-		if rec.KeyGroupFields != "" {
-			enc.AddObjectKey(rec.KeyGroupFields, FieldArray(fields))
+		if jlr.KeyGroupFields != "" {
+			enc.AddObjectKey(jlr.KeyGroupFields, FieldArray(fields))
 		} else {
 			if len(fields) > 0 {
 				for _, field := range fields {
-					field = rec.prefixCollision(field)
+					field = jlr.prefixCollision(field)
 					if err := encodeField(enc, field); err != nil {
 						enc.AddStringKey(field.Key, "<error encoding field: "+err.Error()+">")
 					}
@@ -140,10 +140,10 @@ func (rec JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
 			}
 		}
 	}
-	if rec.stacktrace && !rec.DisableStacktrace {
-		frames := rec.StackFrames()
+	if jlr.level.Stacktrace && !jlr.DisableStacktrace {
+		frames := jlr.StackFrames()
 		if len(frames) > 0 {
-			enc.AddArrayKey(rec.KeyStacktrace, stackFrames(frames))
+			enc.AddArrayKey(jlr.KeyStacktrace, stackFrames(frames))
 		}
 	}
 }

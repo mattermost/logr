@@ -53,7 +53,7 @@ func (p *Plain) CheckValid() error {
 }
 
 // Format converts a log record to bytes.
-func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
+func (p *Plain) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	delim := p.Delim
 	if delim == "" {
 		delim = " "
@@ -69,12 +69,12 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 
 	color := logr.NoColor
 	if p.EnableColor {
-		color = rec.Level().Color
+		color = level.Color
 	}
 
 	if !p.DisableLevel {
-		_ = logr.WriteWithColor(buf, rec.Level().Name, color)
-		count := len(rec.Level().Name)
+		_ = logr.WriteWithColor(buf, level.Name, color)
+		count := len(level.Name)
 		if p.MinLevelLen > count {
 			_, _ = buf.WriteString(strings.Repeat(" ", p.MinLevelLen-count))
 		}
@@ -107,7 +107,7 @@ func (p *Plain) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*b
 		}
 	}
 
-	if stacktrace && !p.DisableStacktrace {
+	if level.Stacktrace && !p.DisableStacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
 			buf.WriteString("\n")

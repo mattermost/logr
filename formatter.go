@@ -11,7 +11,7 @@ import (
 type Formatter interface {
 	// Format converts a log record to bytes. If buf is not nil then it will be
 	// be filled with the formatted results, otherwise a new buffer will be allocated.
-	Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error)
+	Format(rec *LogRec, level Level, buf *bytes.Buffer) (*bytes.Buffer, error)
 }
 
 const (
@@ -44,7 +44,7 @@ type DefaultFormatter struct {
 }
 
 // Format converts a log record to bytes.
-func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
+func (p *DefaultFormatter) Format(rec *LogRec, level Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	if buf == nil {
 		buf = &bytes.Buffer{}
 	}
@@ -53,7 +53,7 @@ func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffe
 	buf.WriteString(rec.Time().Format(timestampFmt))
 	buf.Write(Space)
 
-	buf.WriteString(rec.Level().Name)
+	buf.WriteString(level.Name)
 	buf.Write(Space)
 
 	buf.WriteString(rec.Msg())
@@ -66,7 +66,7 @@ func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffe
 		}
 	}
 
-	if stacktrace {
+	if level.Stacktrace {
 		frames := rec.StackFrames()
 		if len(frames) > 0 {
 			buf.Write(Newline)
