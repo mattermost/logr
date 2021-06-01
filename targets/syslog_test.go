@@ -20,7 +20,7 @@ func ExampleSyslog() {
 	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &formatters.Plain{Delim: " | "}
-	params := &targets.SyslogParams{
+	params := &targets.SyslogOptions{
 		IP:   "localhost",
 		Port: 514,
 		Tag:  "logrtest",
@@ -34,7 +34,7 @@ func ExampleSyslog() {
 		panic(err)
 	}
 
-	logger := lgr.NewLogger().WithField("name", "wiggin")
+	logger := lgr.NewLogger().With(logr.String("name", "wiggin")).Sugar()
 
 	logger.Errorf("the erroneous data is %s", test.StringRnd(10))
 	logger.Warnf("strange data: %s", test.StringRnd(5))
@@ -60,7 +60,7 @@ func syslogger(t *testing.T, formatter logr.Formatter) {
 	require.NoError(t, err)
 
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Panic}
-	params := &targets.SyslogParams{
+	params := &targets.SyslogOptions{
 		Tag: "logrtest",
 	}
 	target, err := targets.NewSyslogTarget(params)

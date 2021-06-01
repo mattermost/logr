@@ -42,44 +42,45 @@ func New(opts ...Option) (*Logr, error) {
 		maxPooledBuffer: DefaultMaxPooledBuffer,
 	}
 
-	logr := &Logr{options: options}
+	lgr := &Logr{options: options}
 
 	// apply the options
 	for _, opt := range opts {
-		if err := opt(logr); err != nil {
+		if err := opt(lgr); err != nil {
 			return nil, err
 		}
 	}
-	_ = StackFilter(logrPkg, logrPkg+"/target", logrPkg+"/format")(logr)
+	opt := StackFilter(logrPkg, logrPkg+"/targets", logrPkg+"/formatters")
+	_ = opt(lgr)
 
-	logr.in = make(chan *LogRec, logr.options.maxQueueSize)
-	logr.quit = make(chan struct{})
-	logr.done = make(chan struct{})
+	lgr.in = make(chan *LogRec, lgr.options.maxQueueSize)
+	lgr.quit = make(chan struct{})
+	lgr.done = make(chan struct{})
 
-	if logr.options.useSyncMapLevelCache {
-		logr.lvlCache = &syncMapLevelCache{}
+	if lgr.options.useSyncMapLevelCache {
+		lgr.lvlCache = &syncMapLevelCache{}
 	} else {
-		logr.lvlCache = &arrayLevelCache{}
+		lgr.lvlCache = &arrayLevelCache{}
 	}
-	logr.lvlCache.setup()
+	lgr.lvlCache.setup()
 
-	logr.bufferPool = sync.Pool{
+	lgr.bufferPool = sync.Pool{
 		New: func() interface{} {
 			return new(bytes.Buffer)
 		},
 	}
 
-	logr.initMetrics()
+	lgr.initMetrics()
 
-	go logr.start()
+	go lgr.start()
 
-	return logr, nil
+	return lgr, nil
 }
 
 // AddTarget adds a target to the logger which will receive
 // log records for outputting.
-func (logr *Logr) AddTarget(target Target, name string, filter Filter, formatter Formatter, maxQueueSize int) error {
-	if logr.IsShutdown() {
+func (lgr *Logr) AddTarget(target Target, name string, filter Filter, formatter Formatter, maxQueueSize int) error {
+	if lgr.IsShutdown() {
 		return fmt.Errorf("AddTarget called after Logr shut down")
 	}
 
@@ -88,8 +89,8 @@ func (logr *Logr) AddTarget(target Target, name string, filter Filter, formatter
 		filter:                  filter,
 		formatter:               formatter,
 		maxQueueSize:            maxQueueSize,
-		collector:               logr.options.metricsCollector,
-		metricsUpdateFreqMillis: logr.options.metricsUpdateFreqMillis,
+		collector:               lgr.options.metricsCollector,
+		metricsUpdateFreqMillis: lgr.options.metricsUpdateFreqMillis,
 	}
 
 	host, err := newTargetHost(target, hostOpts)
@@ -97,12 +98,12 @@ func (logr *Logr) AddTarget(target Target, name string, filter Filter, formatter
 		return err
 	}
 
-	logr.tmux.Lock()
-	defer logr.tmux.Unlock()
+	lgr.tmux.Lock()
+	defer lgr.tmux.Unlock()
 
-	logr.targetHosts = append(logr.targetHosts, host)
+	lgr.targetHosts = append(lgr.targetHosts, host)
 
-	logr.ResetLevelCache()
+	lgr.ResetLevelCache()
 
 	return nil
 }
@@ -110,8 +111,8 @@ func (logr *Logr) AddTarget(target Target, name string, filter Filter, formatter
 // NewLogger creates a Logger using defaults. A `Logger` is light-weight
 // enough to create on-demand, but typically one or more Loggers are
 // created and re-used.
-func (logr *Logr) NewLogger() Logger {
-	logger := Logger{logr: logr}
+func (lgr *Logr) NewLogger() Logger {
+	logger := Logger{lgr: lgr}
 	return logger
 }
 
@@ -119,14 +120,14 @@ var levelStatusDisabled = LevelStatus{}
 
 // IsLevelEnabled returns true if at least one target has the specified
 // level enabled. The result is cached so that subsequent checks are fast.
-func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
+func (lgr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	// No levels enabled after shutdown
-	if atomic.LoadInt32(&logr.shutdown) != 0 {
+	if atomic.LoadInt32(&lgr.shutdown) != 0 {
 		return levelStatusDisabled
 	}
 
 	// Check cache.
-	status, ok := logr.lvlCache.get(lvl.ID)
+	status, ok := lgr.lvlCache.get(lvl.ID)
 	if ok {
 		return status
 	}
@@ -134,13 +135,13 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	status = LevelStatus{}
 
 	// Cache miss; check each target.
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	for _, host := range logr.targetHosts {
-		e, s := host.IsLevelEnabled(lvl)
-		if e {
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
+	for _, host := range lgr.targetHosts {
+		enabled, level := host.IsLevelEnabled(lvl)
+		if enabled {
 			status.Enabled = true
-			if s {
+			if level.Stacktrace {
 				status.Stacktrace = true
 				break // if both enabled then no sense checking more targets
 			}
@@ -148,18 +149,18 @@ func (logr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 	}
 
 	// Cache and return the result.
-	if err := logr.lvlCache.put(lvl.ID, status); err != nil {
-		logr.ReportError(err)
+	if err := lgr.lvlCache.put(lvl.ID, status); err != nil {
+		lgr.ReportError(err)
 		return LevelStatus{}
 	}
 	return status
 }
 
-// HasTargets returns true only if at least one target exists within the Logr.
-func (logr *Logr) HasTargets() bool {
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	return len(logr.targetHosts) > 0
+// HasTargets returns true only if at least one target exists within the lgr.
+func (lgr *Logr) HasTargets() bool {
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
+	return len(lgr.targetHosts) > 0
 }
 
 // TargetInfo provides name and type for a Target.
@@ -168,15 +169,15 @@ type TargetInfo struct {
 	Type string
 }
 
-// TargetInfos enumerates all the targets added to this Logr.
+// TargetInfos enumerates all the targets added to this lgr.
 // The resulting slice represents a snapshot at time of calling.
-func (logr *Logr) TargetInfos() []TargetInfo {
+func (lgr *Logr) TargetInfos() []TargetInfo {
 	infos := make([]TargetInfo, 0)
 
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
 
-	for _, host := range logr.targetHosts {
+	for _, host := range lgr.targetHosts {
 		inf := TargetInfo{
 			Name: host.String(),
 			Type: fmt.Sprintf("%T", host.target),
@@ -191,14 +192,14 @@ func (logr *Logr) TargetInfos() []TargetInfo {
 // When removing a target, best effort is made to write any queued log records before
 // closing, with cxt determining how much time can be spent in total.
 // Note, keep the timeout short since this method blocks certain logging operations.
-func (logr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool) error {
+func (lgr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool) error {
 	errs := merror.New()
 	hosts := make([]*TargetHost, 0)
 
-	logr.tmux.Lock()
-	defer logr.tmux.Unlock()
+	lgr.tmux.Lock()
+	defer lgr.tmux.Unlock()
 
-	for _, host := range logr.targetHosts {
+	for _, host := range lgr.targetHosts {
 		inf := TargetInfo{
 			Name: host.String(),
 			Type: fmt.Sprintf("%T", host.target),
@@ -212,64 +213,34 @@ func (logr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool)
 		}
 	}
 
-	logr.targetHosts = hosts
-	logr.ResetLevelCache()
+	lgr.targetHosts = hosts
+	lgr.ResetLevelCache()
 
 	return errs.ErrorOrNil()
 }
 
 // ResetLevelCache resets the cached results of `IsLevelEnabled`. This is
 // called any time a Target is added or a target's level is changed.
-func (logr *Logr) ResetLevelCache() {
-	logr.lvlCache.clear()
+func (lgr *Logr) ResetLevelCache() {
+	lgr.lvlCache.clear()
 }
 
 // enqueue adds a log record to the logr queue. If the queue is full then
 // this function either blocks or the log record is dropped, depending on
 // the result of calling `OnQueueFull`.
-func (logr *Logr) enqueue(rec *LogRec) {
+func (lgr *Logr) enqueue(rec *LogRec) {
 	select {
-	case logr.in <- rec:
+	case lgr.in <- rec:
 	default:
-		if logr.options.onQueueFull != nil && logr.options.onQueueFull(rec, cap(logr.in)) {
+		if lgr.options.onQueueFull != nil && lgr.options.onQueueFull(rec, cap(lgr.in)) {
 			return // drop the record
 		}
 		select {
-		case <-time.After(logr.options.enqueueTimeout):
-			logr.ReportError(fmt.Errorf("enqueue timed out for log rec [%v]", rec))
-		case logr.in <- rec: // block until success or timeout
+		case <-time.After(lgr.options.enqueueTimeout):
+			lgr.ReportError(fmt.Errorf("enqueue timed out for log rec [%v]", rec))
+		case lgr.in <- rec: // block until success or timeout
 		}
 	}
-}
-
-// exit is called by one of the FatalXXX style APIS. If `logr.OnExit` is not nil
-// then that method is called, otherwise the default behavior is to shut down this
-// Logr cleanly then call `os.Exit(code)`.
-func (logr *Logr) exit(code int) {
-	if logr.options.onExit != nil {
-		logr.options.onExit(code)
-		return
-	}
-
-	if err := logr.Shutdown(); err != nil {
-		logr.ReportError(err)
-	}
-	os.Exit(code)
-}
-
-// panic is called by one of the PanicXXX style APIS. If `logr.OnPanic` is not nil
-// then that method is called, otherwise the default behavior is to shut down this
-// Logr cleanly then call `panic(err)`.
-func (logr *Logr) panic(err interface{}) {
-	if logr.options.onPanic != nil {
-		logr.options.onPanic(err)
-		return
-	}
-
-	if err := logr.Shutdown(); err != nil {
-		logr.ReportError(err)
-	}
-	panic(err)
 }
 
 // Flush blocks while flushing the logr queue and all target queues, by
@@ -278,10 +249,10 @@ func (logr *Logr) panic(err interface{}) {
 // `logr.FlushTimeout` determines how long flush can execute before
 // timing out. Use `IsTimeoutError` to determine if the returned error is
 // due to a timeout.
-func (logr *Logr) Flush() error {
-	ctx, cancel := context.WithTimeout(context.Background(), logr.options.flushTimeout)
+func (lgr *Logr) Flush() error {
+	ctx, cancel := context.WithTimeout(context.Background(), lgr.options.flushTimeout)
 	defer cancel()
-	return logr.FlushWithTimeout(ctx)
+	return lgr.FlushWithTimeout(ctx)
 }
 
 // Flush blocks while flushing the logr queue and all target queues, by
@@ -289,17 +260,17 @@ func (logr *Logr) Flush() error {
 // Any attempts to add new log records will block until flush is complete.
 // Use `IsTimeoutError` to determine if the returned error is
 // due to a timeout.
-func (logr *Logr) FlushWithTimeout(ctx context.Context) error {
-	if !logr.HasTargets() {
+func (lgr *Logr) FlushWithTimeout(ctx context.Context) error {
+	if !lgr.HasTargets() {
 		return nil
 	}
 
-	if logr.IsShutdown() {
+	if lgr.IsShutdown() {
 		return errors.New("Flush called on shut down Logr")
 	}
 
-	rec := newFlushLogRec(logr.NewLogger())
-	logr.enqueue(rec)
+	rec := newFlushLogRec(lgr.NewLogger())
+	lgr.enqueue(rec)
 
 	select {
 	case <-ctx.Done():
@@ -312,8 +283,8 @@ func (logr *Logr) FlushWithTimeout(ctx context.Context) error {
 // IsShutdown returns true if this Logr instance has been shut down.
 // No further log records can be enqueued and no targets added after
 // shutdown.
-func (logr *Logr) IsShutdown() bool {
-	return atomic.LoadInt32(&logr.shutdown) != 0
+func (lgr *Logr) IsShutdown() bool {
+	return atomic.LoadInt32(&lgr.shutdown) != 0
 }
 
 // Shutdown cleanly stops the logging engine after making best efforts
@@ -322,10 +293,10 @@ func (logr *Logr) IsShutdown() bool {
 // `logr.ShutdownTimeout` determines how long shutdown can execute before
 // timing out. Use `IsTimeoutError` to determine if the returned error is
 // due to a timeout.
-func (logr *Logr) Shutdown() error {
-	ctx, cancel := context.WithTimeout(context.Background(), logr.options.shutdownTimeout)
+func (lgr *Logr) Shutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), lgr.options.shutdownTimeout)
 	defer cancel()
-	return logr.ShutdownWithTimeout(ctx)
+	return lgr.ShutdownWithTimeout(ctx)
 }
 
 // Shutdown cleanly stops the logging engine after making best efforts
@@ -333,15 +304,19 @@ func (logr *Logr) Shutdown() error {
 // exit - logr cannot be restarted once shut down.
 // Use `IsTimeoutError` to determine if the returned error is due to a
 // timeout.
-func (logr *Logr) ShutdownWithTimeout(ctx context.Context) error {
-	if atomic.SwapInt32(&logr.shutdown, 1) != 0 {
+func (lgr *Logr) ShutdownWithTimeout(ctx context.Context) error {
+	if err := lgr.FlushWithTimeout(ctx); err != nil {
+		return err
+	}
+
+	if atomic.SwapInt32(&lgr.shutdown, 1) != 0 {
 		return errors.New("Shutdown called again after shut down")
 	}
 
-	logr.ResetLevelCache()
-	logr.stopMetricsUpdater()
+	lgr.ResetLevelCache()
+	lgr.stopMetricsUpdater()
 
-	close(logr.quit)
+	close(lgr.quit)
 
 	errs := merror.New()
 
@@ -349,14 +324,14 @@ func (logr *Logr) ShutdownWithTimeout(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		errs.Append(newTimeoutError("logr queue shutdown timeout"))
-	case <-logr.done:
+	case <-lgr.done:
 	}
 
 	// logr.in channel should now be drained to targets and no more log records
 	// can be added.
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	for _, host := range logr.targetHosts {
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
+	for _, host := range lgr.targetHosts {
 		err := host.Shutdown(ctx)
 		if err != nil {
 			errs.Append(err)
@@ -368,75 +343,75 @@ func (logr *Logr) ShutdownWithTimeout(ctx context.Context) error {
 // ReportError is used to notify the host application of any internal logging errors.
 // If `OnLoggerError` is not nil, it is called with the error, otherwise the error is
 // output to `os.Stderr`.
-func (logr *Logr) ReportError(err interface{}) {
-	logr.incErrorCounter()
+func (lgr *Logr) ReportError(err interface{}) {
+	lgr.incErrorCounter()
 
-	if logr.options.onLoggerError == nil {
+	if lgr.options.onLoggerError == nil {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	logr.options.onLoggerError(fmt.Errorf("%v", err))
+	lgr.options.onLoggerError(fmt.Errorf("%v", err))
 }
 
 // BorrowBuffer borrows a buffer from the pool. Release the buffer to reduce garbage collection.
-func (logr *Logr) BorrowBuffer() *bytes.Buffer {
-	if logr.options.disableBufferPool {
+func (lgr *Logr) BorrowBuffer() *bytes.Buffer {
+	if lgr.options.disableBufferPool {
 		return &bytes.Buffer{}
 	}
-	return logr.bufferPool.Get().(*bytes.Buffer)
+	return lgr.bufferPool.Get().(*bytes.Buffer)
 }
 
 // ReleaseBuffer returns a buffer to the pool to reduce garbage collection. The buffer is only
 // retained if less than MaxPooledBuffer.
-func (logr *Logr) ReleaseBuffer(buf *bytes.Buffer) {
-	if !logr.options.disableBufferPool && buf.Cap() < logr.options.maxPooledBuffer {
+func (lgr *Logr) ReleaseBuffer(buf *bytes.Buffer) {
+	if !lgr.options.disableBufferPool && buf.Cap() < lgr.options.maxPooledBuffer {
 		buf.Reset()
-		logr.bufferPool.Put(buf)
+		lgr.bufferPool.Put(buf)
 	}
 }
 
 // start selects on incoming log records until shutdown record is received.
 // Incoming log records are fanned out to all log targets.
-func (logr *Logr) start() {
+func (lgr *Logr) start() {
 	defer func() {
 		if r := recover(); r != nil {
-			logr.ReportError(r)
-			go logr.start()
+			lgr.ReportError(r)
+			go lgr.start()
 		} else {
-			close(logr.done)
+			close(lgr.done)
 		}
 	}()
 
 	for {
 		var rec *LogRec
 		select {
-		case rec = <-logr.in:
+		case rec = <-lgr.in:
 			if rec.flush != nil {
-				logr.flush(rec.flush)
+				lgr.flush(rec.flush)
 			} else {
 				rec.prep()
-				logr.fanout(rec)
+				lgr.fanout(rec)
 			}
-		case <-logr.quit:
+		case <-lgr.quit:
 			return
 		}
 	}
 }
 
 // fanout pushes a LogRec to all targets.
-func (logr *Logr) fanout(rec *LogRec) {
+func (lgr *Logr) fanout(rec *LogRec) {
 	var host *TargetHost
 	defer func() {
 		if r := recover(); r != nil {
-			logr.ReportError(fmt.Errorf("fanout failed for target %s, %v", host.String(), r))
+			lgr.ReportError(fmt.Errorf("fanout failed for target %s, %v", host.String(), r))
 		}
 	}()
 
 	var logged bool
 
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	for _, host = range logr.targetHosts {
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
+	for _, host = range lgr.targetHosts {
 		if enabled, _ := host.IsLevelEnabled(rec.Level()); enabled {
 			host.Log(rec)
 			logged = true
@@ -444,33 +419,33 @@ func (logr *Logr) fanout(rec *LogRec) {
 	}
 
 	if logged {
-		logr.incLoggedCounter()
+		lgr.incLoggedCounter()
 	}
 }
 
 // flush drains the queue and notifies when done.
-func (logr *Logr) flush(done chan<- struct{}) {
+func (lgr *Logr) flush(done chan<- struct{}) {
 	// first drain the logr queue.
 loop:
 	for {
 		var rec *LogRec
 		select {
-		case rec = <-logr.in:
+		case rec = <-lgr.in:
 			if rec.flush == nil {
 				rec.prep()
-				logr.fanout(rec)
+				lgr.fanout(rec)
 			}
 		default:
 			break loop
 		}
 	}
 
-	logger := logr.NewLogger()
+	logger := lgr.NewLogger()
 
 	// drain all the targets; block until finished.
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	for _, host := range logr.targetHosts {
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
+	for _, host := range lgr.targetHosts {
 		rec := newFlushLogRec(logger)
 		host.Log(rec)
 		<-rec.flush

@@ -53,12 +53,12 @@ func BenchmarkLog(b *testing.B) {
 		require.NoError(b, err)
 	}
 
-	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
-	logger.Errorln("log entry cache primer")
+	logger := lgr.NewLogger().With(logr.String("name", "Wiggin"))
+	logger.Error("log entry cache primer")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		logger.Errorf("log entry %d", b.N)
+		logger.Error("log entry", logr.Int("num", b.N))
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
@@ -79,7 +79,7 @@ func BenchmarkLogFiltered(b *testing.B) {
 	}
 
 	logger := lgr.NewLogger()
-	logger.Errorln("log entry cache primer")
+	logger.Error("log entry cache primer")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -106,11 +106,11 @@ func BenchmarkLogStacktrace(b *testing.B) {
 	}
 
 	logger := lgr.NewLogger()
-	logger.Errorln("log entry cache primer")
+	logger.Error("log entry cache primer")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		logger.Errorf("log entry with stack trace %d", b.N)
+		logger.Error("log entry with stack trace", logr.Int("num", b.N))
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
@@ -128,12 +128,12 @@ func BenchmarkLogger(b *testing.B) {
 		require.NoError(b, err)
 	}
 
-	logger := lgr.NewLogger().WithFields(logr.Fields{"name": "Wiggin"})
+	logger := lgr.NewLogger().With(logr.String("name", "Wiggin"))
 	//logger := lgr.NewLogger()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		logger.Errorf("log entry %d", b.N)
+		logger.Error("log entry", logr.Int("num", b.N))
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()

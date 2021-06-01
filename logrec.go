@@ -1,7 +1,6 @@
 package logr
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 	"sync"
@@ -29,9 +28,9 @@ type LogRec struct {
 	level  Level
 	logger Logger
 
-	template string
-	newline  bool
-	args     []interface{}
+	msg     string
+	newline bool
+	fields  []Field
 
 	stackPC    []uintptr
 	stackCount int
@@ -40,13 +39,13 @@ type LogRec struct {
 	flush chan struct{}
 
 	// remaining fields calculated by `prep`
-	msg    string
-	frames []runtime.Frame
+	frames    []runtime.Frame
+	fieldsAll []Field
 }
 
 // NewLogRec creates a new LogRec with the current time and optional stack trace.
-func NewLogRec(lvl Level, logger Logger, template string, args []interface{}, incStacktrace bool) *LogRec {
-	rec := &LogRec{time: time.Now(), logger: logger, level: lvl, template: template, args: args}
+func NewLogRec(lvl Level, logger Logger, msg string, fields []Field, incStacktrace bool) *LogRec {
+	rec := &LogRec{time: time.Now(), logger: logger, level: lvl, msg: msg, fields: fields}
 	if incStacktrace {
 		rec.stackPC = make([]uintptr, DefaultMaxStackFrames)
 		rec.stackCount = runtime.Callers(2, rec.stackPC)
@@ -60,45 +59,35 @@ func newFlushLogRec(logger Logger) *LogRec {
 	return &LogRec{logger: logger, flush: make(chan struct{})}
 }
 
-// prep resolves all args and field values to strings, and
-// resolves stack trace to frames.
+// prep resolves stack trace to frames.
 func (rec *LogRec) prep() {
 	rec.mux.Lock()
 	defer rec.mux.Unlock()
 
-	// resolve args
-	if rec.template == "" {
-		if rec.newline {
-			rec.msg = fmt.Sprintln(rec.args...)
-		} else {
-			rec.msg = fmt.Sprint(rec.args...)
-		}
-	} else {
-		rec.msg = fmt.Sprintf(rec.template, rec.args...)
-	}
+	// include log rec fields and logger fields added via "With"
+	rec.fieldsAll = make([]Field, 0, len(rec.fields)+len(rec.logger.fields))
+	rec.fieldsAll = append(rec.fieldsAll, rec.logger.fields...)
+	rec.fieldsAll = append(rec.fieldsAll, rec.fields...)
+
+	filter := rec.logger.lgr.options.stackFilter
 
 	// resolve stack trace
 	if rec.stackCount > 0 {
+		rec.frames = make([]runtime.Frame, 0, rec.stackCount)
 		frames := runtime.CallersFrames(rec.stackPC[:rec.stackCount])
 		for {
-			f, more := frames.Next()
-			rec.frames = append(rec.frames, f)
+			frame, more := frames.Next()
+
+			// remove all package entries that are in filter.
+			pkg := getPackageName(frame.Function)
+			if _, ok := filter[pkg]; !ok && pkg != "" {
+				rec.frames = append(rec.frames, frame)
+			}
+
 			if !more {
 				break
 			}
 		}
-
-		// remove leading package entries from filter.
-		filter := rec.logger.logr.options.stackFilter
-		var start int
-		for i, frame := range rec.frames {
-			pkg := getPackageName(frame.Function)
-			if _, ok := filter[pkg]; !ok && pkg != "" {
-				start = i
-				break
-			}
-		}
-		rec.frames = rec.frames[start:]
 	}
 }
 
@@ -113,10 +102,9 @@ func (rec *LogRec) WithTime(time time.Time) *LogRec {
 		time:       time,
 		level:      rec.level,
 		logger:     rec.logger,
-		template:   rec.template,
-		newline:    rec.newline,
-		args:       rec.args,
 		msg:        rec.msg,
+		newline:    rec.newline,
+		fields:     rec.fields,
 		stackPC:    rec.stackPC,
 		stackCount: rec.stackCount,
 		frames:     rec.frames,
@@ -141,9 +129,9 @@ func (rec *LogRec) Level() Level {
 }
 
 // Fields returns this log record's Fields.
-func (rec *LogRec) Fields() Fields {
+func (rec *LogRec) Fields() []Field {
 	// no locking needed as this field is not mutated.
-	return rec.logger.fields
+	return rec.fieldsAll
 }
 
 // Msg returns this log record's message text.
@@ -168,9 +156,9 @@ func (rec *LogRec) String() string {
 	}
 
 	f := &DefaultFormatter{}
-	buf := rec.logger.logr.BorrowBuffer()
-	defer rec.logger.logr.ReleaseBuffer(buf)
-	buf, _ = f.Format(rec, true, buf)
+	buf := rec.logger.lgr.BorrowBuffer()
+	defer rec.logger.lgr.ReleaseBuffer(buf)
+	buf, _ = f.Format(rec, rec.Level(), buf)
 	return strings.TrimSpace(buf.String())
 }
 

@@ -107,7 +107,7 @@ func TestLogAfterShutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should NOP since shutdown already called. Shouldn't crash.
-	logger := lgr.NewLogger().WithField("test", "yes")
+	logger := lgr.NewLogger().With(logr.String("test", "yes"))
 	logger.Info("This shouldn't get logged")
 
 	// Second shutdown should error, but not crash.

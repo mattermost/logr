@@ -175,7 +175,7 @@ func SetMetricsCollector(collector MetricsCollector, updateFreqMillis int64) Opt
 }
 
 // StackFilter provides a list of package names to exclude from the top of
-// stack traces.  The Logr package is automatically filtered.
+// stack traces.  The Logr packages are automatically filtered.
 func StackFilter(pkg ...string) Option {
 	return func(l *Logr) error {
 		if l.options.stackFilter == nil {

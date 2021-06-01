@@ -57,57 +57,57 @@ type metrics struct {
 }
 
 // initMetrics initializes metrics collection.
-func (logr *Logr) initMetrics() {
-	if logr.options.metricsCollector == nil {
+func (lgr *Logr) initMetrics() {
+	if lgr.options.metricsCollector == nil {
 		return
 	}
 
 	metrics := &metrics{
-		collector: logr.options.metricsCollector,
+		collector: lgr.options.metricsCollector,
 		done:      make(chan struct{}),
 	}
-	metrics.queueSizeGauge, _ = logr.options.metricsCollector.QueueSizeGauge("_logr")
-	metrics.loggedCounter, _ = logr.options.metricsCollector.LoggedCounter("_logr")
-	metrics.errorCounter, _ = logr.options.metricsCollector.ErrorCounter("_logr")
+	metrics.queueSizeGauge, _ = lgr.options.metricsCollector.QueueSizeGauge("_logr")
+	metrics.loggedCounter, _ = lgr.options.metricsCollector.LoggedCounter("_logr")
+	metrics.errorCounter, _ = lgr.options.metricsCollector.ErrorCounter("_logr")
 
-	logr.metrics = metrics
+	lgr.metrics = metrics
 
-	go logr.startMetricsUpdater()
+	go lgr.startMetricsUpdater()
 }
 
-func (logr *Logr) setQueueSizeGauge(val float64) {
-	if logr.metrics != nil {
-		logr.metrics.queueSizeGauge.Set(val)
+func (lgr *Logr) setQueueSizeGauge(val float64) {
+	if lgr.metrics != nil {
+		lgr.metrics.queueSizeGauge.Set(val)
 	}
 }
 
-func (logr *Logr) incLoggedCounter() {
-	if logr.metrics != nil {
-		logr.metrics.loggedCounter.Inc()
+func (lgr *Logr) incLoggedCounter() {
+	if lgr.metrics != nil {
+		lgr.metrics.loggedCounter.Inc()
 	}
 }
 
-func (logr *Logr) incErrorCounter() {
-	if logr.metrics != nil {
-		logr.metrics.errorCounter.Inc()
+func (lgr *Logr) incErrorCounter() {
+	if lgr.metrics != nil {
+		lgr.metrics.errorCounter.Inc()
 	}
 }
 
 // startMetricsUpdater updates the metrics for any polled values every `metricsUpdateFreqSecs` seconds until
 // logr is closed.
-func (logr *Logr) startMetricsUpdater() {
+func (lgr *Logr) startMetricsUpdater() {
 	for {
 		select {
-		case <-logr.metrics.done:
+		case <-lgr.metrics.done:
 			return
-		case <-time.After(time.Duration(logr.options.metricsUpdateFreqMillis) * time.Millisecond):
-			logr.setQueueSizeGauge(float64(len(logr.in)))
+		case <-time.After(time.Duration(lgr.options.metricsUpdateFreqMillis) * time.Millisecond):
+			lgr.setQueueSizeGauge(float64(len(lgr.in)))
 		}
 	}
 }
 
-func (logr *Logr) stopMetricsUpdater() {
-	if logr.metrics != nil {
-		close(logr.metrics.done)
+func (lgr *Logr) stopMetricsUpdater() {
+	if lgr.metrics != nil {
+		close(lgr.metrics.done)
 	}
 }

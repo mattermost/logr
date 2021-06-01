@@ -2,70 +2,62 @@ package formatters
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"runtime"
-	"sort"
+	"strings"
 	"sync"
-	"time"
 
 	"github.com/francoispqt/gojay"
 	"github.com/mattermost/logr/v2"
 )
 
-// ContextField is a name/value pair within the context fields.
-type ContextField struct {
-	Key string
-	Val interface{}
-}
-
 // JSON formats log records as JSON.
 type JSON struct {
 	// DisableTimestamp disables output of timestamp field.
-	DisableTimestamp bool
+	DisableTimestamp bool `json:"disable_timestamp"`
 	// DisableLevel disables output of level field.
-	DisableLevel bool
+	DisableLevel bool `json:"disable_level"`
 	// DisableMsg disables output of msg field.
-	DisableMsg bool
-	// DisableContext disables output of all context fields.
-	DisableContext bool
+	DisableMsg bool `json:"disable_msg"`
+	// DisableFields disables output of all fields.
+	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
-	DisableStacktrace bool
+	DisableStacktrace bool `json:"disable_stacktrace"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
-	TimestampFormat string
-
-	// Deprecated: this has no effect.
-	Indent string
-
-	// EscapeHTML determines if certain characters (e.g. `<`, `>`, `&`)
-	// are escaped.
-	EscapeHTML bool
+	TimestampFormat string `json:"timestamp_format"`
 
 	// KeyTimestamp overrides the timestamp field key name.
-	KeyTimestamp string
+	KeyTimestamp string `json:"key_timestamp"`
 
 	// KeyLevel overrides the level field key name.
-	KeyLevel string
+	KeyLevel string `json:"key_level"`
 
 	// KeyMsg overrides the msg field key name.
-	KeyMsg string
+	KeyMsg string `json:"key_msg"`
 
-	// KeyContextFields when not empty will group all context fields
+	// KeyGroupFields when not empty will group all context fields
 	// under this key.
-	KeyContextFields string
+	KeyGroupFields string `json:"key_group_fields"`
 
 	// KeyStacktrace overrides the stacktrace field key name.
-	KeyStacktrace string
+	KeyStacktrace string `json:"key_stacktrace"`
 
-	// ContextSorter allows custom sorting for the context fields.
-	ContextSorter func(fields logr.Fields) []ContextField
+	// FieldSorter allows custom sorting of the fields. If nil then
+	// no sorting is done.
+	FieldSorter func(fields []logr.Field) []logr.Field `json:"-"`
 
 	once sync.Once
 }
 
+func (j *JSON) CheckValid() error {
+	return nil
+}
+
 // Format converts a log record to bytes in JSON format.
-func (j *JSON) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
+func (j *JSON) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	j.once.Do(j.applyDefaultKeyNames)
 
 	if buf == nil {
@@ -76,16 +68,11 @@ func (j *JSON) Format(rec *logr.LogRec, stacktrace bool, buf *bytes.Buffer) (*by
 		enc.Release()
 	}()
 
-	sorter := j.ContextSorter
-	if sorter == nil {
-		sorter = j.defaultContextSorter
-	}
-
 	jlr := JSONLogRec{
-		LogRec:     rec,
-		JSON:       j,
-		stacktrace: stacktrace,
-		sorter:     sorter,
+		LogRec: rec,
+		JSON:   j,
+		level:  level,
+		sorter: j.FieldSorter,
 	}
 
 	err := enc.EncodeObject(jlr)
@@ -111,65 +98,54 @@ func (j *JSON) applyDefaultKeyNames() {
 	}
 }
 
-// defaultContextSorter sorts the context fields alphabetically by key.
-func (j *JSON) defaultContextSorter(fields logr.Fields) []ContextField {
-	keys := make([]string, 0, len(fields))
-	for k := range fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	cf := make([]ContextField, 0, len(keys))
-	for _, k := range keys {
-		cf = append(cf, ContextField{Key: k, Val: fields[k]})
-	}
-	return cf
-}
-
 // JSONLogRec decorates a LogRec adding JSON encoding.
 type JSONLogRec struct {
 	*logr.LogRec
 	*JSON
-	stacktrace bool
-	sorter     func(fields logr.Fields) []ContextField
+	level  logr.Level
+	sorter func(fields []logr.Field) []logr.Field
 }
 
 // MarshalJSONObject encodes the LogRec as JSON.
-func (rec JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
-	if !rec.DisableTimestamp {
-		timestampFmt := rec.TimestampFormat
+func (jlr JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
+	if !jlr.DisableTimestamp {
+		timestampFmt := jlr.TimestampFormat
 		if timestampFmt == "" {
 			timestampFmt = logr.DefTimestampFormat
 		}
-		time := rec.Time()
-		enc.AddTimeKey(rec.KeyTimestamp, &time, timestampFmt)
+		time := jlr.Time()
+		enc.AddTimeKey(jlr.KeyTimestamp, &time, timestampFmt)
 	}
-	if !rec.DisableLevel {
-		enc.AddStringKey(rec.KeyLevel, rec.Level().Name)
+	if !jlr.DisableLevel {
+		enc.AddStringKey(jlr.KeyLevel, jlr.level.Name)
 	}
-	if !rec.DisableMsg {
-		enc.AddStringKey(rec.KeyMsg, rec.Msg())
+	if !jlr.DisableMsg {
+		enc.AddStringKey(jlr.KeyMsg, jlr.Msg())
 	}
-	if !rec.DisableContext {
-		ctxFields := rec.sorter(rec.Fields())
-		if rec.KeyContextFields != "" {
-			enc.AddObjectKey(rec.KeyContextFields, jsonFields(ctxFields))
+	if !jlr.DisableFields {
+		fields := jlr.Fields()
+		if jlr.sorter != nil {
+			fields = jlr.sorter(fields)
+		}
+		if jlr.KeyGroupFields != "" {
+			enc.AddObjectKey(jlr.KeyGroupFields, FieldArray(fields))
 		} else {
-			if len(ctxFields) > 0 {
-				for _, cf := range ctxFields {
-					key := rec.prefixCollision(cf.Key)
-					encodeField(enc, key, cf.Val)
+			if len(fields) > 0 {
+				for _, field := range fields {
+					field = jlr.prefixCollision(field)
+					if err := encodeField(enc, field); err != nil {
+						enc.AddStringKey(field.Key, "<error encoding field: "+err.Error()+">")
+					}
 				}
 			}
 		}
 	}
-	if rec.stacktrace && !rec.DisableStacktrace {
-		frames := rec.StackFrames()
+	if jlr.level.Stacktrace && !jlr.DisableStacktrace {
+		frames := jlr.StackFrames()
 		if len(frames) > 0 {
-			enc.AddArrayKey(rec.KeyStacktrace, stackFrames(frames))
+			enc.AddArrayKey(jlr.KeyStacktrace, stackFrames(frames))
 		}
 	}
-
 }
 
 // IsNil returns true if the LogRec pointer is nil.
@@ -177,12 +153,14 @@ func (rec JSONLogRec) IsNil() bool {
 	return rec.LogRec == nil
 }
 
-func (rec JSONLogRec) prefixCollision(key string) string {
-	switch key {
+func (rec JSONLogRec) prefixCollision(field logr.Field) logr.Field {
+	switch field.Key {
 	case rec.KeyTimestamp, rec.KeyLevel, rec.KeyMsg, rec.KeyStacktrace:
-		return rec.prefixCollision("_" + key)
+		f := field
+		f.Key = "_" + field.Key
+		return rec.prefixCollision(f)
 	}
-	return key
+	return field
 }
 
 type stackFrames []runtime.Frame
@@ -212,62 +190,68 @@ func (f stackFrame) IsNil() bool {
 	return false
 }
 
-type jsonFields []ContextField
+type FieldArray []logr.Field
 
 // MarshalJSONObject encodes Fields map to JSON.
-func (f jsonFields) MarshalJSONObject(enc *gojay.Encoder) {
-	for _, ctxField := range f {
-		encodeField(enc, ctxField.Key, ctxField.Val)
+func (fa FieldArray) MarshalJSONObject(enc *gojay.Encoder) {
+	for _, fld := range fa {
+		if err := encodeField(enc, fld); err != nil {
+			enc.AddStringKey(fld.Key, "<error encoding field: "+err.Error()+">")
+		}
 	}
 }
 
 // IsNil returns true if map is nil.
-func (f jsonFields) IsNil() bool {
-	return f == nil
+func (fa FieldArray) IsNil() bool {
+	return fa == nil
 }
 
-func encodeField(enc *gojay.Encoder, key string, val interface{}) {
-	switch vt := val.(type) {
+func encodeField(enc *gojay.Encoder, field logr.Field) error {
+	// first check if the value has a marshaller already.
+	switch vt := field.Interface.(type) {
 	case gojay.MarshalerJSONObject:
-		enc.AddObjectKey(key, vt)
+		enc.AddObjectKey(field.Key, vt)
+		return nil
 	case gojay.MarshalerJSONArray:
-		enc.AddArrayKey(key, vt)
-	case string:
-		enc.AddStringKey(key, vt)
-	case error:
-		enc.AddStringKey(key, vt.Error())
-	case bool:
-		enc.AddBoolKey(key, vt)
-	case int:
-		enc.AddIntKey(key, vt)
-	case int64:
-		enc.AddInt64Key(key, vt)
-	case int32:
-		enc.AddIntKey(key, int(vt))
-	case int16:
-		enc.AddIntKey(key, int(vt))
-	case int8:
-		enc.AddIntKey(key, int(vt))
-	case uint64:
-		enc.AddIntKey(key, int(vt))
-	case uint32:
-		enc.AddIntKey(key, int(vt))
-	case uint16:
-		enc.AddIntKey(key, int(vt))
-	case uint8:
-		enc.AddIntKey(key, int(vt))
-	case float64:
-		enc.AddFloatKey(key, vt)
-	case float32:
-		enc.AddFloat32Key(key, vt)
-	case *gojay.EmbeddedJSON:
-		enc.AddEmbeddedJSONKey(key, vt)
-	case time.Time:
-		enc.AddTimeKey(key, &vt, logr.DefTimestampFormat)
-	case *time.Time:
-		enc.AddTimeKey(key, vt, logr.DefTimestampFormat)
-	default:
-		s := fmt.Sprintf("%v", vt)
-		enc.AddStringKey(key, s)
+		enc.AddArrayKey(field.Key, vt)
+		return nil
 	}
+
+	switch field.Type {
+	case logr.StringType:
+		enc.AddStringKey(field.Key, field.String)
+
+	case logr.BoolType:
+		var b bool
+		if field.Integer != 0 {
+			b = true
+		}
+		enc.AddBoolKey(field.Key, b)
+
+	case logr.StructType, logr.ArrayType, logr.MapType, logr.UnknownType:
+		b, err := json.Marshal(field.Interface)
+		if err != nil {
+			return err
+		}
+		embed := gojay.EmbeddedJSON(b)
+		enc.AddEmbeddedJSONKey(field.Key, &embed)
+
+	case logr.StringerType, logr.ErrorType, logr.TimestampMillisType, logr.TimeType, logr.DurationType, logr.BinaryType:
+		var buf strings.Builder
+		_ = field.ValueString(&buf, nil)
+		enc.AddStringKey(field.Key, buf.String())
+
+	case logr.Int64Type, logr.Int32Type, logr.IntType:
+		enc.AddInt64Key(field.Key, field.Integer)
+
+	case logr.Uint64Type, logr.Uint32Type, logr.UintType:
+		enc.AddUint64Key(field.Key, uint64(field.Integer))
+
+	case logr.Float64Type, logr.Float32Type:
+		enc.AddFloat64Key(field.Key, field.Float)
+
+	default:
+		return fmt.Errorf("invalid field type: %d", field.Type)
+	}
+	return nil
 }
