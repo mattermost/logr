@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"fmt"
@@ -7,21 +7,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mattermost/logr"
-	"github.com/mattermost/logr/format"
-	"github.com/mattermost/logr/target"
-	"github.com/mattermost/logr/test"
+	"github.com/mattermost/logr/v2"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 )
 
 func ExampleWriter() {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.Plain{Delim: " | "}
-	t := target.NewWriterTarget(filter, formatter, buf, 1000)
-	_ = lgr.AddTarget(t)
+	formatter := &formatters.Plain{Delim: " | "}
+	t := targets.NewWriterTarget(buf)
+	_ = lgr.AddTarget(t, "example", filter, formatter, 1000)
 
-	logger := lgr.NewLogger().WithField("name", "wiggin")
+	logger := lgr.NewLogger().With(logr.String("name", "wiggin")).Sugar()
 
 	logger.Errorf("the erroneous data is %s", test.StringRnd(10))
 	logger.Warnf("strange data: %s", test.StringRnd(5))
@@ -38,21 +38,21 @@ func ExampleWriter() {
 }
 
 func TestWriterPlain(t *testing.T) {
-	plain := &format.Plain{Delim: " | "}
+	plain := &formatters.Plain{Delim: " | "}
 	writer(t, plain)
 }
 
 func TestWriterJSON(t *testing.T) {
-	json := &format.JSON{Indent: "  "}
+	json := &formatters.JSON{}
 	writer(t, json)
 }
 
 func writer(t *testing.T, formatter logr.Formatter) {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	target := target.NewWriterTarget(filter, formatter, buf, 1000)
-	_ = lgr.AddTarget(target)
+	target := targets.NewWriterTarget(buf)
+	_ = lgr.AddTarget(target, "writerTest", filter, formatter, 1000)
 
 	const goodToken = "Woot!"
 	const badToken = "XXX!!XXX"

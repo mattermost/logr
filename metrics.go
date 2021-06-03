@@ -1,10 +1,6 @@
 package logr
 
-import (
-	"errors"
-
-	"github.com/wiggin77/merror"
-)
+import "time"
 
 const (
 	DefMetricsUpdateFreqMillis = 15000 // 15 seconds
@@ -52,33 +48,66 @@ type TargetWithMetrics interface {
 	EnableMetrics(collector MetricsCollector, updateFreqMillis int64) error
 }
 
-// SetMetricsCollector enables metrics collection by supplying a MetricsCollector.
-// The MetricsCollector provides counters and gauges that are updated by log targets.
-func (logr *Logr) SetMetricsCollector(collector MetricsCollector) error {
-	if collector == nil {
-		return errors.New("collector cannot be nil")
+type metrics struct {
+	collector      MetricsCollector
+	queueSizeGauge Gauge
+	loggedCounter  Counter
+	errorCounter   Counter
+	done           chan struct{}
+}
+
+// initMetrics initializes metrics collection.
+func (lgr *Logr) initMetrics() {
+	if lgr.options.metricsCollector == nil {
+		return
 	}
 
-	logr.metrics = collector
-	logr.queueSizeGauge, _ = collector.QueueSizeGauge("_logr")
-	logr.loggedCounter, _ = collector.LoggedCounter("_logr")
-	logr.errorCounter, _ = collector.ErrorCounter("_logr")
+	metrics := &metrics{
+		collector: lgr.options.metricsCollector,
+		done:      make(chan struct{}),
+	}
+	metrics.queueSizeGauge, _ = lgr.options.metricsCollector.QueueSizeGauge("_logr")
+	metrics.loggedCounter, _ = lgr.options.metricsCollector.LoggedCounter("_logr")
+	metrics.errorCounter, _ = lgr.options.metricsCollector.ErrorCounter("_logr")
 
-	logr.metricsOnce.Do(func() {
-		go logr.startMetricsUpdater()
-	})
+	lgr.metrics = metrics
 
-	merr := merror.New()
+	go lgr.startMetricsUpdater()
+}
 
-	logr.tmux.RLock()
-	defer logr.tmux.RUnlock()
-	for _, target := range logr.targets {
-		if tm, ok := target.(TargetWithMetrics); ok {
-			if err := tm.EnableMetrics(logr.metrics, logr.MetricsUpdateFreqMillis); err != nil {
-				merr.Append(err)
-			}
+func (lgr *Logr) setQueueSizeGauge(val float64) {
+	if lgr.metrics != nil {
+		lgr.metrics.queueSizeGauge.Set(val)
+	}
+}
+
+func (lgr *Logr) incLoggedCounter() {
+	if lgr.metrics != nil {
+		lgr.metrics.loggedCounter.Inc()
+	}
+}
+
+func (lgr *Logr) incErrorCounter() {
+	if lgr.metrics != nil {
+		lgr.metrics.errorCounter.Inc()
+	}
+}
+
+// startMetricsUpdater updates the metrics for any polled values every `metricsUpdateFreqSecs` seconds until
+// logr is closed.
+func (lgr *Logr) startMetricsUpdater() {
+	for {
+		select {
+		case <-lgr.metrics.done:
+			return
+		case <-time.After(time.Duration(lgr.options.metricsUpdateFreqMillis) * time.Millisecond):
+			lgr.setQueueSizeGauge(float64(len(lgr.in)))
 		}
-
 	}
-	return merr.ErrorOrNil()
+}
+
+func (lgr *Logr) stopMetricsUpdater() {
+	if lgr.metrics != nil {
+		close(lgr.metrics.done)
+	}
 }

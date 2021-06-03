@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/mattermost/logr"
-	"github.com/mattermost/logr/format"
-	"github.com/mattermost/logr/target"
-	"github.com/mattermost/logr/test"
+	"github.com/mattermost/logr/v2"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,11 +16,16 @@ const (
 )
 
 func TestLogr_SetMetricsCollector(t *testing.T) {
-	formatter := &format.Plain{DisableTimestamp: true, Delim: " | "}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
-	t.Run("metrics after AddTarget should pass", func(t *testing.T) {
-		lgr := &logr.Logr{}
+	t.Run("adding metrics should pass", func(t *testing.T) {
+		collector := test.NewTestMetricsCollector()
+		opt := logr.SetMetricsCollector(collector, 1000)
+
+		lgr, err := logr.New(opt)
+		require.NoError(t, err)
+
 		defer func() {
 			err := lgr.Shutdown()
 			require.NoError(t, err)
@@ -28,15 +33,9 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 
 		// Create target
 		buf := &bytes.Buffer{}
-		tgt := target.NewWriterTarget(filter, formatter, buf, 100)
-		tgt.SetName(TestTargetName)
+		tgt := targets.NewWriterTarget(buf)
 
-		err := lgr.AddTarget(tgt)
-		require.NoError(t, err)
-
-		// Add metrics after AddTarget
-		collector := test.NewTestMetricsCollector()
-		err = lgr.SetMetricsCollector(collector)
+		err = lgr.AddTarget(tgt, TestTargetName, filter, formatter, 100)
 		require.NoError(t, err)
 
 		logger := lgr.NewLogger()
@@ -56,60 +55,29 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 		require.EqualValues(t, 0, metricsTarget.Errors)
 	})
 
-	t.Run("metrics before AddTarget should pass", func(t *testing.T) {
-		lgr := &logr.Logr{}
-		defer func() {
-			err := lgr.Shutdown()
-			require.NoError(t, err)
-		}()
+	t.Run("adding nil metrics should fail", func(t *testing.T) {
+		opt := logr.SetMetricsCollector(nil, 1000)
 
-		// Add metrics before AddTarget
-		collector := test.NewTestMetricsCollector()
-		err := lgr.SetMetricsCollector(collector)
-		require.NoError(t, err)
-
-		// Create target
-		buf := &bytes.Buffer{}
-		tgt := target.NewWriterTarget(filter, formatter, buf, 100)
-		tgt.SetName(TestTargetName)
-
-		err = lgr.AddTarget(tgt)
-		require.NoError(t, err)
-
-		logger := lgr.NewLogger()
-		logger.Info("Say 'hello' to my little friend!")
-		logger.Info("Hasta la vista, baby.")
-
-		err = lgr.Flush()
-		require.NoError(t, err)
-
-		metricsLogr := collector.Get("_logr")
-		metricsTarget := collector.Get(TestTargetName)
-
-		require.EqualValues(t, 2, metricsLogr.Logged)
-		require.EqualValues(t, 2, metricsTarget.Logged)
-
-		require.EqualValues(t, 0, metricsLogr.Errors)
-		require.EqualValues(t, 0, metricsTarget.Errors)
+		lgr, err := logr.New(opt)
+		require.Error(t, err)
+		require.Nil(t, lgr)
 	})
 
 	t.Run("metrics with failing target", func(t *testing.T) {
-		lgr := &logr.Logr{}
+		collector := test.NewTestMetricsCollector()
+		opt := logr.SetMetricsCollector(collector, 1000)
+
+		lgr, err := logr.New(opt)
+		require.NoError(t, err)
+
 		defer func() {
 			err := lgr.Shutdown()
 			require.NoError(t, err)
 		}()
 
-		// Add metrics before AddTarget
-		collector := test.NewTestMetricsCollector()
-		err := lgr.SetMetricsCollector(collector)
-		require.NoError(t, err)
-
 		// Create target
-		tgt := test.NewFailingTarget(filter, formatter)
-		tgt.SetName(TestTargetName)
-
-		err = lgr.AddTarget(tgt)
+		tgt := test.NewFailingTarget()
+		err = lgr.AddTarget(tgt, TestTargetName, filter, formatter, 300)
 		require.NoError(t, err)
 
 		logger := lgr.NewLogger()
@@ -130,28 +98,25 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 	})
 
 	t.Run("metrics with multiple targets", func(t *testing.T) {
-		lgr := &logr.Logr{}
+		collector := test.NewTestMetricsCollector()
+		opt := logr.SetMetricsCollector(collector, 1000)
+
+		lgr, err := logr.New(opt)
+		require.NoError(t, err)
 		defer func() {
 			err := lgr.Shutdown()
 			require.NoError(t, err)
 		}()
 
-		// Add metrics before AddTarget
-		collector := test.NewTestMetricsCollector()
-		err := lgr.SetMetricsCollector(collector)
-		require.NoError(t, err)
-
 		// Create targets
 		buf1 := &bytes.Buffer{}
 		buf2 := &bytes.Buffer{}
-		tgt1 := target.NewWriterTarget(filter, formatter, buf1, 100)
-		tgt2 := target.NewWriterTarget(filter, formatter, buf2, 100)
-		tgt1.SetName(TestTargetName + "1")
-		tgt2.SetName(TestTargetName + "2")
+		tgt1 := targets.NewWriterTarget(buf1)
+		tgt2 := targets.NewWriterTarget(buf2)
 
-		err = lgr.AddTarget(tgt1)
+		err = lgr.AddTarget(tgt1, TestTargetName+"1", filter, formatter, 100)
 		require.NoError(t, err)
-		err = lgr.AddTarget(tgt2)
+		err = lgr.AddTarget(tgt2, TestTargetName+"2", filter, formatter, 300)
 		require.NoError(t, err)
 
 		logger := lgr.NewLogger()

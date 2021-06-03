@@ -2,24 +2,41 @@ package logr
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"runtime"
-	"sort"
+	"strconv"
 )
 
 // Formatter turns a LogRec into a formatted string.
 type Formatter interface {
 	// Format converts a log record to bytes. If buf is not nil then it will be
 	// be filled with the formatted results, otherwise a new buffer will be allocated.
-	Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error)
+	Format(rec *LogRec, level Level, buf *bytes.Buffer) (*bytes.Buffer, error)
 }
 
 const (
-	// DefTimestampFormat is the default time stamp format used by
-	// Plain formatter and others.
+	// DefTimestampFormat is the default time stamp format used by Plain formatter and others.
 	DefTimestampFormat = "2006-01-02 15:04:05.000 Z07:00"
+
+	// TimestampMillisFormat is the format for logging milliseconds UTC
+	TimestampMillisFormat = "Jan _2 15:04:05.000"
 )
+
+type Writer struct {
+	io.Writer
+}
+
+func (w Writer) Writes(elems ...[]byte) (int, error) {
+	var count int
+	for _, e := range elems {
+		if c, err := w.Write(e); err != nil {
+			return count + c, err
+		} else {
+			count += c
+		}
+	}
+	return count, nil
+}
 
 // DefaultFormatter is the default formatter, outputting only text with
 // no colors and a space delimiter. Use `format.Plain` instead.
@@ -27,70 +44,70 @@ type DefaultFormatter struct {
 }
 
 // Format converts a log record to bytes.
-func (p *DefaultFormatter) Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error) {
+func (p *DefaultFormatter) Format(rec *LogRec, level Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
 	if buf == nil {
 		buf = &bytes.Buffer{}
 	}
-	delim := " "
 	timestampFmt := DefTimestampFormat
 
-	fmt.Fprintf(buf, "%s%s", rec.Time().Format(timestampFmt), delim)
-	fmt.Fprintf(buf, "%v%s", rec.Level(), delim)
-	fmt.Fprint(buf, rec.Msg(), delim)
+	buf.WriteString(rec.Time().Format(timestampFmt))
+	buf.Write(Space)
 
-	ctx := rec.Fields()
-	if len(ctx) > 0 {
-		WriteFields(buf, ctx, " ")
-	}
+	buf.WriteString(level.Name)
+	buf.Write(Space)
 
-	if stacktrace {
-		frames := rec.StackFrames()
-		if len(frames) > 0 {
-			buf.WriteString("\n")
-			WriteStacktrace(buf, rec.StackFrames())
+	buf.WriteString(rec.Msg())
+	buf.Write(Space)
+
+	fields := rec.Fields()
+	if len(fields) > 0 {
+		if err := WriteFields(buf, fields, Space, NoColor); err != nil {
+			return nil, err
 		}
 	}
-	buf.WriteString("\n")
+
+	if level.Stacktrace {
+		frames := rec.StackFrames()
+		if len(frames) > 0 {
+			buf.Write(Newline)
+			if err := WriteStacktrace(buf, rec.StackFrames()); err != nil {
+				return nil, err
+			}
+		}
+	}
+	buf.Write(Newline)
 
 	return buf, nil
 }
 
 // WriteFields writes zero or more name value pairs to the io.Writer.
-// The pairs are sorted by key name and output in key=value format
-// with optional separator between fields.
-func WriteFields(w io.Writer, flds Fields, separator string) {
-	keys := make([]string, 0, len(flds))
-	for k := range flds {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	sep := ""
-	for _, key := range keys {
-		writeField(w, key, flds[key], sep)
+// The pairs output in key=value format with optional separator between fields.
+func WriteFields(w io.Writer, fields []Field, separator []byte, color Color) error {
+	ws := Writer{w}
+
+	sep := []byte{}
+	for _, field := range fields {
+		if err := writeField(ws, field, sep, color); err != nil {
+			return err
+		}
 		sep = separator
 	}
+	return nil
 }
 
-func writeField(w io.Writer, key string, val interface{}, sep string) {
-	var template string
-	switch v := val.(type) {
-	case error:
-		val := v.Error()
-		if shouldQuote(val) {
-			template = "%s%s=%q"
-		} else {
-			template = "%s%s=%s"
+func writeField(ws Writer, field Field, sep []byte, color Color) error {
+	if len(sep) != 0 {
+		if _, err := ws.Write(sep); err != nil {
+			return err
 		}
-	case string:
-		if shouldQuote(v) {
-			template = "%s%s=%q"
-		} else {
-			template = "%s%s=%s"
-		}
-	default:
-		template = "%s%s=%v"
 	}
-	fmt.Fprintf(w, template, sep, key, val)
+	if err := WriteWithColor(ws, field.Key, color); err != nil {
+		return err
+	}
+	if _, err := ws.Write(Equals); err != nil {
+		return err
+	}
+	return field.ValueString(ws, shouldQuote)
 }
 
 // shouldQuote returns true if val contains any characters that might be unsafe
@@ -99,7 +116,8 @@ func shouldQuote(val string) bool {
 	for _, c := range val {
 		if !((c >= '0' && c <= '9') ||
 			(c >= 'a' && c <= 'z') ||
-			(c >= 'A' && c <= 'Z')) {
+			(c >= 'A' && c <= 'Z') ||
+			c == '-' || c == '.' || c == '_' || c == '/' || c == '@' || c == '^' || c == '+') {
 			return true
 		}
 	}
@@ -107,13 +125,49 @@ func shouldQuote(val string) bool {
 }
 
 // WriteStacktrace formats and outputs a stack trace to an io.Writer.
-func WriteStacktrace(w io.Writer, frames []runtime.Frame) {
+func WriteStacktrace(w io.Writer, frames []runtime.Frame) error {
+	ws := Writer{w}
 	for _, frame := range frames {
 		if frame.Function != "" {
-			fmt.Fprintf(w, "  %s\n", frame.Function)
+			if _, err := ws.Writes(Space, Space, []byte(frame.Function), Newline); err != nil {
+				return err
+			}
 		}
 		if frame.File != "" {
-			fmt.Fprintf(w, "      %s:%d\n", frame.File, frame.Line)
+			s := strconv.FormatInt(int64(frame.Line), 10)
+			if _, err := ws.Writes([]byte{' ', ' ', ' ', ' ', ' ', ' '}, []byte(frame.File), Colon, []byte(s), Newline); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+// WriteWithColor outputs a string with the specified ANSI color.
+func WriteWithColor(w io.Writer, s string, color Color) error {
+	var err error
+
+	writer := func(buf []byte) {
+		if err != nil {
+			return
+		}
+		_, err = w.Write(buf)
+	}
+
+	if color != NoColor {
+		writer(AnsiColorPrefix)
+		writer([]byte(strconv.FormatInt(int64(color), 10)))
+		writer(AnsiColorSuffix)
+	}
+
+	if err == nil {
+		_, err = io.WriteString(w, s)
+	}
+
+	if color != NoColor {
+		writer(AnsiColorPrefix)
+		writer([]byte(strconv.FormatInt(int64(NoColor), 10)))
+		writer(AnsiColorSuffix)
+	}
+	return err
 }

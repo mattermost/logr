@@ -3,15 +3,14 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log/syslog"
 	"os"
 	"sync/atomic"
 	"time"
 
-	"github.com/mattermost/logr"
-	"github.com/mattermost/logr/format"
-	"github.com/mattermost/logr/target"
-	"github.com/mattermost/logr/test"
+	"github.com/mattermost/logr/v2"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 )
 
 const (
@@ -19,14 +18,9 @@ const (
 	GOROUTINES = 10
 	// LOOPS is the number of loops per goroutine.
 	LOOPS = 10000
+	// QSIZE is the size of the Loge inbound queue.
+	QSIZE = 1000
 )
-
-var lgr = &logr.Logr{
-	MaxQueueSize:      1000,
-	OnLoggerError:     handleLoggerError,
-	OnQueueFull:       handleQueueFull,
-	OnTargetQueueFull: handleTargetQueueFull,
-}
 
 var (
 	errorCount           uint32
@@ -52,37 +46,51 @@ func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize in
 }
 
 func main() {
-	// add metrics
 	collector := test.NewTestMetricsCollector()
-	if err := lgr.SetMetricsCollector(collector); err != nil {
+
+	opts := []logr.Option{
+		logr.MaxQueueSize(QSIZE),
+		logr.OnLoggerError(handleLoggerError),
+		logr.OnQueueFull(handleQueueFull),
+		logr.OnTargetQueueFull(handleTargetQueueFull),
+		logr.SetMetricsCollector(collector, 250),
+	}
+
+	lgr, err := logr.New(opts...)
+	if err != nil {
 		panic(err)
 	}
-	lgr.MetricsUpdateFreqMillis = 1000
 
 	// create writer target to stdout
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.JSON{}
-	t = target.NewWriterTarget(filter, formatter, os.Stdout, 1000)
-	t.SetName("stdout")
-	_ = lgr.AddTarget(t)
+	formatter := &formatters.JSON{}
+	t = targets.NewWriterTarget(os.Stdout)
+	err = lgr.AddTarget(t, "stdout", filter, formatter, 1000)
+	if err != nil {
+		panic(err)
+	}
 
 	// create writer target to /dev/null
-	t = target.NewWriterTarget(filter, formatter, ioutil.Discard, 1000)
-	t.SetName("discard")
-	_ = lgr.AddTarget(t)
+	t = targets.NewWriterTarget(ioutil.Discard)
+	err = lgr.AddTarget(t, "discard", filter, formatter, 1000)
+	if err != nil {
+		panic(err)
+	}
 
 	// create syslog target to local using custom filter.
 	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
-	params := &target.SyslogParams{Priority: syslog.LOG_WARNING | syslog.LOG_DAEMON, Tag: "logrtestapp"}
-	t, err := target.NewSyslogTarget(fltr, formatter, params, 1000)
-	t.SetName("syslog")
+	params := &targets.SyslogOptions{Tag: "logrtestapp"}
+	t, err = targets.NewSyslogTarget(params)
 	if err != nil {
 		panic(err)
 	}
-	_ = lgr.AddTarget(t)
+	err = lgr.AddTarget(t, "syslog", fltr, formatter, 1000)
+	if err != nil {
+		panic(err)
+	}
 
 	done := make(chan struct{})
 	targetNames := []string{"_logr", "stdout", "discard", "syslog"}
@@ -106,10 +114,11 @@ func main() {
 
 	logged2, filtered2 := test.DoSomeLogging(cfg)
 
-	lgr.NewLogger().Logf(lvl, "Logr test completed. errors=%d, queueFull=%d, targetFull=%d",
-		atomic.LoadUint32(&errorCount),
-		atomic.LoadUint32(&queueFullCount),
-		atomic.LoadUint32(&targetQueueFullCount))
+	lgr.NewLogger().Log(lvl, "Logr test completed.",
+		logr.Uint32("errors", atomic.LoadUint32(&errorCount)),
+		logr.Uint32("queueFull", atomic.LoadUint32(&queueFullCount)),
+		logr.Uint32("targetFull", atomic.LoadUint32(&targetQueueFullCount)),
+	)
 
 	close(done)
 	err = lgr.Shutdown()
@@ -127,6 +136,10 @@ func main() {
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),
 		atomic.LoadUint32(&targetQueueFullCount))
+
+	if atomic.LoadUint32(&errorCount) > 0 || atomic.LoadUint32(&queueFullCount) > 0 || atomic.LoadUint32(&targetQueueFullCount) > 0 {
+		os.Exit(1)
+	}
 }
 
 func startMetricsUpdater(targets []string, collector *test.TestMetricsCollector, done chan struct{}) {

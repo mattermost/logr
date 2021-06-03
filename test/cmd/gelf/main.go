@@ -1,12 +1,10 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"runtime/pprof"
 	"sync/atomic"
+	"time"
 
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
@@ -15,27 +13,18 @@ import (
 
 // Settings
 const (
-	LOOPS  = 10000
-	REPEAT = 10000
-	QSIZE  = 10010
+	Server = "192.168.1.68"
+	Port   = 12201
+
+	Loops = 100
+	QSIZE = 1000
 )
-
-var opts = []logr.Option{
-	logr.MaxQueueSize(QSIZE),
-	logr.OnLoggerError(handleLoggerError),
-	logr.OnQueueFull(handleQueueFull),
-	logr.OnTargetQueueFull(handleTargetQueueFull),
-}
-
-var lgr, _ = logr.New(opts...)
 
 var (
 	errorCount           uint32
 	queueFullCount       uint32
 	targetQueueFullCount uint32
 )
-
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func handleLoggerError(err error) {
 	atomic.AddUint32(&errorCount, 1)
@@ -55,45 +44,54 @@ func handleTargetQueueFull(target logr.Target, rec *logr.LogRec, maxQueueSize in
 }
 
 func main() {
-	// create writer target to stdout
-	var t logr.Target
-	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &formatters.Plain{Delim: " | "}
-	t = targets.NewWriterTarget(ioutil.Discard)
-	err := lgr.AddTarget(t, "simple", filter, formatter, QSIZE)
+	lgr, err := logr.New(
+		logr.MaxQueueSize(QSIZE),
+		logr.OnLoggerError(handleLoggerError),
+		logr.OnQueueFull(handleQueueFull),
+		logr.OnTargetQueueFull(handleTargetQueueFull),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	// create TCP target to server supporting GELF
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	formatter := &formatters.Gelf{}
+
+	params := &targets.TcpOptions{
+		IP:   Server,
+		Port: Port,
+	}
+
+	tcp := targets.NewTcpTarget(params)
+
+	err = lgr.AddTarget(tcp, "tcp_test", filter, formatter, QSIZE)
 	if err != nil {
 		panic(err)
 	}
 
 	logger := lgr.NewLogger().With(logr.String("name", "Wiggin"))
-	logger.Error("One test error.")
 
-	var file *os.File
-
-	flag.Parse()
-	if *cpuprofile != "" {
-		file, err = os.Create(*cpuprofile)
-		if err != nil {
-			panic(err)
+	for i := 0; i < Loops; i++ {
+		if i%10 == 0 {
+			logger.Error("This is an error!")
+			continue
 		}
-		_ = pprof.StartCPUProfile(file)
+		logger.Info("This is a message")
 	}
 
-	for r := 0; r < REPEAT; r++ {
-		for i := 0; i < LOOPS; i++ {
-			logger.Info("This is a message")
-		}
-		lgr.Flush()
+	time.Sleep(time.Second * 3)
+
+	err = lgr.Shutdown()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
 	}
 
 	fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
-		LOOPS*REPEAT,
+		Loops,
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),
-		atomic.LoadUint32(&targetQueueFullCount))
-
-	if file != nil {
-		pprof.StopCPUProfile()
-		file.Close()
-	}
+		atomic.LoadUint32(&targetQueueFullCount),
+	)
 }

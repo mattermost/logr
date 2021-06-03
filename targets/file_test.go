@@ -1,4 +1,4 @@
-package target_test
+package targets_test
 
 import (
 	"bufio"
@@ -8,27 +8,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mattermost/logr"
-	"github.com/mattermost/logr/format"
-	"github.com/mattermost/logr/target"
-	"github.com/mattermost/logr/test"
+	"github.com/mattermost/logr/v2"
+	"github.com/mattermost/logr/v2/formatters"
+	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 )
 
 func ExampleFile() {
-	lgr := &logr.Logr{}
+	lgr, _ := logr.New()
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &format.JSON{}
-	opts := target.FileOptions{
+	formatter := &formatters.JSON{}
+	opts := targets.FileOptions{
 		Filename:   "./logs/test_lumberjack.log",
 		MaxSize:    1,
 		MaxAge:     2,
 		MaxBackups: 3,
 		Compress:   false,
 	}
-	t := target.NewFileTarget(filter, formatter, opts, 1000)
-	_ = lgr.AddTarget(t)
+	t := targets.NewFileTarget(opts)
+	_ = lgr.AddTarget(t, "test", filter, formatter, 1000)
 
-	logger := lgr.NewLogger().WithField("name", "wiggin")
+	logger := lgr.NewLogger().With(logr.String("name", "wiggin")).Sugar()
 
 	logger.Errorf("the erroneous data is %s", test.StringRnd(10))
 	logger.Warnf("strange data: %s", test.StringRnd(5))
@@ -42,18 +42,22 @@ func ExampleFile() {
 }
 
 func TestFilePlain(t *testing.T) {
-	plain := &format.Plain{Delim: " | "}
+	plain := &formatters.Plain{Delim: " | "}
 	file(t, plain, "./logs/test_lumberjack_plain.log")
 }
 
 func TestFileJSON(t *testing.T) {
-	json := &format.JSON{Indent: "\n  "}
+	json := &formatters.JSON{}
 	file(t, json, "./logs/test_lumberjack_json.log")
 }
 
 func file(t *testing.T, formatter logr.Formatter, filename string) {
-	lgr := &logr.Logr{}
-	opts := target.FileOptions{
+	opt := logr.OnLoggerError(func(err error) {
+		t.Error(err)
+	})
+	lgr, _ := logr.New(opt)
+
+	fileOpts := targets.FileOptions{
 		Filename:   filename,
 		MaxSize:    1,
 		MaxAge:     2,
@@ -62,8 +66,8 @@ func file(t *testing.T, formatter logr.Formatter, filename string) {
 	}
 
 	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	target := target.NewFileTarget(filter, formatter, opts, 1000)
-	_ = lgr.AddTarget(target)
+	tgt := targets.NewFileTarget(fileOpts)
+	_ = lgr.AddTarget(tgt, "test2", filter, formatter, 1000)
 
 	const goodToken = "Woot!"
 	const badToken = "XXX!!XXX"

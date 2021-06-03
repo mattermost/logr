@@ -16,9 +16,9 @@ It is very much inspired by [Logrus](https://github.com/sirupsen/logrus) but add
 <!-- markdownlint-disable MD033 -->
 | entity | description |
 | ------ | ----------- |
-| Logr   | Engine instance typically instantiated once; used to configure logging.<br>```lgr := &Logr{}```|
+| Logr   | Engine instance typically instantiated once; used to configure logging.<br>```lgr,_ := logr.New()```|
 | Logger | Provides contextual logging via fields; lightweight, can be created once and accessed globally or create on demand.<br>```logger := lgr.NewLogger()```<br>```logger2 := logger.WithField("user", "Sam")```|
-| Target | A destination for log items such as console, file, database or just about anything that can be written to. Each target has its own filter/level and formatter, and any number of targets can be added to a Logr. Targets for syslog and any io.Writer are built-in and it is easy to create your own. You can also use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) via a simple [adapter](https://github.com/wiggin77/logrus4logr).|
+| Target | A destination for log items such as console, file, database or just about anything that can be written to. Each target has its own filter/level and formatter, and any number of targets can be added to a Logr. Targets for file, syslog and any io.Writer are built-in and it is easy to create your own. You can also use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) via a simple [adapter](https://github.com/wiggin77/logrus4logr).|
 | Filter | Determines which logging calls get written versus filtered out. Also determines which logging calls generate a stack trace.<br>```filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Fatal}```|
 | Formatter | Formats the output. Logr includes built-in formatters for JSON and plain text with delimiters. It is easy to create your own formatters or you can also use any [Logrus formatters](https://github.com/sirupsen/logrus#formatters) via a simple [adapter](https://github.com/wiggin77/logrus4logr).<br>```formatter := &format.Plain{Delim: " \| "}```|
 
@@ -26,15 +26,15 @@ It is very much inspired by [Logrus](https://github.com/sirupsen/logrus) but add
 
 ```go
 // Create Logr instance.
-lgr := &logr.Logr{}
+lgr,_ := logr.New()
 
 // Create a filter and formatter. Both can be shared by multiple
 // targets.
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-formatter := &format.Plain{Delim: " | "}
+formatter := &formatters.Plain{Delim: " | "}
 
 // WriterTarget outputs to any io.Writer
-t := target.NewWriterTarget(filter, formatter, os.StdOut, 1000)
+t := targets.NewWriterTarget(filter, formatter, os.StdOut, 1000)
 lgr.AddTarget(t)
 
 // One or more Loggers can be created, shared, used concurrently,
@@ -56,7 +56,7 @@ Fields allow for contextual logging, meaning information can be added to log sta
 Fields are added via Loggers:
 
 ```go
-lgr := &Logr{}
+lgr,_ := logr.New()
 // ... add targets ...
 logger := lgr.NewLogger().WithFields(logr.Fields{
   "user": user,
@@ -88,14 +88,14 @@ Logr also supports custom filters (logr.CustomFilter) which allow fine grained i
   LoginLevel := logr.Level{ID: 100, Name: "login ", Stacktrace: false}
   LogoutLevel := logr.Level{ID: 101, Name: "logout", Stacktrace: false}
 
-  lgr := &logr.Logr{}
+  lgr,_ := logr.New()
 
   // create a custom filter with custom levels.
   filter := &logr.CustomFilter{}
   filter.Add(LoginLevel, LogoutLevel)
 
-  formatter := &format.Plain{Delim: " | "}
-  tgr := target.NewWriterTarget(filter, formatter, os.StdOut, 1000)
+  formatter := &formatters.Plain{Delim: " | "}
+  tgr := targets.NewWriterTarget(filter, formatter, os.StdOut, 1000)
   lgr.AddTarget(tgr)
   logger := lgr.NewLogger().WithFields(logr.Fields{"user": "Bob", "role": "admin"})
 
@@ -113,36 +113,31 @@ You can use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) vi
 
 You can create your own target by implementing the [Target](./target.go) interface.
 
-An easier method is to use the [logr.Basic](./target.go) type target and build your functionality on that. Basic handles all the queuing and other plumbing so you only need to implement two methods. Example target that outputs to `io.Writer`:
+Example target that outputs to `io.Writer`:
 
 ```go
 type Writer struct {
-  logr.Basic
   out io.Writer
 }
 
-func NewWriterTarget(filter logr.Filter, formatter logr.Formatter, out io.Writer, maxQueue int) *Writer {
+func NewWriterTarget(out io.Writer) *Writer {
   w := &Writer{out: out}
-  w.Basic.Start(w, w, filter, formatter, maxQueue)
   return w
 }
 
+// Called once to initialize target.
+func (w *Writer) Init() error {
+  return nil
+}
+
 // Write will always be called by a single goroutine, so no locking needed.
-// Just convert a log record to a []byte using the formatter and output the
-// bytes to your sink.
-func (w *Writer) Write(rec *logr.LogRec) error {
-  _, stacktrace := w.IsLevelEnabled(rec.Level())
+func (w *Writer) Write(p []byte, rec *logr.LogRec) (int, error) {
+  return w.out.Write(buf.Bytes())
+}
 
-  // take a buffer from the pool to avoid allocations or just allocate a new one.
-  buf := rec.Logger().Logr().BorrowBuffer()
-  defer rec.Logger().Logr().ReleaseBuffer(buf)
-
-  buf, err := w.Formatter().Format(rec, stacktrace, buf)
-  if err != nil {
-    return err
-  }
-  _, err = w.out.Write(buf.Bytes())
-  return err
+// Called once to cleanup/free resources for target.
+func (w *Writer) Shutdown() error {
+  return nil
 }
 ```
 
