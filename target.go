@@ -2,292 +2,297 @@ package logr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // Target represents a destination for log records such as file,
 // database, TCP socket, etc.
 type Target interface {
-	// SetName provides an optional name for the target.
-	SetName(name string)
+	// Init is called once to initialize the target.
+	Init() error
 
-	// IsLevelEnabled returns true if this target should emit
-	// logs for the specified level. Also determines if
-	// a stack trace is required.
-	IsLevelEnabled(Level) (enabled bool, stacktrace bool)
+	// Write outputs to this target's destination.
+	Write(p []byte, rec *LogRec) (int, error)
 
-	// Formatter returns the Formatter associated with this Target.
-	Formatter() Formatter
-
-	// Log outputs the log record to this target's destination.
-	Log(rec *LogRec)
-
-	// Shutdown makes best effort to flush target queue and
-	// frees/closes all resources.
-	Shutdown(ctx context.Context) error
+	// Shutdown is called once to free/close any resources.
+	// Target queue is already drained when this is called.
+	Shutdown() error
 }
 
-// RecordWriter can convert a LogRecord to bytes and output to some data sink.
-type RecordWriter interface {
-	Write(rec *LogRec) error
-}
-
-// Basic provides the basic functionality of a Target that can be used
-// to more easily compose your own Targets. To use, just embed Basic
-// in your target type, implement `RecordWriter`, and call `(*Basic).Start`.
-type Basic struct {
-	target Target
-
-	filter    Filter
-	formatter Formatter
-
-	in   chan *LogRec
-	done chan struct{}
-	w    RecordWriter
-
-	mux  sync.RWMutex
-	name string
-
-	metrics        bool
+type targetMetrics struct {
 	queueSizeGauge Gauge
 	loggedCounter  Counter
 	errorCounter   Counter
 	droppedCounter Counter
 	blockedCounter Counter
+}
 
+type targetHostOptions struct {
+	name                    string
+	filter                  Filter
+	formatter               Formatter
+	maxQueueSize            int
+	collector               MetricsCollector
 	metricsUpdateFreqMillis int64
 }
 
-// Start initializes this target helper and starts accepting log records for processing.
-func (b *Basic) Start(target Target, rw RecordWriter, filter Filter, formatter Formatter, maxQueued int) {
-	if filter == nil {
-		filter = &StdFilter{Lvl: Fatal}
-	}
-	if formatter == nil {
-		formatter = &DefaultFormatter{}
-	}
+// TargetHost hosts and manages the lifecycle of a target.
+// Incoming log records are queued and formatted before
+// being passed to the target.
+type TargetHost struct {
+	target Target
+	name   string
 
-	b.target = target
-	b.filter = filter
-	b.formatter = formatter
-	b.in = make(chan *LogRec, maxQueued)
-	b.done = make(chan struct{}, 1)
-	b.w = rw
-	go b.start()
+	filter    Filter
+	formatter Formatter
 
-	if b.hasMetrics() {
-		go b.startMetricsUpdater()
-	}
+	in      chan *LogRec
+	quit    chan struct{} // closed by Shutdown to exit read loop
+	done    chan struct{} // closed when read loop exited
+	metrics *targetMetrics
+
+	shutdown int32
 }
 
-func (b *Basic) SetName(name string) {
-	b.mux.Lock()
-	defer b.mux.Unlock()
-	b.name = name
+func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error) {
+	host := &TargetHost{
+		target:    target,
+		name:      options.name,
+		filter:    options.filter,
+		formatter: options.formatter,
+		in:        make(chan *LogRec, options.maxQueueSize),
+		quit:      make(chan struct{}),
+		done:      make(chan struct{}),
+	}
+
+	if host.name == "" {
+		host.name = fmt.Sprintf("%T", target)
+	}
+
+	if host.filter == nil {
+		host.filter = &StdFilter{Lvl: Fatal}
+	}
+	if host.formatter == nil {
+		host.formatter = &DefaultFormatter{}
+	}
+
+	err := host.initMetrics(options.collector, options.metricsUpdateFreqMillis)
+	if err != nil {
+		return nil, err
+	}
+
+	err = target.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	go host.start()
+
+	return host, nil
 }
 
-// IsLevelEnabled returns true if this target should emit
-// logs for the specified level. Also determines if
-// a stack trace is required.
-func (b *Basic) IsLevelEnabled(lvl Level) (enabled bool, stacktrace bool) {
-	return b.filter.IsEnabled(lvl), b.filter.IsStacktraceEnabled(lvl)
+func (h *TargetHost) initMetrics(collector MetricsCollector, updateFreqMillis int64) error {
+	if collector == nil {
+		return nil
+	}
+
+	var err error
+	metrics := &targetMetrics{}
+
+	if metrics.queueSizeGauge, err = collector.QueueSizeGauge(h.name); err != nil {
+		return err
+	}
+	if metrics.loggedCounter, err = collector.LoggedCounter(h.name); err != nil {
+		return err
+	}
+	if metrics.errorCounter, err = collector.ErrorCounter(h.name); err != nil {
+		return err
+	}
+	if metrics.droppedCounter, err = collector.DroppedCounter(h.name); err != nil {
+		return err
+	}
+	if metrics.blockedCounter, err = collector.BlockedCounter(h.name); err != nil {
+		return err
+	}
+	h.metrics = metrics
+
+	if updateFreqMillis == 0 {
+		updateFreqMillis = DefMetricsUpdateFreqMillis
+	}
+	if updateFreqMillis < 250 {
+		updateFreqMillis = 250 // don't peg the CPU
+	}
+
+	go h.startMetricsUpdater(updateFreqMillis)
+	return nil
 }
 
-// Formatter returns the Formatter associated with this Target.
-func (b *Basic) Formatter() Formatter {
-	return b.formatter
+// IsLevelEnabled returns true if this target should emit logs for the specified level.
+func (h *TargetHost) IsLevelEnabled(lvl Level) (enabled bool, level Level) {
+	level, enabled = h.filter.GetEnabledLevel(lvl)
+	return enabled, level
 }
 
 // Shutdown stops processing log records after making best
 // effort to flush queue.
-func (b *Basic) Shutdown(ctx context.Context) error {
-	// close the incoming channel and wait for read loop to exit.
-	close(b.in)
+func (h *TargetHost) Shutdown(ctx context.Context) error {
+	if atomic.SwapInt32(&h.shutdown, 1) != 0 {
+		return errors.New("targetHost shutdown called more than once")
+	}
+
+	close(h.quit)
+
+	// No more records can be accepted; now wait for read loop to exit.
 	select {
 	case <-ctx.Done():
-	case <-b.done:
+	case <-h.done:
 	}
 
 	// b.in channel should now be drained.
-	return nil
+	return h.target.Shutdown()
 }
 
-// Log outputs the log record to this targets destination.
-func (b *Basic) Log(rec *LogRec) {
+// Log queues a log record to be output to this target's destination.
+func (h *TargetHost) Log(rec *LogRec) {
+	if atomic.LoadInt32(&h.shutdown) != 0 {
+		return
+	}
+
 	lgr := rec.Logger().Logr()
 	select {
-	case b.in <- rec:
+	case h.in <- rec:
 	default:
-		handler := lgr.OnTargetQueueFull
-		if handler != nil && handler(b.target, rec, cap(b.in)) {
-			b.incDroppedCounter()
+		handler := lgr.options.onTargetQueueFull
+		if handler != nil && handler(h.target, rec, cap(h.in)) {
+			h.incDroppedCounter()
 			return // drop the record
 		}
-		b.incBlockedCounter()
+		h.incBlockedCounter()
 
 		select {
-		case <-time.After(lgr.enqueueTimeout()):
+		case <-time.After(lgr.options.enqueueTimeout):
 			lgr.ReportError(fmt.Errorf("target enqueue timeout for log rec [%v]", rec))
-		case b.in <- rec: // block until success or timeout
+		case h.in <- rec: // block until success or timeout
 		}
 	}
 }
 
-// Metrics enables metrics collection using the provided MetricsCollector.
-func (b *Basic) EnableMetrics(collector MetricsCollector, updateFreqMillis int64) error {
-	name := fmt.Sprintf("%v", b)
-
-	b.mux.Lock()
-	defer b.mux.Unlock()
-
-	b.metrics = true
-	b.metricsUpdateFreqMillis = updateFreqMillis
-
-	var err error
-
-	if b.queueSizeGauge, err = collector.QueueSizeGauge(name); err != nil {
-		return err
-	}
-	if b.loggedCounter, err = collector.LoggedCounter(name); err != nil {
-		return err
-	}
-	if b.errorCounter, err = collector.ErrorCounter(name); err != nil {
-		return err
-	}
-	if b.droppedCounter, err = collector.DroppedCounter(name); err != nil {
-		return err
-	}
-	if b.blockedCounter, err = collector.BlockedCounter(name); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (b *Basic) hasMetrics() bool {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	return b.metrics
-}
-
-func (b *Basic) setQueueSizeGauge(val float64) {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	if b.queueSizeGauge != nil {
-		b.queueSizeGauge.Set(val)
+func (h *TargetHost) setQueueSizeGauge(val float64) {
+	if h.metrics != nil {
+		h.metrics.queueSizeGauge.Set(val)
 	}
 }
 
-func (b *Basic) incLoggedCounter() {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	if b.loggedCounter != nil {
-		b.loggedCounter.Inc()
+func (h *TargetHost) incLoggedCounter() {
+	if h.metrics != nil {
+		h.metrics.loggedCounter.Inc()
 	}
 }
 
-func (b *Basic) incErrorCounter() {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	if b.errorCounter != nil {
-		b.errorCounter.Inc()
+func (h *TargetHost) incErrorCounter() {
+	if h.metrics != nil {
+		h.metrics.errorCounter.Inc()
 	}
 }
 
-func (b *Basic) incDroppedCounter() {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	if b.droppedCounter != nil {
-		b.droppedCounter.Inc()
+func (h *TargetHost) incDroppedCounter() {
+	if h.metrics != nil {
+		h.metrics.droppedCounter.Inc()
 	}
 }
 
-func (b *Basic) incBlockedCounter() {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	if b.blockedCounter != nil {
-		b.blockedCounter.Inc()
+func (h *TargetHost) incBlockedCounter() {
+	if h.metrics != nil {
+		h.metrics.blockedCounter.Inc()
 	}
 }
 
-// String returns a name for this target. Use `SetName` to specify a name.
-func (b *Basic) String() string {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-
-	if b.name != "" {
-		return b.name
-	}
-	return fmt.Sprintf("%T", b.target)
+// String returns a name for this target.
+func (h *TargetHost) String() string {
+	return h.name
 }
 
-// Start accepts log records via In channel and writes to the
-// supplied writer, until Done channel signaled.
-func (b *Basic) start() {
+// start accepts log records via In channel and writes to the
+// supplied target, until Done channel signaled.
+func (h *TargetHost) start() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintln(os.Stderr, "Basic.start -- ", r)
-			go b.start()
+			fmt.Fprintln(os.Stderr, "TargetHost.start -- ", r)
+			go h.start()
+		} else {
+			close(h.done)
 		}
 	}()
 
-	for rec := range b.in {
-		if rec.flush != nil {
-			b.flush(rec.flush)
-		} else {
-			err := b.w.Write(rec)
-			if err != nil {
-				b.incErrorCounter()
-				rec.Logger().Logr().ReportError(err)
-			} else {
-				b.incLoggedCounter()
-			}
-		}
-	}
-	close(b.done)
-}
-
-// startMetricsUpdater updates the metrics for any polled values every `MetricsUpdateFreqSecs` seconds until
-// target is closed.
-func (b *Basic) startMetricsUpdater() {
 	for {
-		updateFreq := b.getMetricsUpdateFreqMillis()
-		if updateFreq == 0 {
-			updateFreq = DefMetricsUpdateFreqMillis
-		}
-		if updateFreq < 250 {
-			updateFreq = 250 // don't peg the CPU
-		}
-
+		var rec *LogRec
 		select {
-		case <-b.done:
+		case rec = <-h.in:
+			if rec.flush != nil {
+				h.flush(rec.flush)
+			} else {
+				err := h.writeRec(rec)
+				if err != nil {
+					h.incErrorCounter()
+					rec.Logger().Logr().ReportError(err)
+				} else {
+					h.incLoggedCounter()
+				}
+			}
+		case <-h.quit:
 			return
-		case <-time.After(time.Duration(updateFreq) * time.Millisecond):
-			b.setQueueSizeGauge(float64(len(b.in)))
 		}
 	}
 }
 
-func (b *Basic) getMetricsUpdateFreqMillis() int64 {
-	b.mux.RLock()
-	defer b.mux.RUnlock()
-	return b.metricsUpdateFreqMillis
+func (h *TargetHost) writeRec(rec *LogRec) error {
+	level, enabled := h.filter.GetEnabledLevel(rec.Level())
+	if !enabled {
+		// how did we get here?
+		return fmt.Errorf("level %s not enabled for target %s", rec.Level().Name, h.name)
+	}
+
+	buf := rec.logger.lgr.BorrowBuffer()
+	defer rec.logger.lgr.ReleaseBuffer(buf)
+
+	buf, err := h.formatter.Format(rec, level, buf)
+	if err != nil {
+		return err
+	}
+
+	_, err = h.target.Write(buf.Bytes(), rec)
+	return err
+}
+
+// startMetricsUpdater updates the metrics for any polled values every `updateFreqMillis` seconds until
+// target is shut down.
+func (h *TargetHost) startMetricsUpdater(updateFreqMillis int64) {
+	for {
+		select {
+		case <-h.done:
+			return
+		case <-time.After(time.Duration(updateFreqMillis) * time.Millisecond):
+			h.setQueueSizeGauge(float64(len(h.in)))
+		}
+	}
 }
 
 // flush drains the queue and notifies when done.
-func (b *Basic) flush(done chan<- struct{}) {
+func (h *TargetHost) flush(done chan<- struct{}) {
 	for {
 		var rec *LogRec
 		var err error
 		select {
-		case rec = <-b.in:
+		case rec = <-h.in:
 			// ignore any redundant flush records.
 			if rec.flush == nil {
-				err = b.w.Write(rec)
+				err = h.writeRec(rec)
 				if err != nil {
-					b.incErrorCounter()
+					h.incErrorCounter()
 					rec.Logger().Logr().ReportError(err)
 				}
 			}

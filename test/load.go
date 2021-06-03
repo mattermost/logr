@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mattermost/logr"
+	"github.com/mattermost/logr/v2"
 )
 
 // DoSomeLoggingCfg is configuration for `DoSomeLogging` utility.
@@ -40,15 +40,21 @@ func DoSomeLogging(cfg DoSomeLoggingCfg) (logged int32, filtered int32) {
 	runner := func(loops int) {
 		defer wg.Done()
 		tid := atomic.AddInt32(&id, 1)
-		logger := cfg.Lgr.NewLogger().WithFields(logr.Fields{"id": tid, "rnd": rand.Intn(100)})
+		logger := cfg.Lgr.NewLogger().With(
+			logr.Int32("id", tid),
+			logr.Int("rnd", rand.Intn(100)),
+		)
 
 		for i := 1; i <= loops; i++ {
 			if cfg.Lvl.ID < logr.Trace.ID {
 				atomic.AddInt32(&filterCount, 1)
-				logger.Log(logr.Trace, "This should not be output. ", cfg.BadToken)
+				logger.Log(logr.Trace, "This should not be output. ", logr.String("fail", cfg.BadToken))
 			}
 			lc := atomic.AddInt32(&logCount, 1)
-			logger.Logf(cfg.Lvl, "count:%d -- %s -- This is some sample text.", lc, cfg.GoodToken)
+			logger.Log(cfg.Lvl, "This is some sample text.",
+				logr.Int32("count", lc),
+				logr.String("good", cfg.GoodToken),
+			)
 
 			if cfg.Delay > 0 {
 				time.Sleep(cfg.Delay)
