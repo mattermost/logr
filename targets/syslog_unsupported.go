@@ -36,7 +36,7 @@ func (so SyslogOptions) CheckValid() error {
 
 // NewSyslogTarget creates a target capable of outputting log records to remote or local syslog, with or without TLS.
 func NewSyslogTarget(params *SyslogOptions) (*Syslog, error) {
-	return errors.New(unsupported)
+	return nil, errors.New(unsupported)
 }
 
 // Init is called once to initialize the target.
@@ -46,7 +46,7 @@ func (s *Syslog) Init() error {
 
 // Write outputs bytes to this file target.
 func (s *Syslog) Write(p []byte, rec *logr.LogRec) (int, error) {
-	return errors.New(unsupported)
+	return 0, errors.New(unsupported)
 }
 
 // Shutdown is called once to free/close any resources.
