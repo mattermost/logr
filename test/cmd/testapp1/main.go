@@ -64,7 +64,7 @@ func main() {
 	// create writer target to stdout
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &formatters.JSON{}
+	formatter := &formatters.JSON{EnableCaller: true}
 	t = targets.NewWriterTarget(os.Stdout)
 	err = lgr.AddTarget(t, "stdout", filter, formatter, 1000)
 	if err != nil {
