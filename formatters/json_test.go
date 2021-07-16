@@ -2,6 +2,7 @@ package formatters_test
 
 import (
 	"errors"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
 	"github.com/mattermost/logr/v2/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -333,6 +335,35 @@ func TestJSON(t *testing.T) {
 		if strings.Compare(want, buf.String()) != 0 {
 			t.Errorf("JSON does not match: expected %s   got %s", want, buf.String())
 		}
+	})
+
+	t.Run("sorted, three fields, grouped, with caller", func(t *testing.T) {
+		formatter := &formatters.JSON{
+			DisableTimestamp:  true,
+			DisableStacktrace: true,
+			EnableCaller:      true,
+			KeyGroupFields:    "group",
+			FieldSorter:       sorter,
+		}
+		buf := &test.Buffer{}
+		target := targets.NewWriterTarget(buf)
+		err := lgr.AddTarget(target, "jsonTest", filter, formatter, 1000)
+		require.NoError(t, err)
+
+		logger := lgr.NewLogger().With(
+			logr.String("middle_name", "Thomas"),
+			logr.String("last_name", "Wiggin"),
+			logr.String("first_name", "Ender"),
+		)
+
+		logger.Error("This is an error.")
+		err = lgr.Flush()
+		require.NoError(t, err)
+
+		// {"level":"error","msg":"This is an error.","caller":"formatters/json_test.go:357","group":{"first_name":"Ender","last_name":"Wiggin","middle_name":"Thomas"}}
+		want := regexp.MustCompile(`^{\"level\":\"error\",\"msg\":\"This is an error\.\",\"caller\":\"formatters/json_test.go:[0-9]+\",\"group\":{\"first_name\":\"Ender\",\"last_name\":\"Wiggin\",\"middle_name\":\"Thomas\"}}`)
+
+		assert.Regexp(t, want, buf.String(), "JSON does not match")
 	})
 
 	err := lgr.Shutdown()

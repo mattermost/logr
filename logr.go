@@ -141,9 +141,9 @@ func (lgr *Logr) IsLevelEnabled(lvl Level) LevelStatus {
 		enabled, level := host.IsLevelEnabled(lvl)
 		if enabled {
 			status.Enabled = true
-			if level.Stacktrace {
+			if level.Stacktrace || host.formatter.IsStacktraceNeeded() {
 				status.Stacktrace = true
-				break // if both enabled then no sense checking more targets
+				break // if both level and stacktrace enabled then no sense checking more targets
 			}
 		}
 	}

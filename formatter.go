@@ -9,6 +9,11 @@ import (
 
 // Formatter turns a LogRec into a formatted string.
 type Formatter interface {
+	// IsStacktraceNeeded returns true if this formatter requires a stacktrace to be
+	// generated for each LogRecord. Enabling features such as `Caller` field require
+	// a stacktrace.
+	IsStacktraceNeeded() bool
+
 	// Format converts a log record to bytes. If buf is not nil then it will be
 	// be filled with the formatted results, otherwise a new buffer will be allocated.
 	Format(rec *LogRec, level Level, buf *bytes.Buffer) (*bytes.Buffer, error)
@@ -41,6 +46,12 @@ func (w Writer) Writes(elems ...[]byte) (int, error) {
 // DefaultFormatter is the default formatter, outputting only text with
 // no colors and a space delimiter. Use `format.Plain` instead.
 type DefaultFormatter struct {
+}
+
+// IsStacktraceNeeded always returns false for default formatter since the
+// `Caller` field is not supported.
+func (p *DefaultFormatter) IsStacktraceNeeded() bool {
+	return false
 }
 
 // Format converts a log record to bytes.

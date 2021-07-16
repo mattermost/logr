@@ -56,7 +56,7 @@ func main() {
 
 	// create TCP target to server supporting GELF
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
-	formatter := &formatters.Gelf{}
+	formatter := &formatters.Gelf{EnableCaller: true}
 
 	params := &targets.TcpOptions{
 		IP:   Server,
