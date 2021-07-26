@@ -105,23 +105,24 @@ func (p *Plain) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*
 		_, _ = buf.WriteString(delim)
 	}
 
+	var fields []logr.Field
+
 	if p.EnableCaller {
 		fld := logr.Field{
 			Key:    "caller",
 			Type:   logr.StringType,
 			String: rec.Caller(),
 		}
-		if err := logr.WriteFields(buf, []logr.Field{fld}, logr.Space, color); err != nil {
-			return nil, err
-		}
+		fields = append(fields, fld)
 	}
 
 	if !p.DisableFields {
-		fields := rec.Fields()
-		if len(fields) > 0 {
-			if err := logr.WriteFields(buf, fields, logr.Space, color); err != nil {
-				return nil, err
-			}
+		fields = append(fields, rec.Fields()...)
+	}
+
+	if len(fields) > 0 {
+		if err := logr.WriteFields(buf, fields, logr.Space, color); err != nil {
+			return nil, err
 		}
 	}
 
