@@ -47,7 +47,7 @@ type Plain struct {
 
 func (p *Plain) CheckValid() error {
 	if p.MinMessageLen < 0 || p.MinMessageLen > 1024 {
-		return fmt.Errorf("min_msg_len is invaid(%d)", p.MinMessageLen)
+		return fmt.Errorf("min_msg_len is invalid(%d)", p.MinMessageLen)
 	}
 	return nil
 }
