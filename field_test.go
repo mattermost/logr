@@ -35,9 +35,9 @@ func TestField_ValueString(t *testing.T) {
 		wantW   string
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{name: "StringType", field: String("str", "test"), wantW: "test", wantErr: false},
 		{name: "StringerType", field: Stringer("strgr", newTestStringer("Hello")), wantW: "Hello", wantErr: false},
+		{name: "StringerType with nil", field: Stringer("nilstrgr", nil), wantW: "", wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
