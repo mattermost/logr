@@ -104,7 +104,8 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 		s, ok := f.Interface.(fmt.Stringer)
 		if ok {
 			err = quoteString(w, s.String(), shouldQuote)
-			break
+		} else if f.Interface == nil {
+			err = quoteString(w, "", shouldQuote)
 		} else {
 			err = fmt.Errorf("invalid fmt.Stringer for key %s", f.Key)
 		}

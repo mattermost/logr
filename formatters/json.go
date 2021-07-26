@@ -24,6 +24,8 @@ type JSON struct {
 	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
 	DisableStacktrace bool `json:"disable_stacktrace"`
+	// EnableCaller enables output of the file and line number that emitted a log record.
+	EnableCaller bool `json:"enable_caller"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
@@ -45,6 +47,9 @@ type JSON struct {
 	// KeyStacktrace overrides the stacktrace field key name.
 	KeyStacktrace string `json:"key_stacktrace"`
 
+	// KeyCaller overrides the caller field key name.
+	KeyCaller string `json:"key_caller"`
+
 	// FieldSorter allows custom sorting of the fields. If nil then
 	// no sorting is done.
 	FieldSorter func(fields []logr.Field) []logr.Field `json:"-"`
@@ -54,6 +59,11 @@ type JSON struct {
 
 func (j *JSON) CheckValid() error {
 	return nil
+}
+
+// IsStacktraceNeeded returns true if a stacktrace is needed so we can output the `Caller` field.
+func (j *JSON) IsStacktraceNeeded() bool {
+	return j.EnableCaller
 }
 
 // Format converts a log record to bytes in JSON format.
@@ -96,6 +106,9 @@ func (j *JSON) applyDefaultKeyNames() {
 	if j.KeyStacktrace == "" {
 		j.KeyStacktrace = "stacktrace"
 	}
+	if j.KeyCaller == "" {
+		j.KeyCaller = "caller"
+	}
 }
 
 // JSONLogRec decorates a LogRec adding JSON encoding.
@@ -121,6 +134,9 @@ func (jlr JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
 	}
 	if !jlr.DisableMsg {
 		enc.AddStringKey(jlr.KeyMsg, jlr.Msg())
+	}
+	if jlr.EnableCaller {
+		enc.AddStringKey(jlr.KeyCaller, jlr.Caller())
 	}
 	if !jlr.DisableFields {
 		fields := jlr.Fields()
