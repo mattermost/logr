@@ -26,12 +26,20 @@ type Gelf struct {
 	// Hostname allows a custom hostname, otherwise os.Hostname is used
 	Hostname string `json:"hostname"`
 
+	// EnableCaller enables output of the file and line number that emitted a log record.
+	EnableCaller bool `json:"enable_caller"`
+
 	// FieldSorter allows custom sorting for the context fields.
 	FieldSorter func(fields []logr.Field) []logr.Field `json:"-"`
 }
 
 func (g *Gelf) CheckValid() error {
 	return nil
+}
+
+// IsStacktraceNeeded returns true if a stacktrace is needed so we can output the `Caller` field.
+func (g *Gelf) IsStacktraceNeeded() bool {
+	return g.EnableCaller
 }
 
 // Format converts a log record to bytes in GELF format.
@@ -91,7 +99,17 @@ func (gr gelfRecord) MarshalJSONObject(enc *gojay.Encoder) {
 
 	enc.AddUint32Key(GelfLevelKey, uint32(gr.level.ID))
 
-	fields := gr.Fields()
+	var fields []logr.Field
+	if gr.EnableCaller {
+		caller := logr.Field{
+			Key:    "_caller",
+			Type:   logr.StringType,
+			String: gr.LogRec.Caller(),
+		}
+		fields = append(fields, caller)
+	}
+
+	fields = append(fields, gr.Fields()...)
 	if gr.sorter != nil {
 		fields = gr.sorter(fields)
 	}

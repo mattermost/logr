@@ -21,6 +21,8 @@ type Plain struct {
 	DisableFields bool `json:"disable_fields"`
 	// DisableStacktrace disables output of stack trace.
 	DisableStacktrace bool `json:"disable_stacktrace"`
+	// EnableCaller enables output of the file and line number that emitted a log record.
+	EnableCaller bool `json:"enable_caller"`
 
 	// Delim is an optional delimiter output between each log field.
 	// Defaults to a single space.
@@ -50,6 +52,11 @@ func (p *Plain) CheckValid() error {
 		return fmt.Errorf("min_msg_len is invalid(%d)", p.MinMessageLen)
 	}
 	return nil
+}
+
+// IsStacktraceNeeded returns true if a stacktrace is needed so we can output the `Caller` field.
+func (p *Plain) IsStacktraceNeeded() bool {
+	return p.EnableCaller
 }
 
 // Format converts a log record to bytes.
@@ -96,6 +103,17 @@ func (p *Plain) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*
 			_, _ = buf.WriteString(strings.Repeat(" ", p.MinMessageLen-count))
 		}
 		_, _ = buf.WriteString(delim)
+	}
+
+	if p.EnableCaller {
+		fld := logr.Field{
+			Key:    "caller",
+			Type:   logr.StringType,
+			String: rec.Caller(),
+		}
+		if err := logr.WriteFields(buf, []logr.Field{fld}, logr.Space, color); err != nil {
+			return nil, err
+		}
 	}
 
 	if !p.DisableFields {
