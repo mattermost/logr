@@ -234,6 +234,10 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 }
 
 func fieldForAny(key string, val interface{}) Field {
+	if val == nil {
+		return String(key, "")
+	}
+
 	switch v := val.(type) {
 	case LogCloner:
 		c := v.LogClone()
