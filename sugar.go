@@ -6,17 +6,16 @@ import (
 
 // Sugar provides a less structured API for logging.
 type Sugar struct {
-	Logger
+	logger Logger
 }
 
 func (s Sugar) sugarLog(lvl Level, msg string, args ...interface{}) {
-	status := s.lgr.IsLevelEnabled(lvl)
-	if status.Enabled {
+	if s.logger.IsLevelEnabled(lvl) {
 		fields := make([]Field, 0, len(args))
 		for _, arg := range args {
 			fields = append(fields, Any("", arg))
 		}
-		s.Logger.Log(lvl, msg, fields...)
+		s.logger.Log(lvl, msg, fields...)
 	}
 }
 
@@ -68,15 +67,14 @@ func (s Sugar) Panic(msg string, args ...interface{}) {
 // if so, generates a log record that is added to the main
 // queue (channel). Arguments are handled in the manner of fmt.Printf.
 func (s Sugar) Logf(lvl Level, format string, args ...interface{}) {
-	status := s.lgr.IsLevelEnabled(lvl)
-	if status.Enabled {
+	if s.logger.IsLevelEnabled(lvl) {
 		var msg string
 		if format == "" {
 			msg = fmt.Sprint(args...)
 		} else {
 			msg = fmt.Sprintf(format, args...)
 		}
-		s.Logger.Log(lvl, msg)
+		s.logger.Log(lvl, msg)
 	}
 }
 

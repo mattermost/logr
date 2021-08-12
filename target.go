@@ -32,12 +32,11 @@ type targetMetrics struct {
 }
 
 type targetHostOptions struct {
-	name                    string
-	filter                  Filter
-	formatter               Formatter
-	maxQueueSize            int
-	collector               MetricsCollector
-	metricsUpdateFreqMillis int64
+	name         string
+	filter       Filter
+	formatter    Formatter
+	maxQueueSize int
+	metrics      *metrics
 }
 
 // TargetHost hosts and manages the lifecycle of a target.
@@ -50,10 +49,10 @@ type TargetHost struct {
 	filter    Filter
 	formatter Formatter
 
-	in      chan *LogRec
-	quit    chan struct{} // closed by Shutdown to exit read loop
-	done    chan struct{} // closed when read loop exited
-	metrics *targetMetrics
+	in            chan *LogRec
+	quit          chan struct{} // closed by Shutdown to exit read loop
+	done          chan struct{} // closed when read loop exited
+	targetMetrics *targetMetrics
 
 	shutdown int32
 }
@@ -80,7 +79,7 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 		host.formatter = &DefaultFormatter{}
 	}
 
-	err := host.initMetrics(options.collector, options.metricsUpdateFreqMillis)
+	err := host.initMetrics(options.metrics)
 	if err != nil {
 		return nil, err
 	}
@@ -95,31 +94,32 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 	return host, nil
 }
 
-func (h *TargetHost) initMetrics(collector MetricsCollector, updateFreqMillis int64) error {
-	if collector == nil {
+func (h *TargetHost) initMetrics(metrics *metrics) error {
+	if metrics == nil {
 		return nil
 	}
 
 	var err error
-	metrics := &targetMetrics{}
+	tmetrics := &targetMetrics{}
 
-	if metrics.queueSizeGauge, err = collector.QueueSizeGauge(h.name); err != nil {
+	if tmetrics.queueSizeGauge, err = metrics.collector.QueueSizeGauge(h.name); err != nil {
 		return err
 	}
-	if metrics.loggedCounter, err = collector.LoggedCounter(h.name); err != nil {
+	if tmetrics.loggedCounter, err = metrics.collector.LoggedCounter(h.name); err != nil {
 		return err
 	}
-	if metrics.errorCounter, err = collector.ErrorCounter(h.name); err != nil {
+	if tmetrics.errorCounter, err = metrics.collector.ErrorCounter(h.name); err != nil {
 		return err
 	}
-	if metrics.droppedCounter, err = collector.DroppedCounter(h.name); err != nil {
+	if tmetrics.droppedCounter, err = metrics.collector.DroppedCounter(h.name); err != nil {
 		return err
 	}
-	if metrics.blockedCounter, err = collector.BlockedCounter(h.name); err != nil {
+	if tmetrics.blockedCounter, err = metrics.collector.BlockedCounter(h.name); err != nil {
 		return err
 	}
-	h.metrics = metrics
+	h.targetMetrics = tmetrics
 
+	updateFreqMillis := metrics.updateFreqMillis
 	if updateFreqMillis == 0 {
 		updateFreqMillis = DefMetricsUpdateFreqMillis
 	}
@@ -182,32 +182,32 @@ func (h *TargetHost) Log(rec *LogRec) {
 }
 
 func (h *TargetHost) setQueueSizeGauge(val float64) {
-	if h.metrics != nil {
-		h.metrics.queueSizeGauge.Set(val)
+	if h.targetMetrics != nil {
+		h.targetMetrics.queueSizeGauge.Set(val)
 	}
 }
 
 func (h *TargetHost) incLoggedCounter() {
-	if h.metrics != nil {
-		h.metrics.loggedCounter.Inc()
+	if h.targetMetrics != nil {
+		h.targetMetrics.loggedCounter.Inc()
 	}
 }
 
 func (h *TargetHost) incErrorCounter() {
-	if h.metrics != nil {
-		h.metrics.errorCounter.Inc()
+	if h.targetMetrics != nil {
+		h.targetMetrics.errorCounter.Inc()
 	}
 }
 
 func (h *TargetHost) incDroppedCounter() {
-	if h.metrics != nil {
-		h.metrics.droppedCounter.Inc()
+	if h.targetMetrics != nil {
+		h.targetMetrics.droppedCounter.Inc()
 	}
 }
 
 func (h *TargetHost) incBlockedCounter() {
-	if h.metrics != nil {
-		h.metrics.blockedCounter.Inc()
+	if h.targetMetrics != nil {
+		h.targetMetrics.blockedCounter.Inc()
 	}
 }
 

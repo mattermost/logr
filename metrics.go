@@ -49,45 +49,63 @@ type TargetWithMetrics interface {
 }
 
 type metrics struct {
-	collector      MetricsCollector
-	queueSizeGauge Gauge
-	loggedCounter  Counter
-	errorCounter   Counter
-	done           chan struct{}
+	collector        MetricsCollector
+	updateFreqMillis int64
+	queueSizeGauge   Gauge
+	loggedCounter    Counter
+	errorCounter     Counter
+	done             chan struct{}
 }
 
 // initMetrics initializes metrics collection.
-func (lgr *Logr) initMetrics() {
-	if lgr.options.metricsCollector == nil {
+func (lgr *Logr) initMetrics(collector MetricsCollector, updatefreq int64) {
+	lgr.stopMetricsUpdater()
+
+	if collector == nil {
+		lgr.metricsMux.Lock()
+		lgr.metrics = nil
+		lgr.metricsMux.Unlock()
 		return
 	}
 
 	metrics := &metrics{
-		collector: lgr.options.metricsCollector,
-		done:      make(chan struct{}),
+		collector:        collector,
+		updateFreqMillis: updatefreq,
+		done:             make(chan struct{}),
 	}
-	metrics.queueSizeGauge, _ = lgr.options.metricsCollector.QueueSizeGauge("_logr")
-	metrics.loggedCounter, _ = lgr.options.metricsCollector.LoggedCounter("_logr")
-	metrics.errorCounter, _ = lgr.options.metricsCollector.ErrorCounter("_logr")
+	metrics.queueSizeGauge, _ = collector.QueueSizeGauge("_logr")
+	metrics.loggedCounter, _ = collector.LoggedCounter("_logr")
+	metrics.errorCounter, _ = collector.ErrorCounter("_logr")
 
+	lgr.metricsMux.Lock()
 	lgr.metrics = metrics
+	lgr.metricsMux.Unlock()
 
 	go lgr.startMetricsUpdater()
 }
 
 func (lgr *Logr) setQueueSizeGauge(val float64) {
+	lgr.metricsMux.RLock()
+	defer lgr.metricsMux.RUnlock()
+
 	if lgr.metrics != nil {
 		lgr.metrics.queueSizeGauge.Set(val)
 	}
 }
 
 func (lgr *Logr) incLoggedCounter() {
+	lgr.metricsMux.RLock()
+	defer lgr.metricsMux.RUnlock()
+
 	if lgr.metrics != nil {
 		lgr.metrics.loggedCounter.Inc()
 	}
 }
 
 func (lgr *Logr) incErrorCounter() {
+	lgr.metricsMux.RLock()
+	defer lgr.metricsMux.RUnlock()
+
 	if lgr.metrics != nil {
 		lgr.metrics.errorCounter.Inc()
 	}
@@ -97,17 +115,26 @@ func (lgr *Logr) incErrorCounter() {
 // logr is closed.
 func (lgr *Logr) startMetricsUpdater() {
 	for {
+		lgr.metricsMux.RLock()
+		metrics := lgr.metrics
+		c := metrics.done
+		lgr.metricsMux.RUnlock()
+
 		select {
-		case <-lgr.metrics.done:
+		case <-c:
 			return
-		case <-time.After(time.Duration(lgr.options.metricsUpdateFreqMillis) * time.Millisecond):
+		case <-time.After(time.Duration(metrics.updateFreqMillis) * time.Millisecond):
 			lgr.setQueueSizeGauge(float64(len(lgr.in)))
 		}
 	}
 }
 
 func (lgr *Logr) stopMetricsUpdater() {
-	if lgr.metrics != nil {
+	lgr.metricsMux.Lock()
+	defer lgr.metricsMux.Unlock()
+
+	if lgr.metrics != nil && lgr.metrics.done != nil {
 		close(lgr.metrics.done)
+		lgr.metrics.done = nil
 	}
 }

@@ -25,6 +25,8 @@ type Logr struct {
 	lvlCache   levelCache
 	bufferPool sync.Pool
 	options    *options
+
+	metricsMux sync.RWMutex
 	metrics    *metrics
 
 	shutdown int32
@@ -70,7 +72,7 @@ func New(opts ...Option) (*Logr, error) {
 		},
 	}
 
-	lgr.initMetrics()
+	lgr.initMetrics(lgr.options.metricsCollector, lgr.options.metricsUpdateFreqMillis)
 
 	go lgr.start()
 
@@ -84,13 +86,16 @@ func (lgr *Logr) AddTarget(target Target, name string, filter Filter, formatter 
 		return fmt.Errorf("AddTarget called after Logr shut down")
 	}
 
+	lgr.metricsMux.RLock()
+	metrics := lgr.metrics
+	lgr.metricsMux.RUnlock()
+
 	hostOpts := targetHostOptions{
-		name:                    name,
-		filter:                  filter,
-		formatter:               formatter,
-		maxQueueSize:            maxQueueSize,
-		collector:               lgr.options.metricsCollector,
-		metricsUpdateFreqMillis: lgr.options.metricsUpdateFreqMillis,
+		name:         name,
+		filter:       filter,
+		formatter:    formatter,
+		maxQueueSize: maxQueueSize,
+		metrics:      metrics,
 	}
 
 	host, err := newTargetHost(target, hostOpts)
@@ -223,6 +228,15 @@ func (lgr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool) 
 // called any time a Target is added or a target's level is changed.
 func (lgr *Logr) ResetLevelCache() {
 	lgr.lvlCache.clear()
+}
+
+// SetMetricsCollector sets (or resets) the metrics collector to be used for gathering
+// metrics for all targets. Only targets added after this call will use the collector.
+//
+// To ensure all targets use a collector, use the `SetMetricsCollector` option when
+// creating the Logr instead, or configure/reconfigure the Logr after calling this method.
+func (lgr *Logr) SetMetricsCollector(collector MetricsCollector, updateFreqMillis int64) {
+	lgr.initMetrics(collector, updateFreqMillis)
 }
 
 // enqueue adds a log record to the logr queue. If the queue is full then

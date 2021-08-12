@@ -40,9 +40,8 @@ func (logger Logger) IsLevelEnabled(level Level) bool {
 
 // Sugar creates a new `Logger` with a less structured API. Any fields are preserved.
 func (logger Logger) Sugar(fields ...Field) Sugar {
-	l := logger.With()
 	return Sugar{
-		Logger: l,
+		logger: logger.With(fields...),
 	}
 }
 
