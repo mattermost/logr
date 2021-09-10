@@ -2,6 +2,7 @@ package logr_test
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/mattermost/logr/v2"
@@ -72,6 +73,52 @@ func TestSugarLogger(t *testing.T) {
 	assert.Contains(t, data, "Test With")
 	assert.Contains(t, data, "prop3=foo")
 	assert.Contains(t, data, "prop4=bar")
+}
+
+type kv []interface{}
+
+const (
+	pre           = "debug | test msg | test=sugar "
+	errInvalidKey = "error | invalid key"
+)
+
+func TestSugar_argsToFields(t *testing.T) {
+	tests := []struct {
+		name          string
+		keyValuePairs kv
+		want          string
+		wantErr       bool
+	}{
+		{name: "one pair", keyValuePairs: kv{"prop1", 7}, want: pre + "prop1=7"},
+		{name: "two pair", keyValuePairs: kv{"prop1", 11, "prop2", "bar"}, want: pre + "prop1=11 prop2=bar"},
+		{name: "empty", keyValuePairs: kv{}, want: pre},
+		{name: "invalid key", keyValuePairs: kv{200, 300}, wantErr: true},
+		{name: "one arg", keyValuePairs: kv{"bad"}, wantErr: true},
+		{name: "one arg invalid", keyValuePairs: kv{22}, wantErr: true},
+		{name: "nil args", keyValuePairs: nil, want: pre},
+		{name: "dangling key", keyValuePairs: kv{"prop1", 7, "dangle"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			sugar, shutdown, err := makeSugar(buf)
+			require.NoError(t, err)
+
+			sugar.Debugw("test msg", tt.keyValuePairs...)
+
+			err = shutdown()
+			require.NoError(t, err)
+
+			got := strings.TrimSpace(buf.String())
+			want := strings.TrimSpace(tt.want)
+
+			if tt.wantErr {
+				assert.Contains(t, got, errInvalidKey)
+			} else {
+				assert.Equal(t, want, got)
+			}
+		})
+	}
 }
 
 func makeSugar(buf *bytes.Buffer) (logr.Sugar, func() error, error) {
