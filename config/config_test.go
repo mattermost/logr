@@ -78,8 +78,8 @@ func TestConfigureCustomTarget(t *testing.T) {
 	buf := &test.Buffer{}
 
 	factories := Factories{
-		targetFactory:    makeCustomTargetFactory(buf),
-		formatterFactory: customFormatFactory,
+		TargetFactory:    makeCustomTargetFactory(buf),
+		FormatterFactory: customFormatFactory,
 	}
 
 	lgr, err := logr.New()
