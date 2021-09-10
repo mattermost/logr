@@ -182,6 +182,7 @@ func (s Sugar) argsToFields(keyValuePairs []interface{}) []Field {
 
 		if i == count-1 {
 			s.logger.Error("invalid key/value pair", Any("arg", keyValuePairs[i]))
+			break
 		}
 
 		// we should have a key/value pair now. The key must be a string.
