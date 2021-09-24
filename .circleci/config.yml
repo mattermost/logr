@@ -1,11 +1,16 @@
 version: 2.1
 jobs:
   build:
-    working_directory: ~/repo
+    working_directory: ~/src/github.com/mattermost/logr
     docker:
       - image: cimg/go:1.17.1
     steps:
       - checkout
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install rsyslog -y
+          sudo service rsyslog start
 
       - run:
           name: Install Dependencies
