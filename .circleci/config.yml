@@ -1,0 +1,25 @@
+version: 2.1
+jobs:
+  build:
+    working_directory: ~/src/github.com/mattermost/logr
+    docker:
+      - image: cimg/go:1.17.1
+    steps:
+      - checkout
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install rsyslog -y
+          sudo service rsyslog start
+
+      - run:
+          name: Install Dependencies
+          command: go mod download
+
+      - run:
+          name: Run tests
+          command: |
+            mkdir -p /tmp/test-reports
+            gotestsum --junitfile /tmp/test-reports/unit-tests.xml
+      - store_test_results:
+          path: /tmp/test-reports
