@@ -27,8 +27,8 @@ func TestCustomLevel(t *testing.T) {
 	filter.Add(LoginLevel, LogoutLevel)
 
 	formatter := &formatters.Plain{Delim: " | "}
-	tgr := targets.NewWriterTarget(buf)
-	err := lgr.AddTarget(tgr, "customLevelTest", filter, formatter, 1000)
+	target := targets.NewWriterTarget(buf)
+	err := lgr.AddTarget(target, "customLevelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 
 	logger := lgr.NewLogger().With(
@@ -74,8 +74,8 @@ func TestLevelIDTooLarge(t *testing.T) {
 	filter.Add(BadLevel)
 
 	formatter := &formatters.Plain{Delim: " | "}
-	tgr := targets.NewWriterTarget(buf)
-	err = lgr.AddTarget(tgr, "levelTest", filter, formatter, 1000)
+	target := targets.NewWriterTarget(buf)
+	err = lgr.AddTarget(target, "levelTest", filter, formatter, 1000)
 	require.NoError(t, err)
 
 	logger := lgr.NewLogger().With(logr.String("user", "Bob"), logr.String("role", "admin"))

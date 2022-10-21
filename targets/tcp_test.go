@@ -14,7 +14,7 @@ import (
 
 const (
 	Server   = "localhost"
-	TestPort = 18066
+	TestPort = 18067
 )
 
 func TestNewTcpTarget(t *testing.T) {
