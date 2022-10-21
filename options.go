@@ -76,7 +76,7 @@ func OnTargetQueueFull(f func(target Target, rec *LogRec, maxQueueSize int) bool
 }
 
 // OnExit, when not nil, is called when a FatalXXX style log API is called.
-// When nil, then the default behavior is to cleanly shut down this Logr and
+// When nil, the default behavior is to cleanly shut down this Logr and
 // call `os.Exit(code)`.
 func OnExit(f func(code int)) Option {
 	return func(l *Logr) error {
@@ -86,7 +86,7 @@ func OnExit(f func(code int)) Option {
 }
 
 // OnPanic, when not nil, is called when a PanicXXX style log API is called.
-// When nil, then the default behavior is to cleanly shut down this Logr and
+// When nil, the default behavior is to cleanly shut down this Logr and
 // call `panic(err)`.
 func OnPanic(f func(err interface{})) Option {
 	return func(l *Logr) error {

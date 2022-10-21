@@ -30,7 +30,7 @@ func TestFlush(t *testing.T) {
 		Lvl:        logr.Error,
 	}
 	test.DoSomeLogging(cfg)
-	logger := lgr.NewLogger()
+	logger := lgr.NewLogger().With(logr.String("node", "abcdefg"))
 	logger.Info("Last entry @!!@")
 
 	start := time.Now()
