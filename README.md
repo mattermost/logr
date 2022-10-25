@@ -19,7 +19,7 @@ It is inspired by [Logrus](https://github.com/sirupsen/logrus) and [Zap](https:/
 | entity | description |
 | ------ | ----------- |
 | Logr   | Engine instance typically instantiated once; used to configure logging.<br>```lgr,_ := logr.New()```|
-| Logger | Provides contextual logging via fields; lightweight, can be created once and accessed globally or create on demand.<br>```logger := lgr.NewLogger()```<br>```logger2 := logger.WithField("user", "Sam")```|
+| Logger | Provides contextual logging via fields; lightweight, can be created once and accessed globally, or created on demand.<br>```logger := lgr.NewLogger()```<br>```logger2 := logger.With(logr.String("user", "Sam"))```|
 | Target | A destination for log items such as console, file, database or just about anything that can be written to. Each target has its own filter/level and formatter, and any number of targets can be added to a Logr. Targets for file, syslog and any io.Writer are built-in and it is easy to create your own. You can also use any [Logrus hooks](https://github.com/sirupsen/logrus/wiki/Hooks) via a simple [adapter](https://github.com/wiggin77/logrus4logr).|
 | Filter | Determines which logging calls get written versus filtered out. Also determines which logging calls generate a stack trace.<br>```filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Fatal}```|
 | Formatter | Formats the output. Logr includes built-in formatters for JSON and plain text with delimiters. It is easy to create your own formatters or you can also use any [Logrus formatters](https://github.com/sirupsen/logrus#formatters) via a simple [adapter](https://github.com/wiggin77/logrus4logr).<br>```formatter := &format.Plain{Delim: " \| "}```|
@@ -157,7 +157,7 @@ Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error)
 
 ## Configuration options
 
-When creating the Logr instance, you can set configuration options:
+When creating the Logr instance, you can set configuration options. For example:
 
 ```go
 lgr, err := logr.New(
@@ -165,6 +165,8 @@ lgr, err := logr.New(
     logr.StackFilter("mypackage1", "mypackage2"),
 )
 ```
+
+Some options are documented below. See [options.go](./options.go) for all available configuration options.
 
 ### ```Logr.OnLoggerError(err error)```
 
