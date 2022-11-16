@@ -1,11 +1,13 @@
+![Logr_Logo](https://user-images.githubusercontent.com/7295363/200433587-ae9df127-9427-4753-a0a0-85723a216e0e.png)
+
+> A fully asynchronous, contextual logger for Go.
+
 # logr
 
 [![GoDoc](https://godoc.org/github.com/mattermost/logr?status.svg)](http://godoc.org/github.com/mattermost/logr)
 [![Report Card](https://goreportcard.com/badge/github.com/mattermost/logr)](https://goreportcard.com/report/github.com/mattermost/logr)
 
-Logr is a fully asynchronous, contextual logger for Go.
-
-It is inspired by [Logrus](https://github.com/sirupsen/logrus) and [Zap](https://github.com/uber-go/zap) but addresses a number of issues:
+Logr is inspired by [Logrus](https://github.com/sirupsen/logrus) and [Zap](https://github.com/uber-go/zap) but addresses a number of issues:
 
 1. Logr is fully asynchronous, meaning that all formatting and writing is done in the background. Latency sensitive applications benefit from not waiting for logging to complete.
 
