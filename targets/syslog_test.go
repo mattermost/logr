@@ -22,7 +22,7 @@ func ExampleSyslog() {
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &formatters.Plain{Delim: " | "}
 	params := &targets.SyslogOptions{
-		IP:   "localhost",
+		Host: "localhost",
 		Port: 514,
 		Tag:  "logrtest",
 	}
