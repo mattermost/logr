@@ -247,23 +247,26 @@ func (lgr *Logr) SetMetricsCollector(collector MetricsCollector, updateFreqMilli
 // this function either blocks or the log record is dropped, depending on
 // the result of calling `OnQueueFull`.
 func (lgr *Logr) enqueue(rec *LogRec) {
-	// we also limit the message
-	rec.msg = LimitString(rec.msg, lgr.options.maxFieldLen)
+	// check if a limit has been configured
+	if limit := lgr.options.maxFieldLen; limit > 0 {
+		// we limit the message
+		rec.msg = LimitString(rec.msg, limit)
 
-	// then we range over fields to apply the limit
-	for i := range rec.fields {
-		switch rec.fields[i].Type {
-		case StringType:
-			rec.fields[i].String = LimitString(rec.fields[i].String, lgr.options.maxFieldLen)
-		case StringerType:
-			if v, ok := rec.fields[i].Interface.(fmt.Stringer); ok {
-				rec.fields[i].Interface = &LimitedStringer{
-					Stringer: v,
-					Limit:    lgr.options.maxFieldLen,
+		// then we range over fields to apply the limit
+		for i := range rec.fields {
+			switch rec.fields[i].Type {
+			case StringType:
+				rec.fields[i].String = LimitString(rec.fields[i].String, limit)
+			case StringerType:
+				if v, ok := rec.fields[i].Interface.(fmt.Stringer); ok {
+					rec.fields[i].Interface = &LimitedStringer{
+						Stringer: v,
+						Limit:    limit,
+					}
 				}
+			default:
+				// no limits for other field types
 			}
-		default:
-			// no limits for other field types
 		}
 	}
 

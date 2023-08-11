@@ -32,6 +32,6 @@ const (
 	// Buffers that grow beyond this size are garbage collected.
 	DefaultMaxPooledBuffer = 1024 * 1024
 
-	// DefaultMaxFieldLength is the maximum size of a String or dmt.Stringer field can be.
-	DefaultMaxFieldLength = 2048
+	// DefaultMaxFieldLength is the maximum size of a String or fmt.Stringer field can be.
+	DefaultMaxFieldLength = -1
 )
