@@ -23,6 +23,7 @@ type options struct {
 	metricsCollector        MetricsCollector
 	metricsUpdateFreqMillis int64
 	stackFilter             map[string]struct{}
+	maxFieldLen             int
 }
 
 // MaxQueueSize is the maximum number of log records that can be queued.
@@ -187,6 +188,19 @@ func StackFilter(pkg ...string) Option {
 				l.options.stackFilter[p] = struct{}{}
 			}
 		}
+		return nil
+	}
+}
+
+// MaxFieldLen is the maximum number of characters for a field.
+// If exceeded, remaining bytes will be discarded.
+// Defaults to DefaultMaxFieldLength.
+func MaxFieldLen(size int) Option {
+	return func(l *Logr) error {
+		if size < 0 {
+			return errors.New("size cannot be less than zero")
+		}
+		l.options.maxFieldLen = size
 		return nil
 	}
 }

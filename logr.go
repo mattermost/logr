@@ -42,6 +42,7 @@ func New(opts ...Option) (*Logr, error) {
 		shutdownTimeout: DefaultShutdownTimeout,
 		flushTimeout:    DefaultFlushTimeout,
 		maxPooledBuffer: DefaultMaxPooledBuffer,
+		maxFieldLen:     DefaultMaxFieldLength,
 	}
 
 	lgr := &Logr{options: options}
@@ -246,6 +247,26 @@ func (lgr *Logr) SetMetricsCollector(collector MetricsCollector, updateFreqMilli
 // this function either blocks or the log record is dropped, depending on
 // the result of calling `OnQueueFull`.
 func (lgr *Logr) enqueue(rec *LogRec) {
+	// we also limit the message
+	rec.msg = LimitString(rec.msg, lgr.options.maxFieldLen)
+
+	// then we range over fields to apply the limit
+	for i := range rec.fields {
+		switch rec.fields[i].Type {
+		case StringType:
+			rec.fields[i].String = LimitString(rec.fields[i].String, lgr.options.maxFieldLen)
+		case StringerType:
+			if v, ok := rec.fields[i].Interface.(fmt.Stringer); ok {
+				rec.fields[i].Interface = &LimitedStringer{
+					Stringer: v,
+					Limit:    lgr.options.maxFieldLen,
+				}
+			}
+		default:
+			// no limits for other field types
+		}
+	}
+
 	select {
 	case lgr.in <- rec:
 	default:
