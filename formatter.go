@@ -31,7 +31,7 @@ const (
 // LimitByteSlice discards the bytes from a slice that exceeds the limit
 func LimitByteSlice(b []byte, limit int) []byte {
 	if limit > 0 && limit < len(b) {
-		lb := make([]byte, 0, limit+3)
+		lb := make([]byte, limit, limit+3)
 		copy(lb, b[:limit])
 		return append(lb, []byte("...")...)
 	}

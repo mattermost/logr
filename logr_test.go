@@ -1,8 +1,10 @@
 package logr_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -156,4 +158,42 @@ func TestRemoveTarget(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func TestLimitLogFields(t *testing.T) {
+	formatter := &formatters.JSON{DisableTimestamp: true}
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	lgr, _ := logr.New(logr.MaxFieldLen(8))
+
+	buf := &bytes.Buffer{}
+	target := test.NewSlowTarget(buf, 2)
+
+	err := lgr.AddTarget(target, "t", filter, formatter, 3000)
+	require.NoError(t, err)
+
+	cfg := test.DoSomeLoggingCfg{
+		Lgr:        lgr,
+		Goroutines: 1,
+		Loops:      1,
+		Lvl:        logr.Info,
+	}
+	test.DoSomeLogging(cfg)
+	err = lgr.Flush()
+	require.NoError(t, err)
+
+	scanner := bufio.NewScanner(buf)
+	entry := struct {
+		Message string `json:"msg"`
+	}{}
+
+	var numLines int
+	for scanner.Scan() {
+		err = json.Unmarshal(scanner.Bytes(), &entry)
+		require.NoError(t, err)
+
+		require.Equal(t, "This is ...", entry.Message)
+		numLines++
+	}
+
+	require.Equal(t, 1, numLines)
 }
