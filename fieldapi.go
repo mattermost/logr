@@ -100,11 +100,11 @@ func Millis(key string, val int64) Field {
 }
 
 // Array constructs a field containing a key and array value.
-func Array(key string, val interface{}) Field {
+func Array[S ~[]E, E any](key string, val S) Field {
 	return Field{Key: key, Type: ArrayType, Interface: val}
 }
 
 // Map constructs a field containing a key and map value.
-func Map(key string, val interface{}) Field {
+func Map[M ~map[K]V, K comparable, V any](key string, val M) Field {
 	return Field{Key: key, Type: MapType, Interface: val}
 }
