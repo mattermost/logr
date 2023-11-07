@@ -41,7 +41,7 @@ func DoSomeLogging(cfg DoSomeLoggingCfg) (logged int32, filtered int32) {
 		defer wg.Done()
 		tid := atomic.AddInt32(&id, 1)
 		logger := cfg.Lgr.NewLogger().With(
-			logr.Int32("id", tid),
+			logr.Int("id", tid),
 			logr.Int("rnd", rand.Intn(100)),
 		)
 
@@ -52,7 +52,7 @@ func DoSomeLogging(cfg DoSomeLoggingCfg) (logged int32, filtered int32) {
 			}
 			lc := atomic.AddInt32(&logCount, 1)
 			logger.Log(cfg.Lvl, "This is some sample text.",
-				logr.Int32("count", lc),
+				logr.Int("count", lc),
 				logr.String("good", cfg.GoodToken),
 			)
 
