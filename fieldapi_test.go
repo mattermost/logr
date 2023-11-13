@@ -8,46 +8,46 @@ import (
 
 func TestFieldInt(t *testing.T) {
 	_ = Int("int", int(0))
-	type myUnit int
-	_ = Int("int", myUnit(0))
+	type myInt int
+	_ = Int("int", myInt(0))
 
 	_ = Int("int8", int8(0))
-	type myUnit8 int8
-	_ = Int("int8", myUnit8(0))
+	type myInt8 int8
+	_ = Int("int8", myInt8(0))
 
 	_ = Int("int16", int16(0))
-	type myUnit16 int16
-	_ = Int("int16", myUnit16(0))
+	type myInt16 int16
+	_ = Int("int16", myInt16(0))
 
 	_ = Int("int32", int32(0))
-	type myUnit32 int32
-	_ = Int("int32", myUnit32(0))
+	type myInt32 int32
+	_ = Int("int32", myInt32(0))
 
 	_ = Int("int64", int64(0))
-	type myUnit64 int64
-	_ = Int("int64", myUnit64(0))
+	type myInt64 int64
+	_ = Int("int64", myInt64(0))
 }
 
-func TestFieldUnit(t *testing.T) {
+func TestFieldUint(t *testing.T) {
 	_ = Uint("uint", uint(0))
-	type myUnit uint
-	_ = Uint("uint", myUnit(0))
+	type myUint uint
+	_ = Uint("uint", myUint(0))
 
 	_ = Uint("uint8", uint8(0))
-	type myUnit8 uint8
-	_ = Uint("uint8", myUnit8(0))
+	type myUint8 uint8
+	_ = Uint("uint8", myUint8(0))
 
 	_ = Uint("uint16", uint16(0))
-	type myUnit16 uint16
-	_ = Uint("uint16", myUnit16(0))
+	type myUint16 uint16
+	_ = Uint("uint16", myUint16(0))
 
 	_ = Uint("uint32", uint32(0))
-	type myUnit32 uint32
-	_ = Uint("uint32", myUnit32(0))
+	type myUint32 uint32
+	_ = Uint("uint32", myUint32(0))
 
 	_ = Uint("uint64", uint64(0))
-	type myUnit64 uint64
-	_ = Uint("uint64", myUnit64(0))
+	type myUint64 uint64
+	_ = Uint("uint64", myUint64(0))
 
 	_ = Uint("uintptr", uintptr(0))
 	type myUintptr uintptr
