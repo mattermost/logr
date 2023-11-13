@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestFielInt(t *testing.T) {
+func TestFieldInt(t *testing.T) {
 	_ = Int("int", int(0))
 	type myUnit int
 	_ = Int("int", myUnit(0))
@@ -28,7 +28,7 @@ func TestFielInt(t *testing.T) {
 	_ = Int("int64", myUnit64(0))
 }
 
-func TestFielUnit(t *testing.T) {
+func TestFieldUnit(t *testing.T) {
 	_ = Uint("uint", uint(0))
 	type myUnit uint
 	_ = Uint("uint", myUnit(0))
@@ -54,7 +54,7 @@ func TestFielUnit(t *testing.T) {
 	_ = Uint("uintptr", myUintptr(0))
 }
 
-func TestFielFloat(t *testing.T) {
+func TestFieldFloat(t *testing.T) {
 	_ = Float("float32", float32(0))
 	type myFloat32 float32
 	_ = Float("float32", myFloat32(0))
@@ -64,19 +64,19 @@ func TestFielFloat(t *testing.T) {
 	_ = Float("float64", myFloat64(0))
 }
 
-func TestFielString(t *testing.T) {
+func TestFieldString(t *testing.T) {
 	_ = String("string", "foo")
 	type myString string
 	_ = String("string", myString("foo"))
 }
 
-func TestFielStringer(t *testing.T) {
+func TestFieldStringer(t *testing.T) {
 	_ = Stringer("stringer", time.Now())
 	type myStringer = time.Time
 	_ = Stringer("stringer", myStringer(time.Now()))
 }
 
-func TestFielErr(t *testing.T) {
+func TestFieldErr(t *testing.T) {
 	_ = Err(errors.New("some error"))
 	type myError error
 	_ = Err(myError(errors.New("some error")))
