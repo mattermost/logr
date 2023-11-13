@@ -34,14 +34,14 @@ func Int[T ~int | ~int8 | ~int16 | ~int32 | ~int64](key string, val T) Field {
 
 // Uint64 constructs a field containing a key and Uint64 value.
 //
-// Deprecated: Use [logr.Unit] instead.
+// Deprecated: Use [logr.Uint] instead.
 func Uint64(key string, val uint64) Field {
 	return Field{Key: key, Type: Uint64Type, Integer: int64(val)}
 }
 
 // Uint32 constructs a field containing a key and Uint32 value.
 //
-// Deprecated: Use [logr.Unit] instead
+// Deprecated: Use [logr.Uint] instead
 func Uint32(key string, val uint32) Field {
 	return Field{Key: key, Type: Uint32Type, Integer: int64(val)}
 }
