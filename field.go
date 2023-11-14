@@ -269,19 +269,19 @@ func fieldForAny(key string, val interface{}) Field {
 		}
 		return Bool(key, *v)
 	case float64:
-		return Float64(key, v)
+		return Float(key, v)
 	case *float64:
 		if v == nil {
 			return nilField(key)
 		}
-		return Float64(key, *v)
+		return Float(key, *v)
 	case float32:
-		return Float32(key, v)
+		return Float(key, v)
 	case *float32:
 		if v == nil {
 			return nilField(key)
 		}
-		return Float32(key, *v)
+		return Float(key, *v)
 	case int:
 		return Int(key, v)
 	case *int:
@@ -290,33 +290,33 @@ func fieldForAny(key string, val interface{}) Field {
 		}
 		return Int(key, *v)
 	case int64:
-		return Int64(key, v)
+		return Int(key, v)
 	case *int64:
 		if v == nil {
 			return nilField(key)
 		}
-		return Int64(key, *v)
+		return Int(key, *v)
 	case int32:
-		return Int32(key, v)
+		return Int(key, v)
 	case *int32:
 		if v == nil {
 			return nilField(key)
 		}
-		return Int32(key, *v)
+		return Int(key, *v)
 	case int16:
-		return Int32(key, int32(v))
+		return Int(key, int32(v))
 	case *int16:
 		if v == nil {
 			return nilField(key)
 		}
-		return Int32(key, int32(*v))
+		return Int(key, int32(*v))
 	case int8:
-		return Int32(key, int32(v))
+		return Int(key, int32(v))
 	case *int8:
 		if v == nil {
 			return nilField(key)
 		}
-		return Int32(key, int32(*v))
+		return Int(key, int32(*v))
 	case string:
 		return String(key, v)
 	case *string:
@@ -332,33 +332,33 @@ func fieldForAny(key string, val interface{}) Field {
 		}
 		return Uint(key, *v)
 	case uint64:
-		return Uint64(key, v)
+		return Uint(key, v)
 	case *uint64:
 		if v == nil {
 			return nilField(key)
 		}
-		return Uint64(key, *v)
+		return Uint(key, *v)
 	case uint32:
-		return Uint32(key, v)
+		return Uint(key, v)
 	case *uint32:
 		if v == nil {
 			return nilField(key)
 		}
-		return Uint32(key, *v)
+		return Uint(key, *v)
 	case uint16:
-		return Uint32(key, uint32(v))
+		return Uint(key, uint32(v))
 	case *uint16:
 		if v == nil {
 			return nilField(key)
 		}
-		return Uint32(key, uint32(*v))
+		return Uint(key, uint32(*v))
 	case uint8:
-		return Uint32(key, uint32(v))
+		return Uint(key, uint32(v))
 	case *uint8:
 		if v == nil {
 			return nilField(key)
 		}
-		return Uint32(key, uint32(*v))
+		return Uint(key, uint32(*v))
 	case []byte:
 		if v == nil {
 			return nilField(key)

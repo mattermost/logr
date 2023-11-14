@@ -49,7 +49,7 @@ func TestJSONFieldTypes(t *testing.T) {
 			logr.String("f1", "one"),
 			logr.Int("f2", 77),
 			logr.Bool("f3", true),
-			logr.Float64("f4", 3.14),
+			logr.Float("f4", 3.14),
 			logr.Err(errors.New("test error")),
 		)
 		err = lgr.Flush()
