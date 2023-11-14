@@ -71,7 +71,7 @@ func Float[T ~float32 | ~float64](key string, val T) Field {
 }
 
 // String constructs a field containing a key and String value.
-func String[T ~string](key string, val T) Field {
+func String[T ~string | ~[]byte](key string, val T) Field {
 	return Field{Key: key, Type: StringType, String: string(val)}
 }
 

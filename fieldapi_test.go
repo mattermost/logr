@@ -68,6 +68,10 @@ func TestFieldString(t *testing.T) {
 	_ = String("string", "foo")
 	type myString string
 	_ = String("string", myString("foo"))
+
+	type myByteSlice string
+	_ = String("string", []byte{})
+	_ = String("string", myByteSlice([]byte{}))
 }
 
 func TestFieldStringer(t *testing.T) {
