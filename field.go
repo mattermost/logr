@@ -187,16 +187,22 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 					break arr
 				}
 			}
-			if _, err = w.Write(Comma); err != nil {
-				break arr
+			if i != a.Len()-1 {
+				if _, err = w.Write(Comma); err != nil {
+					break arr
+				}
 			}
 		}
 
 	case MapType:
 		a := reflect.ValueOf(f.Interface)
 		iter := a.MapRange()
+		// Already advance to first element
+		if !iter.Next() {
+			return nil
+		}
 	it:
-		for iter.Next() {
+		for {
 			if _, err = io.WriteString(w, iter.Key().String()); err != nil {
 				break it
 			}
@@ -219,9 +225,15 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 					break it
 				}
 			}
+
+			if !iter.Next() {
+				break it
+			}
+
 			if _, err = w.Write(Comma); err != nil {
 				break it
 			}
+
 		}
 
 	case UnknownType:
