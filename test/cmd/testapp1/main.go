@@ -64,7 +64,10 @@ func main() {
 	// create writer target to stdout
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
-	formatter := &formatters.JSON{EnableCaller: true}
+	formatter := &formatters.Plain{
+		EnableColor:  true,
+		EnableCaller: true,
+	}
 	t = targets.NewWriterTarget(os.Stdout)
 	err = lgr.AddTarget(t, "stdout", filter, formatter, 1000)
 	if err != nil {
@@ -79,7 +82,7 @@ func main() {
 	}
 
 	// create syslog target to local using custom filter.
-	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false}
+	lvl := logr.Level{ID: 77, Name: "Summary", Stacktrace: false, Color: 36}
 	fltr := &logr.CustomFilter{}
 	fltr.Add(lvl)
 	params := &targets.SyslogOptions{Tag: "logrtestapp"}

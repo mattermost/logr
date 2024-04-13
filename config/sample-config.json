@@ -10,11 +10,11 @@
         },
         "levels": [
             {"id": 5, "name": "debug"},
-            {"id": 4, "name": "info"},
-            {"id": 3, "name": "warn"},
-            {"id": 2, "name": "error", "stacktrace": true},
-            {"id": 1, "name": "fatal", "stacktrace": true},
-            {"id": 0, "name": "panic", "stacktrace": true}
+            {"id": 4, "name": "info", "color":36},
+            {"id": 3, "name": "warn", "color":33},
+            {"id": 2, "name": "error", "color":31, "stacktrace": true},
+            {"id": 1, "name": "fatal", "color":31, "stacktrace": true},
+            {"id": 0, "name": "panic", "color":31, "stacktrace": true}
         ],
         "maxqueuesize": 1000
     },
