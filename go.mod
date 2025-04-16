@@ -1,6 +1,6 @@
 module github.com/mattermost/logr/v2
 
-go 1.18
+go 1.24
 
 require (
 	github.com/francoispqt/gojay v1.2.13
