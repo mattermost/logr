@@ -92,6 +92,7 @@ func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
 		conn, err := tcp.dial(ctx)
 		if err != nil {
 			reporter(fmt.Errorf("log target %s connection error: %w", tcp.String(), err))
+			ch <- result{conn: nil, err: err}
 			return
 		}
 		tcp.conn = conn

@@ -14,8 +14,9 @@ import (
 
 // SocketServer is a simple socket server used for testing TCP log targets.
 // Note: There is more synchronization here than normally needed to avoid flaky tests.
-//       For example, it's possible for a unit test to create a SocketServer, attempt
-//       writing to it, and stop the socket server before "go ss.listen()" gets scheduled.
+//
+//	For example, it's possible for a unit test to create a SocketServer, attempt
+//	writing to it, and stop the socket server before "go ss.listen()" gets scheduled.
 type SocketServer struct {
 	listener      net.Listener
 	anyConn       chan struct{}
@@ -122,12 +123,19 @@ func (ss *SocketServer) StopServer(wait bool) error {
 	ss.mux.Unlock()
 
 	for _, sconn := range conns {
-		if wait {
-			select {
-			case <-sconn.done:
-			case <-time.After(time.Second * 5):
-				errs.Append(errors.New("timed out"))
-			}
+		if err := sconn.conn.Close(); err != nil {
+			errs.Append(err)
+			continue
+		}
+
+		if !wait {
+			continue
+		}
+
+		select {
+		case <-sconn.done:
+		case <-time.After(time.Second * 5):
+			errs.Append(errors.New("timed out"))
 		}
 	}
 	return errs.ErrorOrNil()
