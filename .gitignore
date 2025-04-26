@@ -40,3 +40,7 @@ test/cmd/gelf/gelf
 .aider*
 !.aider.conf.yml
 !.aiderignore
+
+# Claude initialization files
+.claude*
+CLAUDE.md
