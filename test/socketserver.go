@@ -14,8 +14,9 @@ import (
 
 // SocketServer is a simple socket server used for testing TCP log targets.
 // Note: There is more synchronization here than normally needed to avoid flaky tests.
-//       For example, it's possible for a unit test to create a SocketServer, attempt
-//       writing to it, and stop the socket server before "go ss.listen()" gets scheduled.
+//
+//	For example, it's possible for a unit test to create a SocketServer, attempt
+//	writing to it, and stop the socket server before "go ss.listen()" gets scheduled.
 type SocketServer struct {
 	listener      net.Listener
 	anyConn       chan struct{}

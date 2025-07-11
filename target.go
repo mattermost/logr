@@ -146,26 +146,43 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 
 	close(h.quit)
 
-	// No more records can be accepted; now wait for read loop to exit.
+	// Wait for read loop to exit and queue to drain
 	select {
 	case <-ctx.Done():
+		// Context timeout - force exit but check queue state
+		select {
+		case <-h.done:
+			// Read loop completed naturally
+		default:
+			// Read loop still running, but we must exit due to timeout
+		}
 	case <-h.done:
+		// Read loop exited and queue drained successfully
 	}
 
-	// b.in channel should now be drained.
 	return h.target.Shutdown()
 }
 
 // Log queues a log record to be output to this target's destination.
 func (h *TargetHost) Log(rec *LogRec) {
+	// Check shutdown flag first
 	if atomic.LoadInt32(&h.shutdown) != 0 {
 		return
 	}
 
 	lgr := rec.Logger().Logr()
+
+	// Use non-blocking send to prevent hanging during shutdown
 	select {
 	case h.in <- rec:
+		// Successfully queued
+		return
 	default:
+		// Queue full - check if we're shutting down
+		if atomic.LoadInt32(&h.shutdown) != 0 {
+			return // Don't block during shutdown
+		}
+
 		handler := lgr.options.onTargetQueueFull
 		if handler != nil && handler(h.target, rec, cap(h.in)) {
 			h.incDroppedCounter()
@@ -173,10 +190,12 @@ func (h *TargetHost) Log(rec *LogRec) {
 		}
 		h.incBlockedCounter()
 
+		// Try again with timeout, but respect shutdown
 		select {
+		case h.in <- rec:
+			// Successfully queued after wait
 		case <-time.After(lgr.options.enqueueTimeout):
 			lgr.ReportError(fmt.Errorf("target enqueue timeout for log rec [%v]", rec))
-		case h.in <- rec: // block until success or timeout
 		}
 	}
 }
@@ -244,6 +263,8 @@ func (h *TargetHost) start() {
 				}
 			}
 		case <-h.quit:
+			// Drain remaining records in queue
+			h.drainQueue()
 			return
 		}
 	}
@@ -277,6 +298,30 @@ func (h *TargetHost) startMetricsUpdater(updateFreqMillis int64) {
 			return
 		case <-time.After(time.Duration(updateFreqMillis) * time.Millisecond):
 			h.setQueueSizeGauge(float64(len(h.in)))
+		}
+	}
+}
+
+// drainQueue processes any remaining records in the queue.
+func (h *TargetHost) drainQueue() {
+	for {
+		select {
+		case rec := <-h.in:
+			// Process remaining records
+			if rec.flush != nil {
+				h.flush(rec.flush)
+			} else {
+				err := h.writeRec(rec)
+				if err != nil {
+					h.incErrorCounter()
+					rec.Logger().Logr().ReportError(err)
+				} else {
+					h.incLoggedCounter()
+				}
+			}
+		default:
+			// Queue is empty, safe to exit
+			return
 		}
 	}
 }
