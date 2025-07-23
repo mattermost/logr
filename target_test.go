@@ -3,6 +3,7 @@ package logr_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,7 +48,7 @@ func TestTargetShutdownQueueDrain(t *testing.T) {
 	// Verify all records were written
 	output := buf.String()
 	for i := 0; i < expectedRecords; i++ {
-		assert.Contains(t, output, "Test record", "Missing record %d", i)
+		assert.Contains(t, output, "Test record", fmt.Sprintf("Missing record %d", i))
 	}
 	
 	// Count actual records written
