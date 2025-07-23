@@ -50,8 +50,8 @@ type TargetHost struct {
 	formatter Formatter
 
 	in            chan *LogRec
-	quit          chan struct{} // closed by Shutdown to exit read loop
-	done          chan struct{} // closed when read loop exited
+	quit          chan context.Context // receives shutdown context to exit read loop
+	done          chan struct{}        // closed when read loop exited
 	targetMetrics *targetMetrics
 
 	shutdown int32
@@ -64,7 +64,7 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 		filter:    options.filter,
 		formatter: options.formatter,
 		in:        make(chan *LogRec, options.maxQueueSize),
-		quit:      make(chan struct{}),
+		quit:      make(chan context.Context, 1),
 		done:      make(chan struct{}),
 	}
 
@@ -144,7 +144,9 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 		return errors.New("targetHost shutdown called more than once")
 	}
 
-	close(h.quit)
+	// Send shutdown context to read loop instead of closing channel
+	// This allows the read loop to receive the timeout context for drainQueue
+	h.quit <- ctx
 
 	// Wait for read loop to exit and queue to drain
 	select {
@@ -263,9 +265,9 @@ func (h *TargetHost) start() {
 					h.incLoggedCounter()
 				}
 			}
-		case <-h.quit:
-			// Drain remaining records in queue
-			h.drainQueue()
+		case shutdownCtx := <-h.quit:
+			// Drain remaining records in queue with shutdown timeout
+			h.drainQueue(shutdownCtx)
 			return
 		}
 	}
@@ -304,9 +306,9 @@ func (h *TargetHost) startMetricsUpdater(updateFreqMillis int64) {
 }
 
 // drainQueue processes any remaining records in the queue during shutdown.
-// It processes all queued records without timeout to prevent log loss.
+// It respects the provided context timeout to prevent indefinite blocking.
 // Individual record processing errors are logged and the error counter is incremented.
-func (h *TargetHost) drainQueue() {
+func (h *TargetHost) drainQueue(ctx context.Context) {
 	for {
 		select {
 		case rec := <-h.in:
@@ -322,6 +324,9 @@ func (h *TargetHost) drainQueue() {
 					h.incLoggedCounter()
 				}
 			}
+		case <-ctx.Done():
+			// Shutdown timeout reached, abandon remaining records
+			return
 		default:
 			// Queue is empty, safe to exit
 			return

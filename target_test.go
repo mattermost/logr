@@ -259,3 +259,82 @@ func TestTargetShutdownEmptyQueue(t *testing.T) {
 	assert.Less(t, int64(duration), int64(100*time.Millisecond), "Empty queue shutdown took too long")
 	assert.Empty(t, buf.String(), "Buffer should be empty")
 }
+
+// TestDrainQueueRespectsTimeout specifically tests that drainQueue respects the shutdown context timeout
+func TestDrainQueueRespectsTimeout(t *testing.T) {
+	buf := &bytes.Buffer{}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	
+	// Use extremely slow target to ensure drainQueue will timeout
+	target := test.NewSlowTarget(buf, 200) // 200ms delay per record
+	lgr, err := logr.New()
+	require.NoError(t, err)
+	
+	// Small queue to ensure records get queued
+	err = lgr.AddTarget(target, "drainTimeoutTest", filter, formatter, 5)
+	require.NoError(t, err)
+	
+	logger := lgr.NewLogger()
+	
+	// Queue multiple records quickly
+	for i := 0; i < 3; i++ {
+		logger.Info("Drain timeout test", logr.Int("id", i))
+	}
+	
+	// Give a moment for records to be queued
+	time.Sleep(10 * time.Millisecond)
+	
+	// Use very short timeout - shorter than it would take to process even 1 record
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	
+	start := time.Now()
+	err = lgr.ShutdownWithTimeout(ctx)
+	duration := time.Since(start)
+	
+	// Shutdown should complete quickly due to drainQueue timeout
+	assert.Less(t, int64(duration), int64(100*time.Millisecond), "drainQueue did not respect timeout")
+	
+	// Should have processed very few or no records due to timeout
+	recordCount := bytes.Count(buf.Bytes(), []byte("Drain timeout test"))
+	t.Logf("Records processed before drainQueue timeout: %d/3", recordCount)
+	assert.LessOrEqual(t, recordCount, 1, "Too many records processed, drainQueue may not be respecting timeout")
+}
+
+// TestDrainQueueWithoutTimeout tests that drainQueue processes all records when there's sufficient time
+func TestDrainQueueWithoutTimeout(t *testing.T) {
+	buf := &bytes.Buffer{}
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+	
+	// Use moderately slow target
+	target := test.NewSlowTarget(buf, 20) // 20ms delay per record
+	lgr, err := logr.New()
+	require.NoError(t, err)
+	
+	err = lgr.AddTarget(target, "drainSuccessTest", filter, formatter, 10)
+	require.NoError(t, err)
+	
+	logger := lgr.NewLogger()
+	
+	// Queue records
+	expectedRecords := 5
+	for i := 0; i < expectedRecords; i++ {
+		logger.Info("Drain success test", logr.Int("id", i))
+	}
+	
+	// Give time for records to be queued
+	time.Sleep(10 * time.Millisecond)
+	
+	// Use generous timeout - more than enough to process all records
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	
+	err = lgr.ShutdownWithTimeout(ctx)
+	assert.NoError(t, err)
+	
+	// All records should be processed when timeout is sufficient
+	recordCount := bytes.Count(buf.Bytes(), []byte("Drain success test"))
+	assert.Equal(t, expectedRecords, recordCount, "drainQueue should process all records when timeout is sufficient")
+}
