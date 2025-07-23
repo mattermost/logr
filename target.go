@@ -172,7 +172,8 @@ func (h *TargetHost) Log(rec *LogRec) {
 
 	lgr := rec.Logger().Logr()
 
-	// Use non-blocking send to prevent hanging during shutdown
+	// Attempt non-blocking send first to prevent hanging during shutdown,
+	// with a fallback to blocking send with timeout if the queue is full.
 	select {
 	case h.in <- rec:
 		// Successfully queued
@@ -302,7 +303,9 @@ func (h *TargetHost) startMetricsUpdater(updateFreqMillis int64) {
 	}
 }
 
-// drainQueue processes any remaining records in the queue.
+// drainQueue processes any remaining records in the queue during shutdown.
+// It processes all queued records without timeout to prevent log loss.
+// Individual record processing errors are logged and the error counter is incremented.
 func (h *TargetHost) drainQueue() {
 	for {
 		select {
