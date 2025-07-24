@@ -266,8 +266,12 @@ func (h *TargetHost) start() {
 				}
 			}
 		case shutdownCtx := <-h.quit:
-			// Drain remaining records in queue with shutdown timeout
-			h.drainQueue(shutdownCtx)
+			// close channel so that any goroutines created by the panic handler exit immediately
+			close(h.quit)
+			// Drain remaining records in queue with shutdown timeout if we have a context
+			if shutdownCtx != nil {
+				h.drainQueue(shutdownCtx)
+			}
 			return
 		}
 	}
