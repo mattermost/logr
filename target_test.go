@@ -137,7 +137,8 @@ func TestTargetShutdownContextTimeout(t *testing.T) {
 	duration := time.Since(start)
 	
 	// Shutdown should complete quickly due to timeout  
-	// Note: Flush timeout can occur during shutdown, which is expected behavior
+	// Flush timeout is expected behavior during short timeout scenarios
+	assert.Error(t, err, "Expected flush timeout error during short timeout")
 	assert.Less(t, int64(duration), int64(200*time.Millisecond), "Shutdown took too long")
 	
 	// Some records might be processed, but not all due to timeout
@@ -295,6 +296,8 @@ func TestDrainQueueRespectsTimeout(t *testing.T) {
 	duration := time.Since(start)
 	
 	// Shutdown should complete quickly due to drainQueue timeout
+	// Flush timeout is expected behavior during short timeout scenarios
+	assert.Error(t, err, "Expected flush timeout error during drainQueue timeout")
 	assert.Less(t, int64(duration), int64(100*time.Millisecond), "drainQueue did not respect timeout")
 	
 	// Should have processed very few or no records due to timeout
