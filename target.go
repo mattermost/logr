@@ -187,7 +187,7 @@ func (h *TargetHost) Log(rec *LogRec) {
 		}
 		h.incBlockedCounter()
 
-		// Try again with timeout, but respect shutdown
+		// Try again with timeout
 		select {
 		case h.in <- rec:
 			// Successfully queued after wait
