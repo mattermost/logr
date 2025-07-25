@@ -151,13 +151,7 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 	// Wait for read loop to exit and queue to drain
 	select {
 	case <-ctx.Done():
-		// Context timeout - force exit but check queue state
-		select {
-		case <-h.done:
-			// Read loop completed naturally
-		default:
-			// Read loop still running, but we must exit due to timeout
-		}
+		// Context timeout - proceed with shutdown
 	case <-h.done:
 		// Read loop exited and queue drained successfully
 	}
@@ -266,10 +260,10 @@ func (h *TargetHost) start() {
 				}
 			}
 		case shutdownCtx := <-h.quit:
-			// close channel so that any goroutines created by the panic handler exit immediately
-			close(h.quit)
-			// Drain remaining records in queue with shutdown timeout if we have a context
 			if shutdownCtx != nil {
+				// close channel so that any goroutines created by the panic handler exit immediately
+				close(h.quit)
+				// Drain remaining records in queue with shutdown timeout if we have a context
 				h.drainQueue(shutdownCtx)
 			}
 			return
