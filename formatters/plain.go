@@ -74,7 +74,11 @@ func (p *Plain) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*
 
 	timestampFmt := p.TimestampFormat
 	if timestampFmt == "" {
-		timestampFmt = logr.DefTimestampFormat
+		if p.UseUTC {
+			timestampFmt = logr.DefTimestampUTCFormat
+		} else {
+			timestampFmt = logr.DefTimestampFormat
+		}
 	}
 
 	color := logr.NoColor
