@@ -415,11 +415,11 @@ func TestJSONTimestamp(t *testing.T) {
 		loggedTime, err := time.Parse(logr.DefTimestampFormat, timestampStr)
 		require.NoErrorf(t, err, "Could not parse timestamp %s: %v", timestampStr, err)
 
-		// Verify the logged time uses local timezone (not UTC)
-		if time.Local == time.UTC {
+		if isUTC() {
 			// Special case for systems that use UTC as their local time
 			assert.Equal(t, loggedTime.Location(), time.UTC)
 		} else {
+			// Verify the logged time uses local timezone (not UTC)
 			assert.NotEqual(t, loggedTime.Location(), time.UTC, "Expected logged time to use local timezone, but got UTC")
 		}
 
@@ -489,6 +489,11 @@ func TestJSONTimestamp(t *testing.T) {
 
 	err = lgr.Shutdown()
 	require.NoError(t, err)
+}
+
+func isUTC() bool {
+	_, offset := time.Now().Zone()
+	return offset == 0
 }
 
 func sorter(fields []logr.Field) []logr.Field {

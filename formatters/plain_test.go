@@ -163,8 +163,7 @@ func TestPlainTimestamp(t *testing.T) {
 		loggedTime, err := time.Parse(logr.DefTimestampFormat, timestampStr)
 		require.NoErrorf(t, err, "Could not parse timestamp %s: %v", timestampStr, err)
 
-		_, offset := time.Now().Zone()
-		if offset == 0 {
+		if isUTC() {
 			// Special case for systems that use UTC as their local time
 			assert.Equal(t, loggedTime.Location(), time.UTC)
 		} else {
