@@ -159,8 +159,8 @@ func TestPlainTimestamp(t *testing.T) {
 
 		timestampStr := matches[1]
 
-		// Parse the timestamp from the log output
-		loggedTime, err := time.Parse(logr.DefTimestampFormat, timestampStr)
+		// Parse the timestamp from the log output in local timezone
+		loggedTime, err := time.ParseInLocation(logr.DefTimestampFormat, timestampStr, time.Local)
 		require.NoErrorf(t, err, "Could not parse timestamp %s: %v", timestampStr, err)
 
 		// Verify the logged time uses local timezone (not UTC)
