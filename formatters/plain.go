@@ -23,6 +23,9 @@ type Plain struct {
 	DisableStacktrace bool `json:"disable_stacktrace"`
 	// EnableCaller enables output of the file and line number that emitted a log record.
 	EnableCaller bool `json:"enable_caller"`
+	
+	// UseUTC when true converts timestamps to UTC before formatting.
+	UseUTC bool `json:"use_utc"`
 
 	// Delim is an optional delimiter output between each log field.
 	// Defaults to a single space.
@@ -90,7 +93,11 @@ func (p *Plain) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*
 
 	if !p.DisableTimestamp {
 		var arr [128]byte
-		tbuf := rec.Time().AppendFormat(arr[:0], timestampFmt)
+		t := rec.Time()
+		if p.UseUTC {
+			t = t.UTC()
+		}
+		tbuf := t.AppendFormat(arr[:0], timestampFmt)
 		buf.WriteByte('[')
 		buf.Write(tbuf)
 		buf.WriteByte(']')

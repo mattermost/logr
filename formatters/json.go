@@ -27,6 +27,9 @@ type JSON struct {
 	// EnableCaller enables output of the file and line number that emitted a log record.
 	EnableCaller bool `json:"enable_caller"`
 
+	// UseUTC when true converts timestamps to UTC before formatting.
+	UseUTC bool `json:"use_utc"`
+
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used.
 	TimestampFormat string `json:"timestamp_format"`
@@ -127,6 +130,9 @@ func (jlr JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
 			timestampFmt = logr.DefTimestampFormat
 		}
 		time := jlr.Time()
+		if jlr.UseUTC {
+			time = time.UTC()
+		}
 		enc.AddTimeKey(jlr.KeyTimestamp, &time, timestampFmt)
 	}
 	if !jlr.DisableLevel {
