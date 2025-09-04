@@ -164,7 +164,12 @@ func TestPlainTimestamp(t *testing.T) {
 		require.NoErrorf(t, err, "Could not parse timestamp %s: %v", timestampStr, err)
 
 		// Verify the logged time uses local timezone (not UTC)
-		assert.NotEqual(t, loggedTime.Location(), time.UTC, "Expected logged time to use local timezone, but got UTC")
+		if time.Local == time.UTC {
+			// Special case for systems that use UTC as their local time
+			assert.Equal(t, loggedTime.Location(), time.UTC)
+		} else {
+			assert.NotEqual(t, loggedTime.Location(), time.UTC, "Expected logged time to use local timezone, but got UTC")
+		}
 
 		// Check that the logged time is between our before/after markers (allowing 1 second buffer)
 		if loggedTime.Before(beforeLog.Add(-time.Second)) || loggedTime.After(afterLog.Add(time.Second)) {
