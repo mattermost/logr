@@ -127,11 +127,7 @@ func (jlr JSONLogRec) MarshalJSONObject(enc *gojay.Encoder) {
 	if !jlr.DisableTimestamp {
 		timestampFmt := jlr.TimestampFormat
 		if timestampFmt == "" {
-			if jlr.UseUTC {
-				timestampFmt = logr.DefTimestampUTCFormat
-			} else {
-				timestampFmt = logr.DefTimestampFormat
-			}
+			timestampFmt = logr.DefTimestampFormat
 		}
 		time := jlr.Time()
 		if jlr.UseUTC {

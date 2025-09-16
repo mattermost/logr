@@ -24,9 +24,6 @@ const (
 	// DefTimestampFormat is the default timestamp format used by Plain formatter and others.
 	DefTimestampFormat = "2006-01-02 15:04:05.000 Z07:00"
 
-	// DefTimestampUTCFormat is the default timestamp format by Plain formatter and others for UTC times.
-	DefTimestampUTCFormat = "2006-01-02 15:04:05.000"
-
 	// TimestampMillisFormat is the format for logging milliseconds UTC
 	TimestampMillisFormat = "Jan _2 15:04:05.000"
 )

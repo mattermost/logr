@@ -467,16 +467,11 @@ func TestJSONTimestamp(t *testing.T) {
 		timestampStr := matches[1]
 
 		// Parse the timestamp from the log output using UTC format (no timezone)
-		loggedTime, err := time.Parse(logr.DefTimestampUTCFormat, timestampStr)
+		loggedTime, err := time.Parse(logr.DefTimestampFormat, timestampStr)
 		require.NoErrorf(t, err, "Could not parse timestamp %s: %v", timestampStr, err)
 
 		// Verify the logged time is in UTC timezone and format excludes timezone suffix
 		assert.Equal(t, loggedTime.Location(), time.UTC, "Expected logged time to be in UTC timezone")
-
-		// Verify the timestamp string doesn't contain timezone information
-		// The format should be "2006-01-02 15:04:05.000" without any timezone suffix
-		assert.Len(t, timestampStr, 23, "UTC timestamp should be exactly 23 characters: 'YYYY-MM-DD HH:MM:SS.mmm'")
-		assert.False(t, strings.HasSuffix(timestampStr, "Z"), "UTC timestamp should not end with Z suffix")
 
 		// Check that the logged time is between our before/after markers (allowing 1 second buffer)
 		// Convert to UTC for comparison since the logged time is in UTC
