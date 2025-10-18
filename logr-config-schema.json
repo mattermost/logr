@@ -1,0 +1,459 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/mattermost/logr/schemas/config.json",
+  "title": "Logr Configuration Schema",
+  "description": "JSON schema for Logr logger configuration",
+  "type": "object",
+  "patternProperties": {
+    "^[a-zA-Z0-9_-]+$": {
+      "$ref": "#/definitions/target"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "target": {
+      "type": "object",
+      "required": ["type", "format", "levels"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["console", "file", "tcp", "syslog", "none"],
+          "description": "The target type for log output"
+        },
+        "options": {
+          "description": "Target-specific options",
+          "oneOf": [
+            {"$ref": "#/definitions/consoleOptions"},
+            {"$ref": "#/definitions/fileOptions"},
+            {"$ref": "#/definitions/tcpOptions"},
+            {"$ref": "#/definitions/syslogOptions"},
+            {"type": "object", "additionalProperties": true}
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "plain", "gelf"],
+          "description": "The formatter to use for log output"
+        },
+        "format_options": {
+          "description": "Formatter-specific options",
+          "oneOf": [
+            {"$ref": "#/definitions/jsonFormatOptions"},
+            {"$ref": "#/definitions/plainFormatOptions"},
+            {"$ref": "#/definitions/gelfFormatOptions"},
+            {"type": "object", "additionalProperties": true}
+          ]
+        },
+        "levels": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/level"},
+          "minItems": 1,
+          "description": "Array of log levels to process for this target"
+        },
+        "maxqueuesize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum queue size for this target (optional, defaults to system default)"
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "console"}}},
+          "then": {"properties": {"options": {"$ref": "#/definitions/consoleOptions"}}}
+        },
+        {
+          "if": {"properties": {"type": {"const": "file"}}},
+          "then": {"properties": {"options": {"$ref": "#/definitions/fileOptions"}}, "required": ["options"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "tcp"}}},
+          "then": {"properties": {"options": {"$ref": "#/definitions/tcpOptions"}}, "required": ["options"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "syslog"}}},
+          "then": {"properties": {"options": {"$ref": "#/definitions/syslogOptions"}}, "required": ["options"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "none"}}},
+          "then": {"properties": {"options": false}}
+        },
+        {
+          "if": {"properties": {"format": {"const": "json"}}},
+          "then": {"properties": {"format_options": {"$ref": "#/definitions/jsonFormatOptions"}}}
+        },
+        {
+          "if": {"properties": {"format": {"const": "plain"}}},
+          "then": {"properties": {"format_options": {"$ref": "#/definitions/plainFormatOptions"}}}
+        },
+        {
+          "if": {"properties": {"format": {"const": "gelf"}}},
+          "then": {"properties": {"format_options": {"$ref": "#/definitions/gelfFormatOptions"}}}
+        }
+      ]
+    },
+    "level": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Unique numeric identifier for the log level"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable name for the log level"
+        },
+        "stacktrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include stack traces for this level"
+        },
+        "color": {
+          "type": "integer",
+          "enum": [0, 31, 32, 33, 34, 35, 36, 37],
+          "description": "ANSI color code (0=NoColor, 31=Red, 32=Green, 33=Yellow, 34=Blue, 35=Magenta, 36=Cyan, 37=White)"
+        }
+      }
+    },
+    "consoleOptions": {
+      "type": "object",
+      "properties": {
+        "out": {
+          "type": "string",
+          "enum": ["stdout", "stderr"],
+          "default": "stdout",
+          "description": "Output stream for console target"
+        }
+      },
+      "additionalProperties": false
+    },
+    "fileOptions": {
+      "type": "object",
+      "required": ["filename"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the log file"
+        },
+        "max_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum size in megabytes before rotation (default: 100)"
+        },
+        "max_age": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum number of days to retain old log files (0 = no limit)"
+        },
+        "max_backups": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum number of old log files to retain (0 = retain all)"
+        },
+        "compress": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to compress rotated log files with gzip"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tcpOptions": {
+      "type": "object",
+      "required": ["port"],
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address (deprecated, use 'host' instead)"
+        },
+        "host": {
+          "type": "string",
+          "description": "Hostname or IP address of the TCP server"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Port number of the TCP server"
+        },
+        "tls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use TLS encryption"
+        },
+        "cert": {
+          "type": "string",
+          "description": "Path to TLS certificate file"
+        },
+        "insecure": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to skip TLS certificate verification"
+        }
+      },
+      "anyOf": [
+        {"required": ["host"]},
+        {"required": ["ip"]}
+      ],
+      "additionalProperties": false
+    },
+    "syslogOptions": {
+      "type": "object",
+      "required": ["port"],
+      "properties": {
+        "ip": {
+          "type": "string",
+          "description": "IP address (deprecated, use 'host' instead)"
+        },
+        "host": {
+          "type": "string",
+          "description": "Hostname or IP address of the syslog server"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Port number of the syslog server (0 for local syslog)"
+        },
+        "tls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use TLS encryption"
+        },
+        "cert": {
+          "type": "string",
+          "description": "Path to TLS certificate file"
+        },
+        "insecure": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to skip TLS certificate verification"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Syslog tag identifier"
+        }
+      },
+      "if": {"properties": {"port": {"not": {"const": 0}}}},
+      "then": {
+        "anyOf": [
+          {"required": ["host"]},
+          {"required": ["ip"]}
+        ]
+      },
+      "additionalProperties": false
+    },
+    "jsonFormatOptions": {
+      "type": "object",
+      "properties": {
+        "disable_timestamp": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable timestamp field output"
+        },
+        "disable_level": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable level field output"
+        },
+        "disable_msg": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable message field output"
+        },
+        "disable_fields": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable all context fields output"
+        },
+        "disable_stacktrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable stack trace output"
+        },
+        "enable_caller": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable caller (file:line) output"
+        },
+        "timestamp_format": {
+          "type": "string",
+          "description": "Custom timestamp format (Go time format)"
+        },
+        "key_timestamp": {
+          "type": "string",
+          "description": "Custom key name for timestamp field"
+        },
+        "key_level": {
+          "type": "string",
+          "description": "Custom key name for level field"
+        },
+        "key_msg": {
+          "type": "string",
+          "description": "Custom key name for message field"
+        },
+        "key_group_fields": {
+          "type": "string",
+          "description": "Key name to group all context fields under"
+        },
+        "key_stacktrace": {
+          "type": "string",
+          "description": "Custom key name for stacktrace field"
+        },
+        "key_caller": {
+          "type": "string",
+          "description": "Custom key name for caller field"
+        }
+      },
+      "additionalProperties": false
+    },
+    "plainFormatOptions": {
+      "type": "object",
+      "properties": {
+        "disable_timestamp": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable timestamp field output"
+        },
+        "disable_level": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable level field output"
+        },
+        "disable_msg": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable message field output"
+        },
+        "disable_fields": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable all context fields output"
+        },
+        "disable_stacktrace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable stack trace output"
+        },
+        "enable_caller": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable caller (file:line) output"
+        },
+        "delim": {
+          "type": "string",
+          "description": "Delimiter between log fields (default: single space)"
+        },
+        "min_level_len": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum level name length (padded with spaces)"
+        },
+        "min_msg_len": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024,
+          "description": "Minimum message length (padded with spaces)"
+        },
+        "timestamp_format": {
+          "type": "string",
+          "description": "Custom timestamp format (Go time format)"
+        },
+        "line_end": {
+          "type": "string",
+          "description": "End of line character(s) (default: '\\n')"
+        },
+        "enable_color": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable ANSI color output"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gelfFormatOptions": {
+      "type": "object",
+      "properties": {
+        "hostname": {
+          "type": "string",
+          "description": "Custom hostname (defaults to os.Hostname())"
+        },
+        "enable_caller": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable caller (file:line) output"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "console": {
+        "type": "console",
+        "options": {
+          "out": "stdout"
+        },
+        "format": "plain",
+        "format_options": {
+          "enable_color": true,
+          "delim": " | "
+        },
+        "levels": [
+          {"id": 4, "name": "info"},
+          {"id": 3, "name": "warn"},
+          {"id": 2, "name": "error", "stacktrace": true}
+        ],
+        "maxqueuesize": 1000
+      }
+    },
+    {
+      "file": {
+        "type": "file",
+        "options": {
+          "filename": "app.log",
+          "max_size": 100,
+          "max_age": 7,
+          "max_backups": 5,
+          "compress": true
+        },
+        "format": "json",
+        "format_options": {
+          "enable_caller": true
+        },
+        "levels": [
+          {"id": 5, "name": "debug"},
+          {"id": 4, "name": "info"},
+          {"id": 3, "name": "warn"},
+          {"id": 2, "name": "error", "stacktrace": true},
+          {"id": 1, "name": "fatal", "stacktrace": true},
+          {"id": 0, "name": "panic", "stacktrace": true}
+        ]
+      }
+    },
+    {
+      "remote-gelf": {
+        "type": "tcp",
+        "options": {
+          "host": "logserver.example.com",
+          "port": 12201,
+          "tls": true
+        },
+        "format": "gelf",
+        "format_options": {
+          "hostname": "webapp-01"
+        },
+        "levels": [
+          {"id": 4, "name": "info"},
+          {"id": 3, "name": "warn"},
+          {"id": 2, "name": "error", "stacktrace": true}
+        ],
+        "maxqueuesize": 5000
+      }
+    }
+  ]
+}
