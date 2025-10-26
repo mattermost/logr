@@ -104,7 +104,7 @@ func (gr gelfRecord) MarshalJSONObject(enc *gojay.Encoder) {
 		caller := logr.Field{
 			Key:    "_caller",
 			Type:   logr.StringType,
-			String: gr.LogRec.Caller(),
+			String: gr.Caller(),
 		}
 		fields = append(fields, caller)
 	}
@@ -154,7 +154,7 @@ func (g *Gelf) getHostname() string {
 	if err != nil {
 		return "unknown"
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	local := conn.LocalAddr().(*net.UDPAddr)
 	return local.IP.String()

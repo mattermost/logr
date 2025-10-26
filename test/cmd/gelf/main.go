@@ -88,7 +88,7 @@ func main() {
 		return
 	}
 
-	fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
+	_, _ = fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
 		Loops,
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),

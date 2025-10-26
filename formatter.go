@@ -151,10 +151,10 @@ func writeField(ws Writer, field Field, sep []byte, color Color) error {
 // when injecting log output into an aggregator, viewer or report.
 func shouldQuote(val string) bool {
 	for _, c := range val {
-		if !((c >= '0' && c <= '9') ||
-			(c >= 'a' && c <= 'z') ||
-			(c >= 'A' && c <= 'Z') ||
-			c == '-' || c == '.' || c == '_' || c == '/' || c == '@' || c == '^' || c == '+') {
+		if (c < '0' || c > '9') &&
+			(c < 'a' || c > 'z') &&
+			(c < 'A' || c > 'Z') &&
+			c != '-' && c != '.' && c != '_' && c != '/' && c != '@' && c != '^' && c != '+' {
 			return true
 		}
 	}

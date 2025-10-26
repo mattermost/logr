@@ -112,7 +112,7 @@ func (ss *SocketServer) signalDone(sconn *socketServerConn) {
 
 func (ss *SocketServer) StopServer(wait bool) error {
 	errs := merror.New()
-	ss.listener.Close()
+	_ = ss.listener.Close()
 
 	ss.mux.Lock()
 	// defensive copy; no more connections can be accepted so copy will stay current.

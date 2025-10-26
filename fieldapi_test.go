@@ -76,8 +76,7 @@ func TestFieldString(t *testing.T) {
 
 func TestFieldStringer(t *testing.T) {
 	_ = Stringer("stringer", time.Now())
-	type myStringer = time.Time
-	_ = Stringer("stringer", myStringer(time.Now()))
+	_ = Stringer("stringer", time.Now())
 }
 
 func TestFieldErr(t *testing.T) {

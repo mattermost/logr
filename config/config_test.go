@@ -113,5 +113,4 @@ func customFormatFactory(format string, options json.RawMessage) (logr.Formatter
 		return nil, fmt.Errorf("unknown format %s", format)
 	}
 	return &formatters.Plain{Delim: " / "}, nil
-
 }

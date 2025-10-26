@@ -34,7 +34,10 @@ func (c *syncMapLevelCache) get(id LevelID) (LevelStatus, bool) {
 	if id > MaxLevelID {
 		return LevelStatus{}, false
 	}
-	s, _ := c.m.Load(id)
+	s, ok := c.m.Load(id)
+	if !ok {
+		return LevelStatus{}, false
+	}
 	status := s.(LevelStatus)
 	return status, !status.empty
 }

@@ -227,7 +227,7 @@ func monitor(conn net.Conn, done <-chan struct{}) {
 		}
 
 		// Any other error closes the connection, forcing a reconnect.
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 }
