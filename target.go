@@ -51,8 +51,8 @@ type TargetHost struct {
 	lvlCache  levelCache // per-target level cache for faster filtering
 
 	in            chan *LogRec
-	quit          chan struct{} // closed by Shutdown to exit read loop
-	done          chan struct{} // closed when read loop exited
+	quit          chan context.Context // receives shutdown context to exit read loop
+	done          chan struct{}        // closed when read loop exited
 	targetMetrics *targetMetrics
 
 	shutdown int32
@@ -66,7 +66,7 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 		formatter: options.formatter,
 		lvlCache:  &syncMapLevelCache{}, // always use syncMap for per-target cache
 		in:        make(chan *LogRec, options.maxQueueSize),
-		quit:      make(chan struct{}),
+		quit:      make(chan context.Context, 1),
 		done:      make(chan struct{}),
 	}
 
@@ -160,18 +160,14 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 		return errors.New("targetHost shutdown called more than once")
 	}
 
-	close(h.quit)
+	// Send shutdown context to read loop instead of closing channel
+	// This allows the read loop to receive the timeout context for drainQueue
+	h.quit <- ctx
 
 	// Wait for read loop to exit and queue to drain
 	select {
 	case <-ctx.Done():
-		// Context timeout - force exit but check queue state
-		select {
-		case <-h.done:
-			// Read loop completed naturally
-		default:
-			// Read loop still running, but we must exit due to timeout
-		}
+		// Context timeout - proceed with shutdown
 	case <-h.done:
 		// Read loop exited and queue drained successfully
 	}
@@ -188,7 +184,8 @@ func (h *TargetHost) Log(rec *LogRec) {
 
 	lgr := rec.Logger().Logr()
 
-	// Use non-blocking send to prevent hanging during shutdown
+	// Attempt non-blocking send first to prevent hanging during shutdown,
+	// with a fallback to blocking send with timeout if the queue is full.
 	select {
 	case h.in <- rec:
 		// Successfully queued
@@ -206,7 +203,7 @@ func (h *TargetHost) Log(rec *LogRec) {
 		}
 		h.incBlockedCounter()
 
-		// Try again with timeout, but respect shutdown
+		// Try again with timeout
 		select {
 		case h.in <- rec:
 			// Successfully queued after wait
@@ -284,9 +281,13 @@ func (h *TargetHost) start() {
 					h.incLoggedCounter()
 				}
 			}
-		case <-h.quit:
-			// Drain remaining records in queue
-			h.drainQueue()
+		case shutdownCtx := <-h.quit:
+			if shutdownCtx != nil {
+				// close channel so that any goroutines created by the panic handler exit immediately
+				close(h.quit)
+				// Drain remaining records in queue with shutdown timeout if we have a context
+				h.drainQueue(shutdownCtx)
+			}
 			return
 		}
 	}
@@ -324,8 +325,10 @@ func (h *TargetHost) startMetricsUpdater(updateFreqMillis int64) {
 	}
 }
 
-// drainQueue processes any remaining records in the queue.
-func (h *TargetHost) drainQueue() {
+// drainQueue processes any remaining records in the queue during shutdown.
+// It respects the provided context timeout to prevent indefinite blocking.
+// Individual record processing errors are logged and the error counter is incremented.
+func (h *TargetHost) drainQueue(ctx context.Context) {
 	for {
 		select {
 		case rec := <-h.in:
@@ -341,6 +344,9 @@ func (h *TargetHost) drainQueue() {
 					h.incLoggedCounter()
 				}
 			}
+		case <-ctx.Done():
+			// Shutdown timeout reached, abandon remaining records
+			return
 		default:
 			// Queue is empty, safe to exit
 			return

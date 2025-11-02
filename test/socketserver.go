@@ -123,12 +123,19 @@ func (ss *SocketServer) StopServer(wait bool) error {
 	ss.mux.Unlock()
 
 	for _, sconn := range conns {
-		if wait {
-			select {
-			case <-sconn.done:
-			case <-time.After(time.Second * 5):
-				errs.Append(errors.New("timed out"))
-			}
+		if err := sconn.conn.Close(); err != nil {
+			errs.Append(err)
+			continue
+		}
+
+		if !wait {
+			continue
+		}
+
+		select {
+		case <-sconn.done:
+		case <-time.After(time.Second * 5):
+			errs.Append(errors.New("timed out"))
 		}
 	}
 	return errs.ErrorOrNil()
