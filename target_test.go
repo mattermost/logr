@@ -258,7 +258,13 @@ func TestTargetShutdownEmptyQueue(t *testing.T) {
 	duration := time.Since(start)
 
 	assert.NoError(t, err)
-	assert.Less(t, int64(duration), int64(100*time.Millisecond), "Empty queue shutdown took too long")
+	// Race detector adds significant overhead; relax timing constraint
+	maxDuration := 100 * time.Millisecond
+	if testing.Short() {
+		// -short flag is used with -race in CI
+		maxDuration = 500 * time.Millisecond
+	}
+	assert.Less(t, int64(duration), int64(maxDuration), "Empty queue shutdown took too long")
 	assert.Empty(t, buf.String(), "Buffer should be empty")
 }
 
