@@ -83,10 +83,10 @@ func main() {
 		for i := 0; i < LOOPS; i++ {
 			logger.Info("This is a message")
 		}
-		lgr.Flush()
+		_ = lgr.Flush()
 	}
 
-	fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
+	_, _ = fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
 		LOOPS*REPEAT,
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),
@@ -94,6 +94,6 @@ func main() {
 
 	if file != nil {
 		pprof.StopCPUProfile()
-		file.Close()
+		_ = file.Close()
 	}
 }

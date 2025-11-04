@@ -26,7 +26,7 @@ func TestPlain(t *testing.T) {
 	logger := lgr.NewLogger().With(logr.String("name", "wiggin"))
 
 	logger.Error("This is an error.")
-	lgr.Flush()
+	require.NoError(t, lgr.Flush())
 
 	got := buf.String()
 	want := "error | This is an error. | name=wiggin\n"
@@ -60,7 +60,7 @@ func TestPlainColorCustom(t *testing.T) {
 	logger := lgr.NewLogger().With(logr.String("name", "wiggin"))
 
 	logger.Log(customLevel, "This is a custom level with color.")
-	lgr.Flush()
+	require.NoError(t, lgr.Flush())
 
 	got := buf.String()
 	want := "\u001b[36mCUST\u001b[0m | This is a custom level with color. | \u001b[36mname\u001b[0m=wiggin\n"
@@ -92,7 +92,7 @@ func TestPlainColorStd(t *testing.T) {
 	logger := lgr.NewLogger().With(logr.String("name", "wiggin"))
 
 	logger.Error("This is an error level with color.")
-	lgr.Flush()
+	require.NoError(t, lgr.Flush())
 
 	got := buf.String()
 	want := "\u001b[31merror\u001b[0m | This is an error level with color. | \u001b[31mname\u001b[0m=wiggin\n"
@@ -105,7 +105,7 @@ func TestPlainColorStd(t *testing.T) {
 	logger.Warn("A warning")
 	logger.Debug("Some debug text")
 
-	lgr.Flush()
+	require.NoError(t, lgr.Flush())
 	got = buf.String()
 
 	t.Log(got)

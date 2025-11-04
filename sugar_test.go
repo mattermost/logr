@@ -136,3 +136,121 @@ func makeSugar(buf *bytes.Buffer) (logr.Sugar, func() error, error) {
 	}
 	return sugar, shutdown, nil
 }
+
+// TestSugar_AllLogLevels tests all sugar logging levels
+func TestSugar_AllLogLevels(t *testing.T) {
+	// Use Trace level to capture all logs
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Trace}
+	buf := &bytes.Buffer{}
+	target := targets.NewWriterTarget(buf)
+	lgr, _ := logr.New()
+	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
+	require.NoError(t, err)
+
+	sugar := lgr.NewLogger().Sugar()
+
+	// Test Trace
+	sugar.Trace("trace message", "arg1")
+	// Test Warn
+	sugar.Warn("warn message", "arg2")
+	// Test Print (should log at Info level)
+	sugar.Print("print message", "arg3")
+
+	err = lgr.Shutdown()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "trace message")
+	assert.Contains(t, output, "arg1")
+	assert.Contains(t, output, "warn message")
+	assert.Contains(t, output, "arg2")
+	assert.Contains(t, output, "print message")
+	assert.Contains(t, output, "arg3")
+}
+
+// TestSugar_PrintfStyleMethods tests all Printf-style sugar methods
+func TestSugar_PrintfStyleMethods(t *testing.T) {
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Trace}
+	buf := &bytes.Buffer{}
+	target := targets.NewWriterTarget(buf)
+	lgr, _ := logr.New()
+	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
+	require.NoError(t, err)
+
+	sugar := lgr.NewLogger().Sugar()
+
+	sugar.Tracef("trace %s", "formatted")
+	sugar.Debugf("debug %s", "formatted")
+	sugar.Infof("info %s", "formatted")
+	sugar.Printf("printf %s", "formatted")
+	sugar.Warnf("warn %s", "formatted")
+	sugar.Errorf("error %s", "formatted")
+
+	err = lgr.Shutdown()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "trace formatted")
+	assert.Contains(t, output, "debug formatted")
+	assert.Contains(t, output, "info formatted")
+	assert.Contains(t, output, "printf formatted")
+	assert.Contains(t, output, "warn formatted")
+	assert.Contains(t, output, "error formatted")
+}
+
+// TestSugar_StructuredMethods tests all structured (w) sugar methods
+func TestSugar_StructuredMethods(t *testing.T) {
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Trace}
+	buf := &bytes.Buffer{}
+	target := targets.NewWriterTarget(buf)
+	lgr, _ := logr.New()
+	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
+	require.NoError(t, err)
+
+	sugar := lgr.NewLogger().Sugar()
+
+	sugar.Tracew("trace msg", "key1", "val1")
+	sugar.Infow("info msg", "key2", "val2")
+	sugar.Warnw("warn msg", "key3", "val3")
+	sugar.Errorw("error msg", "key4", "val4")
+
+	err = lgr.Shutdown()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "trace msg")
+	assert.Contains(t, output, "key1=val1")
+	assert.Contains(t, output, "info msg")
+	assert.Contains(t, output, "key2=val2")
+	assert.Contains(t, output, "warn msg")
+	assert.Contains(t, output, "key3=val3")
+	assert.Contains(t, output, "error msg")
+	assert.Contains(t, output, "key4=val4")
+}
+
+// TestSugar_LogfWithoutFormat tests Logf with empty format string
+func TestSugar_LogfWithoutFormat(t *testing.T) {
+	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
+	filter := &logr.StdFilter{Lvl: logr.Info}
+	buf := &bytes.Buffer{}
+	target := targets.NewWriterTarget(buf)
+	lgr, _ := logr.New()
+	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
+	require.NoError(t, err)
+
+	sugar := lgr.NewLogger().Sugar()
+
+	// Empty format string should use Sprint instead of Sprintf
+	sugar.Logf(logr.Info, "", "arg1", "arg2", "arg3")
+
+	err = lgr.Shutdown()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "arg1")
+	assert.Contains(t, output, "arg2")
+	assert.Contains(t, output, "arg3")
+}

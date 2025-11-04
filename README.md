@@ -157,6 +157,15 @@ You can create your own formatter by implementing the [Formatter](./formatter.go
 Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error)
 ```
 
+## Performance
+
+Logr is designed for high-performance logging with minimal overhead:
+
+- **Fully asynchronous**: All formatting and I/O happens in background goroutines
+- **Aggressive caching**: Level checks are cached both globally and per-target for fast filtering
+- **Low allocation**: Extensive use of buffer pooling to minimize GC pressure
+- **Efficient filtering**: Level caching optimized for production workloads with sparse level IDs
+
 ## Configuration options
 
 When creating the Logr instance, you can set configuration options. For example:

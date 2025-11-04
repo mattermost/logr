@@ -8,7 +8,11 @@ import (
 
 func TestCreateTestLogger(t *testing.T) {
 	logger, shutdown := CreateTestLogger(t, logr.Debug, logr.Info)
-	defer shutdown()
+	defer func() {
+		if err := shutdown(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	for i := 0; i < 10; i++ {
 		if i%2 == 0 {
