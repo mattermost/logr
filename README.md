@@ -4,6 +4,8 @@
 
 # logr
 
+[![Test](https://github.com/mattermost/logr/actions/workflows/test.yml/badge.svg)](https://github.com/mattermost/logr/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/mattermost/logr/branch/master/graph/badge.svg)](https://codecov.io/gh/mattermost/logr)
 [![GoDoc](https://godoc.org/github.com/mattermost/logr?status.svg)](http://godoc.org/github.com/mattermost/logr)
 [![Report Card](https://goreportcard.com/badge/github.com/mattermost/logr)](https://goreportcard.com/report/github.com/mattermost/logr)
 
@@ -14,6 +16,51 @@ Logr is inspired by [Logrus](https://github.com/sirupsen/logrus) and [Zap](https
 2. Logr provides custom filters which provide more flexibility than Trace, Debug, Info... levels. If you need to temporarily increase verbosity of logging while tracking down a problem you can avoid the fire-hose that typically comes from Debug or Trace by using custom filters.
 
 3. Logr generates much less allocations than Logrus, and is close to Zap in allocations.
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Concepts](#concepts)
+- [Usage](#usage)
+- [Performance](#performance)
+- [Fields](#fields)
+- [Filters](#filters)
+- [Targets](#targets)
+- [Formatters](#formatters)
+- [Configuration Options](#configuration-options)
+- [License](#license)
+
+## Installation
+
+```bash
+go get github.com/mattermost/logr
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "os"
+    "github.com/mattermost/logr"
+    "github.com/mattermost/logr/formatters"
+    "github.com/mattermost/logr/targets"
+)
+
+func main() {
+    lgr, _ := logr.New()
+    filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
+    formatter := &formatters.Plain{Delim: " | "}
+    lgr.AddTarget(targets.NewWriterTarget(filter, formatter, os.Stdout, 1000))
+
+    logger := lgr.NewLogger().With(logr.String("component", "main"))
+    logger.Info("application started")
+
+    lgr.Shutdown() // Ensure logs are flushed before exit
+}
+```
 
 ## Concepts
 
@@ -37,13 +84,13 @@ lgr,_ := logr.New()
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 formatter := &formatters.Plain{Delim: " | "}
 
-// WriterTarget outputs to any io.Writer
-t := targets.NewWriterTarget(filter, formatter, os.StdOut, 1000)
+// WriterTarget outputs to any io.Writer (1000 is the queue size)
+t := targets.NewWriterTarget(filter, formatter, os.Stdout, 1000)
 lgr.AddTarget(t)
 
 // One or more Loggers can be created, shared, used concurrently,
 // or created on demand.
-logger := lgr.NewLogger().With("user", "Sarah")
+logger := lgr.NewLogger().With(logr.String("user", "Sarah"))
 
 // Now we can log to the target(s).
 logger.Debug("login attempt")
@@ -52,6 +99,15 @@ logger.Error("login failed")
 // Ensure targets are drained before application exit.
 lgr.Shutdown()
 ```
+
+## Performance
+
+Logr is designed for high-performance logging with minimal overhead:
+
+- **Fully asynchronous**: All formatting and I/O happens in background goroutines
+- **Aggressive caching**: Level checks are cached both globally and per-target for fast filtering
+- **Low allocation**: Extensive use of buffer pooling to minimize GC pressure
+- **Efficient filtering**: Level caching optimized for production workloads with sparse level IDs
 
 ## Fields
 
@@ -63,7 +119,7 @@ Fields can be added to a Logger via `Logger.With` or included with each log reco
 lgr,_ := logr.New()
 // ... add targets ...
 logger := lgr.NewLogger().With(
-    logr.Any("user": user), 
+    logr.Any("user", user),
     logr.String("role", role)
 )
 
@@ -85,7 +141,7 @@ Logr supports the traditional seven log levels via `logr.StdFilter`: Panic, Fata
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 ```
 
-Logr also supports custom filters (logr.CustomFilter) which allow fine grained inclusion of log items without turning on the fire-hose.
+Logr also supports custom filters (logr.CustomFilter) which allow fine-grained inclusion of specific log items without turning on the fire-hose. This is useful for troubleshooting customer issues, monitoring specific operations, or tracking particular workflows in production without enabling verbose logging for the entire application.
 
 ```go
   // create custom levels; use IDs > 10.
@@ -99,9 +155,9 @@ Logr also supports custom filters (logr.CustomFilter) which allow fine grained i
   filter.Add(LoginLevel, LogoutLevel)
 
   formatter := &formatters.Plain{Delim: " | "}
-  tgr := targets.NewWriterTarget(filter, formatter, os.StdOut, 1000)
+  tgr := targets.NewWriterTarget(filter, formatter, os.Stdout, 1000)
   lgr.AddTarget(tgr)
-  logger := lgr.NewLogger().With(logr.String("user": "Bob"), logr.String("role": "admin"))
+  logger := lgr.NewLogger().With(logr.String("user", "Bob"), logr.String("role", "admin"))
 
   logger.Log(LoginLevel, "this item will get logged")
   logger.Debug("won't be logged since Debug wasn't added to custom filter")
@@ -136,7 +192,7 @@ func (w *Writer) Init() error {
 
 // Write will always be called by a single internal Logr goroutine, so no locking needed.
 func (w *Writer) Write(p []byte, rec *logr.LogRec) (int, error) {
-  return w.out.Write(buf.Bytes())
+  return w.out.Write(p)
 }
 
 // Called once to cleanup/free resources for target.
@@ -157,16 +213,7 @@ You can create your own formatter by implementing the [Formatter](./formatter.go
 Format(rec *LogRec, stacktrace bool, buf *bytes.Buffer) (*bytes.Buffer, error)
 ```
 
-## Performance
-
-Logr is designed for high-performance logging with minimal overhead:
-
-- **Fully asynchronous**: All formatting and I/O happens in background goroutines
-- **Aggressive caching**: Level checks are cached both globally and per-target for fast filtering
-- **Low allocation**: Extensive use of buffer pooling to minimize GC pressure
-- **Efficient filtering**: Level caching optimized for production workloads with sparse level IDs
-
-## Configuration options
+## Configuration Options
 
 When creating the Logr instance, you can set configuration options. For example:
 
@@ -212,3 +259,7 @@ When adding your own handlers, be sure to call `Logr.Shutdown` before exiting th
 ### ```Logr.StackFilter(pkg ...string)```
 
 StackFilter sets a list of package names to exclude from the top of stack traces.  The `Logr` packages are automatically filtered.
+
+## License
+
+This project is licensed under the MIT License. See the repository for full license details.
