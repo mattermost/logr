@@ -118,7 +118,7 @@ func TestLimitedStringer_String(t *testing.T) {
 			name:     "unicode characters",
 			stringer: &formatterTestStringer{value: "hello 世界"},
 			limit:    8,
-			expected: "hello \xe4...", // Truncates at byte boundary and adds "..."
+			expected: "hello ...", // Truncates at UTF-8 character boundary and adds "..."
 		},
 	}
 

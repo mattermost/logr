@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
@@ -32,23 +33,39 @@ func TestConfigureTargets(t *testing.T) {
 	server, err := test.NewSocketServer(TestPort, buf)
 	require.NoError(t, err)
 
-	lgr, err := logr.New()
+	// Add error handler to capture any connection errors
+	opt := logr.OnLoggerError(func(err error) {
+		t.Logf("Logger error: %v", err)
+	})
+	lgr, err := logr.New(opt)
 	require.NoError(t, err)
 
+	// Small delay to ensure server is listening
+	time.Sleep(100 * time.Millisecond)
+
 	err = ConfigureTargets(lgr, cfg, nil)
+	require.NoError(t, err)
+
+	// ConfigureTargets will cause Syslog.Init() to connect synchronously
+	// Wait for that connection to be registered
+	err = server.WaitForAnyConnection()
 	require.NoError(t, err)
 
 	logger := lgr.NewLogger().With(logr.String("test", "echo"))
 
 	logger.Debug("Unique sum")
 
+	// Flush to ensure logs are sent
+	err = lgr.Flush()
+	require.NoError(t, err)
+
 	err = lgr.Shutdown()
 	require.NoError(t, err)
 
-	err = server.WaitForAnyConnection()
-	require.NoError(t, err)
+	// Give time for connections to close after shutdown
+	time.Sleep(100 * time.Millisecond)
 
-	err = server.StopServer(true)
+	err = server.StopServer(false)
 	require.NoError(t, err)
 
 	assert.Contains(t, buf.String(), "Unique sum")

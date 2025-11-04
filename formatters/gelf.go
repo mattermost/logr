@@ -116,7 +116,7 @@ func (gr gelfRecord) MarshalJSONObject(enc *gojay.Encoder) {
 
 	if len(fields) > 0 {
 		for _, field := range fields {
-			if !strings.HasPrefix("_", field.Key) {
+			if !strings.HasPrefix(field.Key, "_") {
 				field.Key = "_" + field.Key
 			}
 			if err := encodeField(enc, field); err != nil {

@@ -53,11 +53,20 @@ func (to TcpOptions) CheckValid() error {
 	return nil
 }
 
+// GetHost returns the host to connect to, using Host field if set,
+// otherwise falling back to the deprecated IP field.
+func (to TcpOptions) GetHost() string {
+	if to.Host != "" {
+		return to.Host
+	}
+	return to.IP
+}
+
 // NewTcpTarget creates a target capable of outputting log records to a raw socket, with or without TLS.
 func NewTcpTarget(options *TcpOptions) *Tcp {
 	tcp := &Tcp{
 		options:  options,
-		addy:     fmt.Sprintf("%s:%d", options.IP, options.Port),
+		addy:     fmt.Sprintf("%s:%d", options.GetHost(), options.Port),
 		monitor:  make(chan struct{}),
 		shutdown: make(chan struct{}),
 	}
@@ -112,9 +121,11 @@ func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
 // dial connects to a TCP socket, and optionally performs a TLS handshake.
 // A non-nil context must be provided which can cancel the dial.
 func (tcp *Tcp) dial(ctx context.Context) (net.Conn, error) {
+	host := tcp.options.GetHost()
+
 	var dialer net.Dialer
 	dialer.Timeout = time.Second * DialTimeoutSecs
-	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", tcp.options.IP, tcp.options.Port))
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, tcp.options.Port))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +135,7 @@ func (tcp *Tcp) dial(ctx context.Context) (net.Conn, error) {
 	}
 
 	tlsconfig := &tls.Config{
-		ServerName:         tcp.options.IP,
+		ServerName:         host,
 		InsecureSkipVerify: tcp.options.Insecure,
 	}
 
@@ -236,7 +247,7 @@ func monitor(conn net.Conn, done <-chan struct{}) {
 
 // String returns a string representation of this target.
 func (tcp *Tcp) String() string {
-	return fmt.Sprintf("TcpTarget[%s:%d]", tcp.options.IP, tcp.options.Port)
+	return fmt.Sprintf("TcpTarget[%s:%d]", tcp.options.GetHost(), tcp.options.Port)
 }
 
 func (tcp *Tcp) sleep(backoff int64) int64 {
