@@ -148,11 +148,18 @@ func TestBufferPool_NoLeaks(t *testing.T) {
 	runtime.ReadMemStats(&m2)
 
 	// Memory growth should be minimal (pool reuses buffers)
-	growth := m2.Alloc - m1.Alloc
+	// Handle case where GC freed memory between measurements (m2.Alloc < m1.Alloc)
+	var growth int64
+	if m2.Alloc >= m1.Alloc {
+		growth = int64(m2.Alloc - m1.Alloc)
+	} else {
+		// Memory decreased, no leak
+		growth = 0
+	}
 	t.Logf("Memory growth: %d bytes after %d iterations", growth, iterations)
 
 	// Allow some growth for pool itself and other overhead, but not linear with iterations
-	maxExpectedGrowth := uint64(iterations * 100) // 100 bytes per iteration would indicate leak
+	maxExpectedGrowth := int64(iterations * 100) // 100 bytes per iteration would indicate leak
 	assert.Less(t, growth, maxExpectedGrowth, "Excessive memory growth indicates buffer leak")
 }
 

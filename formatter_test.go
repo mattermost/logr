@@ -1,6 +1,11 @@
 package logr
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestShouldQuote(t *testing.T) {
 	tests := []struct {
@@ -62,4 +67,75 @@ func TestShouldQuote(t *testing.T) {
 			}
 		})
 	}
+}
+
+type formatterTestStringer struct {
+	value string
+}
+
+func (ts *formatterTestStringer) String() string {
+	return ts.value
+}
+
+func TestLimitedStringer_String(t *testing.T) {
+	tests := []struct {
+		name     string
+		stringer fmt.Stringer
+		limit    int
+		expected string
+	}{
+		{
+			name:     "string shorter than limit",
+			stringer: &formatterTestStringer{value: "hello"},
+			limit:    10,
+			expected: "hello",
+		},
+		{
+			name:     "string equal to limit",
+			stringer: &formatterTestStringer{value: "hello"},
+			limit:    5,
+			expected: "hello",
+		},
+		{
+			name:     "string longer than limit",
+			stringer: &formatterTestStringer{value: "hello world"},
+			limit:    5,
+			expected: "hello...", // LimitString adds "..." when truncating
+		},
+		{
+			name:     "empty string",
+			stringer: &formatterTestStringer{value: ""},
+			limit:    10,
+			expected: "",
+		},
+		{
+			name:     "zero limit",
+			stringer: &formatterTestStringer{value: "hello"},
+			limit:    0,
+			expected: "hello", // limit <= 0 returns original string
+		},
+		{
+			name:     "unicode characters",
+			stringer: &formatterTestStringer{value: "hello 世界"},
+			limit:    8,
+			expected: "hello \xe4...", // Truncates at byte boundary and adds "..."
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ls := &LimitedStringer{
+				Stringer: tt.stringer,
+				Limit:    tt.limit,
+			}
+			result := ls.String()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDefaultFormatter_IsStacktraceNeeded(t *testing.T) {
+	formatter := &DefaultFormatter{}
+	result := formatter.IsStacktraceNeeded()
+	assert.False(t, result, "DefaultFormatter should not need stacktrace")
 }
