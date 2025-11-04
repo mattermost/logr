@@ -141,7 +141,8 @@ Logr supports the traditional seven log levels via `logr.StdFilter`: Panic, Fata
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 ```
 
-Logr also supports custom filters (logr.CustomFilter) which allow fine-grained inclusion of specific log items without turning on the fire-hose. This is useful for troubleshooting customer issues, monitoring specific operations, or tracking particular workflows in production without enabling verbose logging for the entire application.
+Logr also supports custom filters (`logr.CustomFilter`), which allow fine-grained inclusion of specific log items without turning on the fire-hose.
+Custom filters are useful for troubleshooting customer issues, monitoring specific operations, or tracking particular workflows in production without enabling verbose logging for the entire application.
 
 ```go
   // create custom levels; use IDs > 10.
