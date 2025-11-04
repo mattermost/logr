@@ -34,7 +34,7 @@ Logr is inspired by [Logrus](https://github.com/sirupsen/logrus) and [Zap](https
 ## Installation
 
 ```bash
-go get github.com/mattermost/logr
+go get github.com/mattermost/logr/v2
 ```
 
 ## Quick Start
@@ -44,16 +44,17 @@ package main
 
 import (
     "os"
-    "github.com/mattermost/logr"
-    "github.com/mattermost/logr/formatters"
-    "github.com/mattermost/logr/targets"
+    "github.com/mattermost/logr/v2"
+    "github.com/mattermost/logr/v2/formatters"
+    "github.com/mattermost/logr/v2/targets"
 )
 
 func main() {
     lgr, _ := logr.New()
     filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
     formatter := &formatters.Plain{Delim: " | "}
-    lgr.AddTarget(targets.NewWriterTarget(filter, formatter, os.Stdout, 1000))
+    target := targets.NewWriterTarget(os.Stdout)
+    lgr.AddTarget(target, "console", filter, formatter, 1000)
 
     logger := lgr.NewLogger().With(logr.String("component", "main"))
     logger.Info("application started")
@@ -84,9 +85,9 @@ lgr,_ := logr.New()
 filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 formatter := &formatters.Plain{Delim: " | "}
 
-// WriterTarget outputs to any io.Writer (1000 is the queue size)
-t := targets.NewWriterTarget(filter, formatter, os.Stdout, 1000)
-lgr.AddTarget(t)
+// WriterTarget outputs to any io.Writer
+t := targets.NewWriterTarget(os.Stdout)
+lgr.AddTarget(t, "console", filter, formatter, 1000)
 
 // One or more Loggers can be created, shared, used concurrently,
 // or created on demand.
@@ -156,8 +157,8 @@ Custom filters are useful for troubleshooting customer issues, monitoring specif
   filter.Add(LoginLevel, LogoutLevel)
 
   formatter := &formatters.Plain{Delim: " | "}
-  tgr := targets.NewWriterTarget(filter, formatter, os.Stdout, 1000)
-  lgr.AddTarget(tgr)
+  tgr := targets.NewWriterTarget(os.Stdout)
+  lgr.AddTarget(tgr, "console", filter, formatter, 1000)
   logger := lgr.NewLogger().With(logr.String("user", "Bob"), logr.String("role", "admin"))
 
   logger.Log(LoginLevel, "this item will get logged")
