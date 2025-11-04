@@ -128,3 +128,23 @@ jobs:
 
       - name: Run tests with race detector
         run: go test -race -short ./...
+
+  # Summary job that all other jobs depend on
+  # This provides a single status check for branch protection
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [lint, format, vet, test, race]
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.format.result }}" != "success" ] || \
+             [ "${{ needs.vet.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.race.result }}" != "success" ]; then
+            echo "One or more test jobs failed"
+            exit 1
+          fi
+          echo "All tests passed!"
