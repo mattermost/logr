@@ -31,8 +31,14 @@ func Test_GetCertPoolOrNil(t *testing.T) {
 	}
 	for _, tt := range tests {
 		oldEnv := os.Getenv(targets.DefaultCertKey)
-		os.Setenv(targets.DefaultCertKey, tt.defCert)
-		defer os.Setenv(targets.DefaultCertKey, oldEnv)
+		if err := os.Setenv(targets.DefaultCertKey, tt.defCert); err != nil {
+			t.Fatalf("failed to set environment variable: %v", err)
+		}
+		defer func(oldVal string) {
+			if err := os.Setenv(targets.DefaultCertKey, oldVal); err != nil {
+				t.Errorf("failed to restore environment variable: %v", err)
+			}
+		}(oldEnv)
 
 		t.Run(tt.name, func(t *testing.T) {
 			pool, err := targets.GetCertPoolOrNil(tt.cert)
@@ -48,8 +54,10 @@ func Test_GetCertPoolOrNil(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, pool)
 
-				// Test PEM has 2 certs.
-				subjects := pool.Subjects()
+				// Test PEM has 2 certs. Note: pool.Subjects() is deprecated but
+				// there's no direct replacement for counting certificates in a pool.
+				// This is acceptable in test code for validation purposes.
+				subjects := pool.Subjects() //nolint:staticcheck
 				assert.Len(t, subjects, 2)
 			}
 		})
