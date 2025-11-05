@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"sync/atomic"
 	"time"
@@ -72,7 +72,7 @@ func main() {
 	}
 
 	// create writer target to /dev/null
-	t = targets.NewWriterTarget(ioutil.Discard)
+	t = targets.NewWriterTarget(io.Discard)
 	err = lgr.AddTarget(t, "discard", filter, formatter, 1000)
 	if err != nil {
 		panic(err)

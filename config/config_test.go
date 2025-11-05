@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -22,7 +22,7 @@ const (
 )
 
 func TestConfigureTargets(t *testing.T) {
-	b, err := ioutil.ReadFile("sample-config.json")
+	b, err := os.ReadFile("sample-config.json")
 	require.NoError(t, err, "should read file without error")
 
 	var cfg map[string]TargetCfg

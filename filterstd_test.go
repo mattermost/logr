@@ -74,10 +74,10 @@ func TestStdFilter_IsStacktraceEnabled(t *testing.T) {
 
 func TestStdFilter_GetEnabledLevel(t *testing.T) {
 	tests := []struct {
-		name              string
-		filter            logr.StdFilter
-		level             logr.Level
-		expectedEnabled   bool
+		name               string
+		filter             logr.StdFilter
+		level              logr.Level
+		expectedEnabled    bool
 		expectedStacktrace bool
 	}{
 		{"Error enabled with Error filter", logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}, logr.Error, true, true},

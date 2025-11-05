@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"runtime/pprof"
 	"sync/atomic"
@@ -59,7 +59,7 @@ func main() {
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &formatters.Plain{Delim: " | "}
-	t = targets.NewWriterTarget(ioutil.Discard)
+	t = targets.NewWriterTarget(io.Discard)
 	err := lgr.AddTarget(t, "simple", filter, formatter, QSIZE)
 	if err != nil {
 		panic(err)

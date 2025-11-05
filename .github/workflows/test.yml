@@ -12,32 +12,130 @@ permissions:
   pull-requests: write
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.6.0
+
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+          cache: true
+
+      - name: Check formatting
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "The following files are not formatted:"
+            gofmt -s -l .
+            exit 1
+          fi
+
+  vet:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+          cache: true
+
+      - name: Run go vet
+        run: go vet ./...
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+          cache: true
+
+      - name: Add dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install rsyslog -y
+          sudo service rsyslog start
+
+      - name: Run tests with coverage
+        run: |
+          go install gotest.tools/gotestsum@latest
+          mkdir -p test-reports
+          gotestsum --junitfile test-reports/unit-tests.xml -- -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          flags: unittests
+          fail_ci_if_error: false
+
+      - name: Publish Unit Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-reports/unit-tests.xml
+
+  race:
+    name: Race Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+          cache: true
+
+      - name: Add dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install rsyslog -y
+          sudo service rsyslog start
+
+      - name: Run tests with race detector
+        run: go test -race -short ./...
+
+  # This is the job that branch protection looks for
   test:
     runs-on: ubuntu-latest
-
+    needs: [lint, format, vet, unit-tests, race]
+    if: always()
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.23.x
-
-    - name: Add dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install rsyslog -y
-        sudo service rsyslog start
-
-    - name: Run tests
-      run: |
-        go install gotest.tools/gotestsum@latest
-        mkdir -p test-reports
-        gotestsum --junitfile test-reports/unit-tests.xml
-
-    - name: Publish Unit Test Results
-      uses: EnricoMi/publish-unit-test-result-action@v1
-      if: always()
-      with:
-        files: test-reports/unit-tests.xml
+      - name: All checks passed
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Some checks failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1

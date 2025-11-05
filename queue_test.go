@@ -266,16 +266,16 @@ func TestBackpressure_SlowTargetDoesNotBlockOthers(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	// Fast target
-	fastBuf := &bytes.Buffer{}
+	// Fast target - use thread-safe buffer
+	fastBuf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	fastTarget := test.NewSlowTarget(fastBuf, 1) // 1ms
 	err = lgr.AddTarget(fastTarget, "fast", filter, formatter, 50)
 	require.NoError(t, err)
 
-	// Slow target
-	slowBuf := &bytes.Buffer{}
+	// Slow target - use thread-safe buffer
+	slowBuf := &test.Buffer{}
 	slowTarget := test.NewSlowTarget(slowBuf, 50) // 50ms
 	err = lgr.AddTarget(slowTarget, "slow", filter, formatter, 10)
 	require.NoError(t, err)
@@ -292,6 +292,7 @@ func TestBackpressure_SlowTargetDoesNotBlockOthers(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Fast target should have processed more records than slow target
+	// Safe to read now - using thread-safe Buffer
 	fastOutput := fastBuf.String()
 	slowOutput := slowBuf.String()
 
