@@ -5,7 +5,6 @@
 # logr
 
 [![Test](https://github.com/mattermost/logr/actions/workflows/test.yml/badge.svg)](https://github.com/mattermost/logr/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/mattermost/logr/branch/master/graph/badge.svg)](https://codecov.io/gh/mattermost/logr)
 [![GoDoc](https://godoc.org/github.com/mattermost/logr?status.svg)](http://godoc.org/github.com/mattermost/logr)
 [![Report Card](https://goreportcard.com/badge/github.com/mattermost/logr)](https://goreportcard.com/report/github.com/mattermost/logr)
 

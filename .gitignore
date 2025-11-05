@@ -21,6 +21,9 @@ dynip
 # IntelliJ config
 .idea
 
+# VS Code config
+.vscode
+
 # log files
 *.log
 

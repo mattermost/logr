@@ -92,13 +92,6 @@ jobs:
           mkdir -p test-reports
           gotestsum --junitfile test-reports/unit-tests.xml -- -coverprofile=coverage.out -covermode=atomic ./...
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.out
-          flags: unittests
-          fail_ci_if_error: false
-
       - name: Publish Unit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
