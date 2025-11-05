@@ -1,4 +1,4 @@
-.PHONY: help test test-verbose test-race test-cover bench fmt lint clean check-fmt vet
+.PHONY: help test test-verbose test-race test-cover codecov bench fmt lint clean check-fmt vet
 
 # Build variables
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -33,6 +33,17 @@ test-cover:
 	$(GO) test $(GOFLAGS) -coverprofile=coverage.out ./...
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
+
+## codecov: Run tests with coverage and display summary
+codecov:
+	$(GO) test $(GOFLAGS) -coverprofile=coverage.out -covermode=atomic ./...
+	@echo ""
+	@echo "Coverage Summary:"
+	@$(GO) tool cover -func=coverage.out
+	@echo ""
+	@echo "Generating HTML report..."
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	@echo "HTML coverage report: coverage.html"
 
 ## bench: Run benchmarks
 bench:

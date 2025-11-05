@@ -11,6 +11,7 @@ dynip
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage.html
 
 # Output of profiler
 *.prof
@@ -33,6 +34,7 @@ output
 build
 app
 logs
+test-reports
 
 # test apps
 test/cmd/testapp1/testapp1

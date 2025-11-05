@@ -86,11 +86,11 @@ jobs:
           sudo apt-get install rsyslog -y
           sudo service rsyslog start
 
-      - name: Run tests with coverage
+      - name: Run tests
         run: |
           go install gotest.tools/gotestsum@latest
           mkdir -p test-reports
-          gotestsum --junitfile test-reports/unit-tests.xml -- -coverprofile=coverage.out -covermode=atomic ./...
+          gotestsum --junitfile test-reports/unit-tests.xml ./...
 
       - name: Publish Unit Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
