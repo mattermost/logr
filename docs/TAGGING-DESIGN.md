@@ -138,6 +138,146 @@ Total: ~8ns per target (no key generation!)
 
 **Performance**: Interning cost ~100ns per log, but eliminates all key generation overhead (~265ns saved) = net 165ns gain.
 
+## Legacy Code Removal and Refactoring
+
+This section documents what needs to be removed or significantly refactored during the tag system implementation.
+
+### Types to Remove Completely
+
+**1. `Level` type (`level.go`)**
+- **Current**: Struct representing hierarchical log levels (Debug, Info, Warn, Error, etc.)
+- **Replacement**: Tags (strings internally converted to TagIDs)
+- **Rationale**: Tags eliminate artificial hierarchy constraints
+- **API Impact**: None - logger methods like `Debug()`, `Info()`, etc. remain unchanged as primary API
+
+**2. `StdFilter` type (`filterstd.go`)**
+- **Current**: Standard filter implementation using Level hierarchy
+- **Replacement**: `TagFilter` with ANY-match logic
+- **Rationale**: Tags don't need hierarchical comparison (level >= threshold)
+- **Migration**: Convert StdFilter configs to equivalent tag lists
+
+**3. `CustomFilter` type (`filtercustom.go`)**
+- **Current**: Custom filter for non-standard levels
+- **Replacement**: Unified `TagFilter` handles all cases
+- **Rationale**: No distinction between "standard" and "custom" with tags
+- **Migration**: All custom levels become tags automatically
+
+**4. `LevelStatus` type (`levelcache.go`)**
+- **Current**: Caches whether a level is enabled and requires stacktrace
+- **Replacement**: `TagStatus` with same fields but for tag combinations
+- **Rationale**: Same caching concept, different key type (tags vs levels)
+
+### Types to Refactor Significantly
+
+**1. `Filter` interface (`filter.go`)**
+
+**Current signature:**
+```go
+type Filter interface {
+    GetEnabledLevel(level Level) (Level, bool)
+}
+```
+
+**New signature:**
+```go
+type Filter interface {
+    IsEnabled(tags []string) bool
+    RequiresStacktrace(tags []string) bool
+}
+```
+
+**Changes:**
+- Remove `GetEnabledLevel()` - no longer meaningful without level hierarchy
+- Add `IsEnabled(tags []string) bool` - ANY-match logic for tag filtering
+- Add `RequiresStacktrace(tags []string) bool` - check if any tag requires stacktrace
+- Simpler interface: boolean checks instead of level resolution
+
+**Rationale for keeping Filter interface:**
+- ✅ Maintains extensibility - users can implement custom filtering logic
+- ✅ Enables testing - easy to mock filter behavior
+- ✅ Decouples filtering from caching - filters define logic, caches optimize it
+- ✅ Future-proof - room for AND/OR/NOT combinations or other logic
+
+**Alternative considered: Remove Filter interface entirely**
+- ❌ Would hardcode tag filtering logic into TargetHost
+- ❌ Loses extensibility for custom filtering strategies
+- ❌ Makes testing harder (can't inject test filters)
+- ❌ No performance benefit (caching eliminates filter call overhead on hot path)
+
+**Decision: Keep Filter interface** with new signature. Filters are only called during cache rebuilds (cold path), not during log emission (hot path), so flexibility outweighs any theoretical simplification.
+
+### Files to Remove
+
+- `filterstd.go` - standard level filtering
+- `filtercustom.go` - custom level filtering
+
+### Files to Refactor Significantly
+
+- `filter.go` - Update Filter interface
+- `level.go` - Remove internal Level type implementation (can delete file entirely)
+- `levelcache.go` - Rename to `tagcache.go`, replace LevelStatus with TagStatus
+- `logr.go` - Add interning infrastructure, replace level caching with tag caching
+- `targethost.go` - Replace level cache with per-tag array cache
+- `logger.go` - Update log methods to use tags internally (API signatures unchanged)
+
+### Backward Compatibility Strategy
+
+**Keep as first-class API (NOT deprecated):**
+```go
+// Logger convenience methods remain unchanged as primary API
+// They simply use tags internally instead of Level types
+func (l *Logger) Debug(msg string) {
+    l.WithTags("debug").Log(msg)  // Internal implementation
+}
+
+func (l *Logger) Info(msg string) {
+    l.WithTags("info").Log(msg)
+}
+
+func (l *Logger) Warn(msg string) {
+    l.WithTags("warn").Log(msg)
+}
+
+func (l *Logger) Error(msg string) {
+    l.WithTags("error").Log(msg)
+}
+// ... etc - all level methods remain as core, supported API
+```
+
+**Rationale:**
+- These methods are too commonly used to deprecate
+- Users don't need to change any code
+- Internal implementation changes from Level to tags (invisible to users)
+- No breaking changes to public API
+
+**Remove entirely (internal only):**
+- StdFilter, CustomFilter implementations
+- Level type (internal struct, not public constants)
+- LevelStatus type (replace with TagStatus)
+- Old Filter interface signature
+
+### Migration Checklist
+
+**Phase 1: Core Removal**
+- [ ] Remove `StdFilter` and `CustomFilter` types
+- [ ] Update `Filter` interface signature
+- [ ] Implement `TagFilter` with ANY-match logic
+- [ ] Replace `LevelStatus` with `TagStatus`
+- [ ] Add string-to-integer interning infrastructure
+- [ ] Implement COW per-tag array caching
+
+**Phase 2: API Compatibility**
+- [ ] Convert existing level methods to use tags internally
+- [ ] Keep all logger method signatures unchanged (Debug, Info, Warn, Error, etc.)
+- [ ] Update configuration parsing to handle both formats
+- [ ] Ensure all tests pass with new implementation
+
+**Phase 3: Cleanup**
+- [ ] Remove all internal Level type implementation
+- [ ] Update documentation to explain tags (show both convenience methods and WithTags)
+- [ ] Add user guide showing new tag capabilities (exclusions, attributes, etc.)
+- [ ] Remove legacy filter implementations entirely
+
 ### 7. Copy-on-Write (COW) Per-Tag Array Caching Strategy
 
 **Decision**: Cache individual tag status in dynamically-growing copy-on-write (COW) arrays indexed by TagID, not tag combinations. Use atomic.Value for lock-free reads.
@@ -580,6 +720,57 @@ func (h *TargetHost) rebuildTagCache(lgr *Logr) {
     h.tagArrays.Store(newArrays)
 }
 
+// Optimization: Incremental cache updates for single tag additions
+//
+// Current approach: Full rebuild iterates through all TagIDs for all targets.
+// For N targets and M tags: O(N × M) cost per rebuild.
+//
+// Optimization opportunity: When only adding a single new tag (not changing config),
+// could do incremental update:
+//
+// func (lgr *Logr) addTagToCache(id TagID) {
+//     current := lgr.tagArrays.Load().(*logrTagArrays)
+//
+//     // If array too small, still need full rebuild with growth
+//     if int(id) >= len(current.includedByAny) {
+//         lgr.rebuildTagCache()
+//         return
+//     }
+//
+//     // COW: copy current arrays
+//     newArrays := &logrTagArrays{
+//         includedByAny: append([]bool{}, current.includedByAny...),
+//         excludedByAny: append([]bool{}, current.excludedByAny...),
+//         needsStack:    append([]bool{}, current.needsStack...),
+//     }
+//
+//     // Update only the new tag's entry
+//     tagName := lgr.GetTagName(id)
+//     lgr.tmux.RLock()
+//     for _, host := range lgr.targetHosts {
+//         if host.filter.IsEnabled([]string{tagName}) {
+//             newArrays.includedByAny[id] = true
+//             if host.filter.RequiresStacktrace([]string{tagName}) {
+//                 newArrays.needsStack[id] = true
+//             }
+//             break
+//         }
+//     }
+//     lgr.tmux.RUnlock()
+//
+//     lgr.tagArrays.Store(newArrays)
+// }
+//
+// Trade-off analysis:
+// - Full rebuild cost: O(N × M) - scales with targets and existing tags
+// - Incremental cost: O(N + M) - array copy + check N targets for one tag
+// - Worth it when: M > ~10 tags and config changes are rare
+// - Complexity: Adds code paths, must handle array growth vs incremental update
+//
+// Decision: Defer to Phase 3 (Production Validation). Full rebuilds happen
+// infrequently (config changes only), and cost is acceptable for most use cases.
+// Profile in production to determine if incremental updates are worthwhile.
+
 // TagFilter.IsEnabled() only used during cache rebuild, not on hot path
 func (f *TagFilter) IsEnabled(logTags []string) bool {
     f.mux.RLock()
@@ -737,6 +928,564 @@ Even with integer keys, combination caching has overhead:
 - Must join/format keys: ~20ns
 - Happens 5× per log = 150ns wasted
 - Per-tag arrays eliminate this entirely by checking each tag individually
+
+## Implementation Guide
+
+This section provides concrete, step-by-step guidance for implementing the tag system.
+
+### New API: Logger.WithTags()
+
+**Signature:**
+```go
+// WithTags creates a new Logger with the specified tags.
+// Tags are additive - they combine with any tags from parent loggers.
+func (logger Logger) WithTags(tags ...string) Logger
+```
+
+**Behavior:**
+```go
+// Logger struct needs new field
+type Logger struct {
+    lgr    *Logr
+    fields []Field
+    tags   []string  // NEW: accumulated tags
+}
+
+// Implementation
+func (logger Logger) WithTags(tags ...string) Logger {
+    l := Logger{
+        lgr:    logger.lgr,
+        fields: logger.fields, // Share fields slice (immutable)
+    }
+
+    // Combine existing tags with new ones
+    if len(logger.tags) > 0 || len(tags) > 0 {
+        l.tags = make([]string, 0, len(logger.tags)+len(tags))
+        l.tags = append(l.tags, logger.tags...)
+        l.tags = append(l.tags, tags...)
+    }
+
+    return l
+}
+```
+
+**Usage patterns:**
+```go
+// Single tag
+logger := lgr.NewLogger().WithTags("debug")
+
+// Multiple tags
+logger := lgr.NewLogger().WithTags("debug", "auth", "security")
+
+// Chaining (tags accumulate)
+logger := lgr.NewLogger().
+    WithTags("debug").
+    WithTags("auth").
+    With(Field{Key: "user", String: "bob"})
+// Result: tags = ["debug", "auth"], fields = [user=bob]
+
+// Convenience methods add their tag automatically
+logger.Debug("message")  // Internally: WithTags("debug").Log("message")
+```
+
+### LogRec Structure Changes
+
+**Current:**
+```go
+type LogRec struct {
+    level  Level  // OLD: single level
+    // ... other fields
+}
+```
+
+**New:**
+```go
+type LogRec struct {
+    tagIDs []TagID  // NEW: interned tag IDs (replaces level)
+    // ... other fields
+}
+```
+
+**Constructor changes:**
+```go
+// Old signature
+func NewLogRec(lvl Level, logger Logger, msg string, fields []Field, stacktrace bool) *LogRec
+
+// New signature
+func NewLogRec(tagIDs []TagID, logger Logger, msg string, fields []Field, stacktrace bool) *LogRec {
+    rec := &LogRec{
+        time:    time.Now(),
+        tagIDs:  tagIDs,  // Store interned IDs, not strings
+        logger:  logger,
+        msg:     msg,
+        fields:  fields,
+    }
+
+    if stacktrace {
+        rec.stackPC = make([]uintptr, DefaultMaxStackFrames)
+        rec.stackCount = runtime.Callers(3, rec.stackPC)
+    }
+
+    return rec
+}
+```
+
+### Configuration Parsing
+
+**JSON/YAML format:**
+```json
+{
+  "targets": {
+    "console": {
+      "type": "console",
+      "tags": ["info:cyan", "warn:yellow", "^error:red", "debug", "!content"],
+      "format": "plain"
+    }
+  }
+}
+```
+
+**Parsing implementation:**
+```go
+// In config package
+type TargetConfig struct {
+    Type        string   `json:"type"`
+    Tags        []string `json:"tags"`  // NEW: replaces "levels"
+    Format      string   `json:"format"`
+    MaxQueueSize int     `json:"maxqueuesize"`
+    // ... other fields
+}
+
+// Parse each target's config
+func (tc *TargetConfig) CreateFilter() Filter {
+    filter := &TagFilter{
+        includeTags: make(map[string]TagAttributes),
+        excludeTags: make(map[string]bool),
+    }
+
+    for _, tagStr := range tc.Tags {
+        attrs := ParseTag(tagStr)
+
+        // Check for exclusion prefix (before parsing other attributes)
+        if strings.HasPrefix(tagStr, "!") {
+            filter.excludeTags[attrs.Name] = true
+            continue
+        }
+
+        filter.includeTags[attrs.Name] = attrs
+    }
+
+    return filter
+}
+
+// ParseTag extracts attributes from config tag strings
+// Called during configuration loading, NOT on hot path
+func ParseTag(tag string) TagAttributes {
+    attrs := TagAttributes{}
+    original := tag
+
+    // Check for exclusion prefix
+    if strings.HasPrefix(tag, "!") {
+        tag = tag[1:]
+        attrs.Name = tag
+        return attrs  // Exclusions don't have other attributes
+    }
+
+    // Check for stacktrace prefix
+    if strings.HasPrefix(tag, "^") {
+        attrs.Stacktrace = true
+        tag = tag[1:]
+    }
+
+    // Check for color suffix
+    if idx := strings.LastIndex(tag, ":"); idx != -1 {
+        colorName := tag[idx+1:]
+        attrs.Color = ParseColor(colorName)
+        tag = tag[:idx]
+    }
+
+    attrs.Name = tag
+
+    // Validate tag name
+    if attrs.Name == "" {
+        panic(fmt.Sprintf("invalid tag configuration: %q", original))
+    }
+
+    return attrs
+}
+```
+
+**Backward compatibility with levels:**
+```go
+// Support old "levels" config for migration
+type TargetConfig struct {
+    Levels []string `json:"levels"`  // DEPRECATED: converted to tags
+    Tags   []string `json:"tags"`    // NEW
+}
+
+// During parsing, convert levels to tags if present
+if len(tc.Levels) > 0 && len(tc.Tags) == 0 {
+    tc.Tags = tc.Levels  // Direct conversion: "debug" → "debug"
+}
+```
+
+### Step-by-Step Implementation Order
+
+**Phase 1: Foundation (New Types & Interfaces)**
+
+1. **Create `tagcache.go`** (new file)
+   ```go
+   // Core types
+   type TagID uint32
+
+   type TagStatus struct {
+       Enabled    bool
+       Stacktrace bool
+   }
+
+   type TagAttributes struct {
+       Name       string
+       Stacktrace bool
+       Color      Color
+   }
+
+   type tagArrays struct {
+       included []bool
+       excluded []bool
+   }
+
+   type logrTagArrays struct {
+       includedByAny []bool
+       excludedByAny []bool
+       needsStack    []bool
+   }
+
+   const initialTagCacheCapacity = 128
+   ```
+
+2. **Update `filter.go`**
+   - Change Filter interface signature
+   - Document new contract
+   ```go
+   type Filter interface {
+       IsEnabled(tags []string) bool
+       RequiresStacktrace(tags []string) bool
+   }
+   ```
+
+3. **Create `filtertag.go`** (new file - replaces filterstd.go and filtercustom.go)
+   ```go
+   type TagFilter struct {
+       includeTags map[string]TagAttributes
+       excludeTags map[string]bool
+       mux         sync.RWMutex
+   }
+
+   func (f *TagFilter) IsEnabled(logTags []string) bool {
+       // Implementation from design doc
+   }
+
+   func (f *TagFilter) RequiresStacktrace(logTags []string) bool {
+       // Check if any tag has stacktrace attribute
+   }
+
+   func ParseTag(tag string) TagAttributes {
+       // Implementation from above
+   }
+   ```
+
+**Phase 2: Core Infrastructure (Interning & Caching)**
+
+4. **Update `logr.go`** - Add interning infrastructure
+   ```go
+   type Logr struct {
+       // ... existing fields ...
+
+       // String-to-integer interning (NEW)
+       stringToID  sync.Map      // map[string]TagID
+       idToString  sync.Map      // map[TagID]string
+       nextID      atomic.Uint32
+
+       // Top-level COW cache (NEW)
+       tagArrays   atomic.Value  // stores *logrTagArrays
+       rebuildMux  sync.Mutex
+   }
+
+   // Add methods:
+   func (lgr *Logr) internTag(tag string) TagID { /* ... */ }
+   func (lgr *Logr) InternTags(tags []string) []TagID { /* ... */ }
+   func (lgr *Logr) GetTagName(id TagID) string { /* ... */ }
+   func (lgr *Logr) GetTagNames(ids []TagID) []string { /* ... */ }
+   func (lgr *Logr) GetMaxTagID() TagID { /* ... */ }
+   func (lgr *Logr) AreTagsEnabled(tagIDs []TagID) TagStatus { /* ... */ }
+   func (lgr *Logr) rebuildTagCache() { /* ... */ }
+   ```
+
+5. **Update `targethost.go`** - Add per-target COW cache
+   ```go
+   type TargetHost struct {
+       // ... existing fields ...
+
+       // Per-target COW cache (NEW)
+       tagArrays atomic.Value  // stores *tagArrays
+       growMux   sync.Mutex
+   }
+
+   // Add methods:
+   func (h *TargetHost) AreTagsEnabled(tagIDs []TagID) bool { /* ... */ }
+   func (h *TargetHost) rebuildTagCache(lgr *Logr) { /* ... */ }
+   func (h *TargetHost) ensureCapacity(id TagID) { /* ... */ }
+   ```
+
+**Phase 3: Data Flow (LogRec & Logger)**
+
+6. **Update `logrec.go`**
+   ```go
+   type LogRec struct {
+       // ... existing fields ...
+       tagIDs []TagID  // CHANGED: was "level Level"
+   }
+
+   // Update constructor
+   func NewLogRec(tagIDs []TagID, logger Logger, msg string, fields []Field, stacktrace bool) *LogRec
+
+   // Add accessor for formatters
+   func (rec *LogRec) Tags(lgr *Logr) []string {
+       return lgr.GetTagNames(rec.tagIDs)
+   }
+   ```
+
+7. **Update `logger.go`**
+   ```go
+   type Logger struct {
+       lgr    *Logr
+       fields []Field
+       tags   []string  // NEW: accumulated tags
+   }
+
+   // Add new method
+   func (logger Logger) WithTags(tags ...string) Logger { /* ... */ }
+
+   // Update Log method
+   func (logger Logger) Log(msg string, fields ...Field) {
+       // Get tags from logger context
+       tagIDs := logger.lgr.InternTags(logger.tags)
+
+       // Check if enabled
+       status := logger.lgr.AreTagsEnabled(tagIDs)
+       if !status.Enabled {
+           return
+       }
+
+       // Create and enqueue log record
+       rec := NewLogRec(tagIDs, logger, msg, fields, status.Stacktrace)
+       logger.lgr.enqueue(rec)
+   }
+
+   // Update convenience methods (NO signature changes)
+   func (logger Logger) Debug(msg string, fields ...Field) {
+       logger.WithTags("debug").Log(msg, fields...)
+   }
+
+   func (logger Logger) Info(msg string, fields ...Field) {
+       logger.WithTags("info").Log(msg, fields...)
+   }
+
+   // ... etc for Warn, Error, Trace, Fatal, Panic
+   ```
+
+**Phase 4: Integration (Formatters & Config)**
+
+8. **Update formatters** (formatters/*.go)
+   ```go
+   // In each formatter, change from:
+   levelName := rec.Level().Name
+
+   // To:
+   tags := rec.Tags(lgr)
+   // Format tags as needed (comma-separated, JSON array, etc.)
+   ```
+
+9. **Update config parsing** (config/*.go)
+   ```go
+   // Add ParseTag() integration
+   // Support both "levels" and "tags" for backward compatibility
+   // Convert old level configs to tag configs automatically
+   ```
+
+10. **Initialize COW caches** during Logr startup
+    ```go
+    func NewLogr(opts *LogrOptions) (*Logr, error) {
+        lgr := &Logr{ /* ... */ }
+
+        // Initialize with empty cache
+        lgr.tagArrays.Store(&logrTagArrays{
+            includedByAny: make([]bool, initialTagCacheCapacity),
+            excludedByAny: make([]bool, initialTagCacheCapacity),
+            needsStack:    make([]bool, initialTagCacheCapacity),
+        })
+
+        // ... rest of initialization
+
+        return lgr, nil
+    }
+    ```
+
+**Phase 5: Cleanup**
+
+11. **Remove legacy files**
+    - Delete `filterstd.go`
+    - Delete `filtercustom.go`
+    - Delete `level.go` (or keep minimal version for constants)
+
+12. **Update tests**
+    - Convert level-based tests to tag-based tests
+    - Add new tests for tag combinations
+    - Add benchmarks for interning and COW caching
+
+### Data Flow Diagram
+
+**Log emission flow with tags:**
+
+```
+1. User calls logger.Debug("message")
+   ↓
+2. Debug() calls WithTags("debug").Log("message")
+   ↓
+3. Log() interns tags: ["debug"] → [TagID(5)]
+   Cost: ~25ns per tag (warm path)
+   ↓
+4. Check top-level cache: lgr.AreTagsEnabled([5])
+   - Load atomic.Value (~5ns)
+   - Check excluded[5] = false (2ns)
+   - Check included[5] = true (2ns)
+   - Check needsStack[5] = false (2ns)
+   Result: TagStatus{Enabled: true, Stacktrace: false}
+   Cost: ~13ns total
+   ↓
+5. Create LogRec with tagIDs=[5]
+   ↓
+6. Enqueue to Logr.in channel
+   ↓
+7. Logr fanout goroutine receives LogRec
+   ↓
+8. For each TargetHost, check per-target cache
+   host.AreTagsEnabled([5])
+   - Load atomic.Value (~5ns)
+   - Check excluded[5] = false (2ns)
+   - Check included[5] = true (2ns)
+   Result: true
+   Cost: ~13ns per target × 4 targets = 52ns
+   ↓
+9. Queue to each enabled TargetHost
+   ↓
+10. TargetHost goroutine formats and writes
+    - GetTagNames([5]) → ["debug"] for formatter
+    - Format and write to target
+
+Total hot path: ~100ns (intern) + 13ns (top) + 52ns (targets) + 320ns (queue/overhead) = 485ns
+```
+
+### Testing Strategy
+
+**Unit tests to add:**
+
+1. **Tag interning** (`logr_test.go`)
+   ```go
+   func TestInternTags(t *testing.T) {
+       // Test sequential ID assignment
+       // Test bidirectional mapping
+       // Test concurrent interning
+   }
+   ```
+
+2. **COW caching** (`tagcache_test.go`)
+   ```go
+   func TestCOWArrayGrowth(t *testing.T) {
+       // Test initial capacity
+       // Test 2x growth
+       // Test concurrent reads during growth
+   }
+
+   func TestCOWConcurrentReads(t *testing.T) {
+       // Verify lock-free reads
+       // Test readers never blocked by writers
+   }
+   ```
+
+3. **Tag filtering** (`filtertag_test.go`)
+   ```go
+   func TestTagFilterAnyMatch(t *testing.T) {
+       // Test ANY-match logic
+       // Test exclusions override inclusions
+   }
+
+   func TestParseTag(t *testing.T) {
+       // Test "^error:red"
+       // Test "!content"
+       // Test invalid syntax
+   }
+   ```
+
+4. **Backward compatibility** (`logger_test.go`)
+   ```go
+   func TestLegacyLevelMethods(t *testing.T) {
+       // Ensure Debug(), Info(), etc. still work
+       // Verify they produce correct tags internally
+   }
+   ```
+
+**Benchmarks to add:**
+
+```go
+func BenchmarkLogWithTags(b *testing.B) {
+    // Target: ~485ns per log call
+}
+
+func BenchmarkInternTags(b *testing.B) {
+    // Warm path: ~25ns per tag
+    // Cold path: ~50ns per tag
+}
+
+func BenchmarkCOWArrayAccess(b *testing.B) {
+    // Target: ~2ns per tag check
+}
+
+func BenchmarkTagFilterAnyMatch(b *testing.B) {
+    // Various tag combinations
+}
+```
+
+**Validation criteria:**
+- ✅ All existing tests pass with tags
+- ✅ Performance: 485ns ± 10% per log call (4 tags, 4 targets)
+- ✅ Interning: 25ns warm path, 50ns cold path
+- ✅ COW arrays: Lock-free reads, zero contention
+- ✅ No race conditions detected (`go test -race`)
+
+### Common Pitfalls to Avoid
+
+1. **Don't modify COW arrays in place** - Always create new arrays and atomic swap
+2. **Don't forget to rebuild caches** - After target add/remove or config change
+3. **Don't cache tag combinations** - Cache individual tag status only
+4. **Don't call ParseTag on hot path** - Only during config loading
+5. **Don't use RWMutex for cache reads** - Use atomic.Value for lock-free reads
+6. **Don't forget bounds checking** - Array access: `if int(id) < len(array)`
+7. **Remember tag accumulation** - WithTags() chains should append, not replace
+
+### Verification Checklist
+
+Before considering implementation complete:
+
+- [ ] All legacy Level-based code removed
+- [ ] All tests passing (including race detector)
+- [ ] Benchmarks show 485ns ± 10% target met
+- [ ] Configuration parsing handles both old and new formats
+- [ ] Documentation updated with tag examples
+- [ ] Example applications work with new API
+- [ ] Backward compatibility: all Logger convenience methods unchanged
+- [ ] COW caches properly initialized at startup
+- [ ] No panics on concurrent cache access
 
 ## Migration Path
 
