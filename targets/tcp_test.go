@@ -200,8 +200,8 @@ func TestNewTcpTarget(t *testing.T) {
 		// Attempt 11 follows after another ~3.8s backoff; confirm it's throttled
 		// rather than just checking too early to have seen it fail.
 		time.Sleep(5 * time.Second)
-		require.EqualValues(t, 2, atomic.LoadInt32(&connErrCount),
-			"expected attempt 11 to be throttled, got %d reports", connErrCount)
+		got := atomic.LoadInt32(&connErrCount)
+		require.EqualValues(t, 2, got, "expected attempt 11 to be throttled, got %d reports", got)
 
 		// The target is permanently stuck retrying against a closed port, so a
 		// graceful flush can't succeed; give shutdown a short bound instead of
