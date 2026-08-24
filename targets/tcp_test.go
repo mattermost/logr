@@ -4,6 +4,9 @@
 package targets
 
 import (
+	"context"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -157,5 +160,45 @@ func TestNewTcpTarget(t *testing.T) {
 
 		err = server2.StopServer(false)
 		require.NoError(t, err)
+	})
+
+	t.Run("TCP connection errors are throttled", func(t *testing.T) {
+		var connErrCount int32
+
+		opt := logr.OnLoggerError(func(err error) {
+			if strings.Contains(err.Error(), "connection error") {
+				atomic.AddInt32(&connErrCount, 1)
+			}
+		})
+		throttleLgr, err := logr.New(opt)
+		require.NoError(t, err)
+
+		// No listener on this port; every dial attempt fails immediately.
+		throttleOpts := &TcpOptions{
+			IP:   Server,
+			Port: TestPort + 2,
+		}
+		tcp := NewTcpTarget(throttleOpts)
+
+		err = throttleLgr.AddTarget(tcp, "tcp_throttle_test", filter, formatter, 1000)
+		require.NoError(t, err)
+
+		throttleLogger := throttleLgr.NewLogger().With(logr.String("name", "throttle"))
+		throttleLogger.Info("this will retry against a closed port")
+
+		// Backoff starts at 100ms and grows by 1.5x per retry, so within ~700ms
+		// the target has retried several times (attempts 2-4) without a
+		// listener ever coming up. Only the first attempt should be reported.
+		time.Sleep(700 * time.Millisecond)
+
+		require.EqualValues(t, 1, atomic.LoadInt32(&connErrCount),
+			"expected only the first connection error to be reported, got %d", connErrCount)
+
+		// The target is permanently stuck retrying against a closed port, so a
+		// graceful flush can't succeed; give shutdown a short bound instead of
+		// waiting out the default flush timeout.
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		defer cancel()
+		_ = throttleLgr.ShutdownWithTimeout(ctx)
 	})
 }

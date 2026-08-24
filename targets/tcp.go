@@ -20,6 +20,7 @@ const (
 	WriteTimeoutSecs            = 30
 	RetryBackoffMillis    int64 = 100
 	MaxRetryBackoffMillis int64 = 30 * 1000 // 30 seconds
+	ConnErrorReportEvery        = 10
 )
 
 // Tcp outputs log records to raw socket server.
@@ -71,7 +72,7 @@ func (tcp *Tcp) Init() error {
 
 // getConn provides a net.Conn.  If a connection already exists, it is returned immediately,
 // otherwise this method blocks until a new connection is created, timeout or shutdown.
-func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
+func (tcp *Tcp) getConn() (net.Conn, error) {
 	tcp.mutex.Lock()
 	defer tcp.mutex.Unlock()
 
@@ -91,7 +92,6 @@ func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
 	go func(ctx context.Context, ch chan result) {
 		conn, err := tcp.dial(ctx)
 		if err != nil {
-			reporter(fmt.Errorf("log target %s connection error: %w", tcp.String(), err))
 			ch <- result{conn: nil, err: err}
 			return
 		}
@@ -177,11 +177,21 @@ func (tcp *Tcp) Write(p []byte, rec *logr.LogRec) (int, error) {
 
 		reporter := rec.Logger().Logr().ReportError
 
-		conn, err := tcp.getConn(reporter)
+		conn, err := tcp.getConn()
 		if err != nil {
-			reporter(fmt.Errorf("log target %s connection error: %w", tcp.String(), err))
+			// Repeated connection failures retry indefinitely; only report the first
+			// failure and then every ConnErrorReportEvery'th one so a persistently
+			// unreachable target doesn't flood the log with identical lines.
+			if try == 1 || try%ConnErrorReportEvery == 0 {
+				reporter(fmt.Errorf("log target %s connection error (attempt %d): %w", tcp.String(), try, err))
+			}
 			backoff = tcp.sleep(backoff)
+			try++
 			continue
+		}
+
+		if try > 1 {
+			reporter(fmt.Errorf("log target %s connection restored after %d attempts", tcp.String(), try))
 		}
 
 		err = conn.SetWriteDeadline(time.Now().Add(time.Second * WriteTimeoutSecs))
