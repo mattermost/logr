@@ -186,13 +186,22 @@ func TestNewTcpTarget(t *testing.T) {
 		throttleLogger := throttleLgr.NewLogger().With(logr.String("name", "throttle"))
 		throttleLogger.Info("this will retry against a closed port")
 
-		// Backoff starts at 100ms and grows by 1.5x per retry, so within ~700ms
-		// the target has retried several times (attempts 2-4) without a
-		// listener ever coming up. Only the first attempt should be reported.
-		time.Sleep(700 * time.Millisecond)
+		// Attempt 1 is reported immediately.
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&connErrCount) == 1
+		}, time.Second, 10*time.Millisecond, "expected the first connection error to be reported")
 
-		require.EqualValues(t, 1, atomic.LoadInt32(&connErrCount),
-			"expected only the first connection error to be reported, got %d", connErrCount)
+		// Attempts 2-9 are throttled; backoff (100ms, growing 1.5x per retry)
+		// reaches attempt 10 after ~7.5s cumulative sleep.
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&connErrCount) == 2
+		}, 10*time.Second, 50*time.Millisecond, "expected attempt 10 to be reported")
+
+		// Attempt 11 follows after another ~3.8s backoff; confirm it's throttled
+		// rather than just checking too early to have seen it fail.
+		time.Sleep(5 * time.Second)
+		require.EqualValues(t, 2, atomic.LoadInt32(&connErrCount),
+			"expected attempt 11 to be throttled, got %d reports", connErrCount)
 
 		// The target is permanently stuck retrying against a closed port, so a
 		// graceful flush can't succeed; give shutdown a short bound instead of
