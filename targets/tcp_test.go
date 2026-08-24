@@ -5,6 +5,7 @@ package targets
 
 import (
 	"context"
+	"net"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -173,10 +174,16 @@ func TestNewTcpTarget(t *testing.T) {
 		throttleLgr, err := logr.New(opt)
 		require.NoError(t, err)
 
-		// No listener on this port; every dial attempt fails immediately.
+		// Grab a port and immediately release it so nothing is listening on it;
+		// every dial attempt against it will fail immediately.
+		freeListener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		throttlePort := freeListener.Addr().(*net.TCPAddr).Port
+		require.NoError(t, freeListener.Close())
+
 		throttleOpts := &TcpOptions{
 			IP:   Server,
-			Port: TestPort + 2,
+			Port: throttlePort,
 		}
 		tcp := NewTcpTarget(throttleOpts)
 
@@ -204,10 +211,15 @@ func TestNewTcpTarget(t *testing.T) {
 		require.EqualValues(t, 2, got, "expected attempt 11 to be throttled, got %d reports", got)
 
 		// The target is permanently stuck retrying against a closed port, so a
-		// graceful flush can't succeed; give shutdown a short bound instead of
-		// waiting out the default flush timeout.
+		// graceful flush can't succeed within a short bound. ShutdownWithTimeout
+		// returns as soon as the flush itself times out, before it ever reaches
+		// each target's own Shutdown() - so on error here the retry goroutine is
+		// still running and must be stopped directly, or it leaks for the rest
+		// of the test binary's life.
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
-		_ = throttleLgr.ShutdownWithTimeout(ctx)
+		if err := throttleLgr.ShutdownWithTimeout(ctx); err != nil {
+			_ = tcp.Shutdown()
+		}
 	})
 }
