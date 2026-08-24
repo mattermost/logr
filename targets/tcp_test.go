@@ -210,12 +210,9 @@ func TestNewTcpTarget(t *testing.T) {
 		got := atomic.LoadInt32(&connErrCount)
 		require.EqualValues(t, 2, got, "expected attempt 11 to be throttled, got %d reports", got)
 
-		// The target is permanently stuck retrying against a closed port, so a
-		// graceful flush can't succeed within a short bound. ShutdownWithTimeout
-		// returns as soon as the flush itself times out, before it ever reaches
-		// each target's own Shutdown() - so on error here the retry goroutine is
-		// still running and must be stopped directly, or it leaks for the rest
-		// of the test binary's life.
+		// On timeout, ShutdownWithTimeout returns before reaching the target's
+		// own Shutdown(), so the retry goroutine is still running and must be
+		// stopped directly to avoid leaking it.
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 		if err := throttleLgr.ShutdownWithTimeout(ctx); err != nil {
