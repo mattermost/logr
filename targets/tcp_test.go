@@ -188,16 +188,14 @@ func TestNewTcpTarget(t *testing.T) {
 		tcp := NewTcpTarget(throttleOpts)
 
 		// Registered here, not at the end, so the retry goroutine is stopped
-		// even if an assertion below fails and returns early.
+		// even if an assertion below fails and returns early. Tcp.Shutdown is
+		// idempotent, so this is safe regardless of whether ShutdownWithTimeout
+		// already reached it.
 		t.Cleanup(func() {
-			// On timeout, ShutdownWithTimeout returns before reaching the
-			// target's own Shutdown(), so the retry goroutine is still
-			// running and must be stopped directly to avoid leaking it.
 			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
-			if err := throttleLgr.ShutdownWithTimeout(ctx); err != nil {
-				_ = tcp.Shutdown()
-			}
+			_ = throttleLgr.ShutdownWithTimeout(ctx)
+			_ = tcp.Shutdown()
 		})
 
 		err = throttleLgr.AddTarget(tcp, "tcp_throttle_test", filter, formatter, 1000)
@@ -222,5 +220,13 @@ func TestNewTcpTarget(t *testing.T) {
 		time.Sleep(5 * time.Second)
 		got := atomic.LoadInt32(&connErrCount)
 		require.EqualValues(t, 2, got, "expected attempt 11 to be throttled, got %d reports", got)
+	})
+
+	t.Run("Shutdown is idempotent", func(t *testing.T) {
+		tcp := NewTcpTarget(&TcpOptions{IP: Server, Port: TestPort + 3})
+		require.NoError(t, tcp.Shutdown())
+		require.NotPanics(t, func() {
+			require.NoError(t, tcp.Shutdown())
+		})
 	})
 }

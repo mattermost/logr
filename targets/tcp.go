@@ -28,10 +28,11 @@ type Tcp struct {
 	options *TcpOptions
 	addy    string
 
-	mutex    sync.Mutex
-	conn     net.Conn
-	monitor  chan struct{}
-	shutdown chan struct{}
+	mutex        sync.Mutex
+	conn         net.Conn
+	monitor      chan struct{}
+	shutdown     chan struct{}
+	shutdownOnce sync.Once
 }
 
 // TcpOptions provides parameters for dialing a socket server.
@@ -157,9 +158,13 @@ func (tcp *Tcp) close() error {
 }
 
 // Shutdown stops processing log records after making best effort to flush queue.
+// Safe to call more than once; only the first call has any effect.
 func (tcp *Tcp) Shutdown() error {
-	err := tcp.close()
-	close(tcp.shutdown)
+	var err error
+	tcp.shutdownOnce.Do(func() {
+		err = tcp.close()
+		close(tcp.shutdown)
+	})
 	return err
 }
 
