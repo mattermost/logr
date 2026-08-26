@@ -31,7 +31,7 @@ type Tcp struct {
 	mutex        sync.Mutex
 	conn         net.Conn
 	monitor      chan struct{}
-	shutdown     chan struct{}
+	stop         chan struct{}
 	shutdownOnce sync.Once
 	shutdownErr  error
 }
@@ -59,10 +59,10 @@ func (to TcpOptions) CheckValid() error {
 // NewTcpTarget creates a target capable of outputting log records to a raw socket, with or without TLS.
 func NewTcpTarget(options *TcpOptions) *Tcp {
 	tcp := &Tcp{
-		options:  options,
-		addy:     fmt.Sprintf("%s:%d", options.IP, options.Port),
-		monitor:  make(chan struct{}),
-		shutdown: make(chan struct{}),
+		options: options,
+		addy:    fmt.Sprintf("%s:%d", options.IP, options.Port),
+		monitor: make(chan struct{}),
+		stop:    make(chan struct{}),
 	}
 	return tcp
 }
@@ -104,7 +104,7 @@ func (tcp *Tcp) getConn() (net.Conn, error) {
 	}(ctx, connChan)
 
 	select {
-	case <-tcp.shutdown:
+	case <-tcp.stop:
 		return nil, errors.New("shutdown")
 	case res := <-connChan:
 		return res.conn, res.err
@@ -163,7 +163,7 @@ func (tcp *Tcp) close() error {
 func (tcp *Tcp) Shutdown() error {
 	tcp.shutdownOnce.Do(func() {
 		tcp.shutdownErr = tcp.close()
-		close(tcp.shutdown)
+		close(tcp.stop)
 	})
 	return tcp.shutdownErr
 }
@@ -175,7 +175,7 @@ func (tcp *Tcp) Write(p []byte, rec *logr.LogRec) (int, error) {
 	backoff := RetryBackoffMillis
 	for {
 		select {
-		case <-tcp.shutdown:
+		case <-tcp.stop:
 			return 0, nil
 		default:
 		}
@@ -256,7 +256,7 @@ func (tcp *Tcp) String() string {
 
 func (tcp *Tcp) sleep(backoff int64) int64 {
 	select {
-	case <-tcp.shutdown:
+	case <-tcp.stop:
 	case <-time.After(time.Millisecond * time.Duration(backoff)):
 	}
 
