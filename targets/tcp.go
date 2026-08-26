@@ -33,6 +33,7 @@ type Tcp struct {
 	monitor      chan struct{}
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
+	shutdownErr  error
 }
 
 // TcpOptions provides parameters for dialing a socket server.
@@ -160,12 +161,11 @@ func (tcp *Tcp) close() error {
 // Shutdown stops processing log records after making best effort to flush queue.
 // Safe to call more than once; only the first call has any effect.
 func (tcp *Tcp) Shutdown() error {
-	var err error
 	tcp.shutdownOnce.Do(func() {
-		err = tcp.close()
+		tcp.shutdownErr = tcp.close()
 		close(tcp.shutdown)
 	})
-	return err
+	return tcp.shutdownErr
 }
 
 // Write converts the log record to bytes, via the Formatter, and outputs to the socket.
@@ -260,9 +260,5 @@ func (tcp *Tcp) sleep(backoff int64) int64 {
 	case <-time.After(time.Millisecond * time.Duration(backoff)):
 	}
 
-	nextBackoff := backoff + (backoff >> 1)
-	if nextBackoff > MaxRetryBackoffMillis {
-		nextBackoff = MaxRetryBackoffMillis
-	}
-	return nextBackoff
+	return min(backoff+(backoff>>1), MaxRetryBackoffMillis)
 }
