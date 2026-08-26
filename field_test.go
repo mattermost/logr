@@ -164,3 +164,81 @@ func newTestStringer(s string) *testStringer {
 func (ts *testStringer) String() string {
 	return ts.s
 }
+
+// TestFieldSorter tests the sorting interface for fields
+func TestFieldSorter_Len(t *testing.T) {
+	fields := []Field{
+		String("a", "1"),
+		String("b", "2"),
+		String("c", "3"),
+	}
+
+	sorter := FieldSorter(fields)
+	assert.Equal(t, 3, sorter.Len())
+
+	emptyFields := []Field{}
+	emptySorter := FieldSorter(emptyFields)
+	assert.Equal(t, 0, emptySorter.Len())
+}
+
+func TestFieldSorter_Less(t *testing.T) {
+	fields := []Field{
+		String("zebra", "1"),
+		String("alpha", "2"),
+		String("middle", "3"),
+	}
+
+	sorter := FieldSorter(fields)
+
+	// zebra > alpha, so Less(0, 1) should be false
+	assert.False(t, sorter.Less(0, 1))
+
+	// alpha < zebra, so Less(1, 0) should be true
+	assert.True(t, sorter.Less(1, 0))
+
+	// alpha < middle, so Less(1, 2) should be true
+	assert.True(t, sorter.Less(1, 2))
+}
+
+func TestFieldSorter_Swap(t *testing.T) {
+	fields := []Field{
+		String("a", "1"),
+		String("b", "2"),
+		String("c", "3"),
+	}
+
+	sorter := FieldSorter(fields)
+
+	// Swap first and last
+	sorter.Swap(0, 2)
+
+	assert.Equal(t, "c", fields[0].Key)
+	assert.Equal(t, "b", fields[1].Key)
+	assert.Equal(t, "a", fields[2].Key)
+}
+
+func TestFieldSorter_SortIntegration(t *testing.T) {
+	fields := []Field{
+		String("zebra", "1"),
+		String("alpha", "2"),
+		String("middle", "3"),
+		String("beta", "4"),
+	}
+
+	sorter := FieldSorter(fields)
+
+	// Use standard sort
+	for i := 0; i < sorter.Len()-1; i++ {
+		for j := i + 1; j < sorter.Len(); j++ {
+			if sorter.Less(j, i) {
+				sorter.Swap(i, j)
+			}
+		}
+	}
+
+	// Check sorted order
+	assert.Equal(t, "alpha", fields[0].Key)
+	assert.Equal(t, "beta", fields[1].Key)
+	assert.Equal(t, "middle", fields[2].Key)
+	assert.Equal(t, "zebra", fields[3].Key)
+}

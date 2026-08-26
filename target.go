@@ -48,6 +48,7 @@ type TargetHost struct {
 
 	filter    Filter
 	formatter Formatter
+	lvlCache  levelCache // per-target level cache for faster filtering
 
 	in            chan *LogRec
 	quit          chan context.Context // receives shutdown context to exit read loop
@@ -63,6 +64,7 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 		name:      options.name,
 		filter:    options.filter,
 		formatter: options.formatter,
+		lvlCache:  &syncMapLevelCache{}, // always use syncMap for per-target cache
 		in:        make(chan *LogRec, options.maxQueueSize),
 		quit:      make(chan context.Context, 1),
 		done:      make(chan struct{}),
@@ -78,6 +80,9 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 	if host.formatter == nil {
 		host.formatter = &DefaultFormatter{}
 	}
+
+	// Initialize the per-target level cache
+	host.lvlCache.setup()
 
 	err := host.initMetrics(options.metrics)
 	if err != nil {
@@ -132,8 +137,19 @@ func (h *TargetHost) initMetrics(metrics *metrics) error {
 }
 
 // IsLevelEnabled returns true if this target should emit logs for the specified level.
+// Uses per-target cache for improved performance.
 func (h *TargetHost) IsLevelEnabled(lvl Level) (enabled bool, level Level) {
+	// Check cache first
+	if status, ok := h.lvlCache.get(lvl.ID); ok {
+		return status.Enabled, lvl
+	}
+
+	// Cache miss: check filter
 	level, enabled = h.filter.GetEnabledLevel(lvl)
+
+	// Cache the result (ignore error since it only fails for invalid level IDs)
+	_ = h.lvlCache.put(lvl.ID, LevelStatus{Enabled: enabled})
+
 	return enabled, level
 }
 
@@ -230,6 +246,12 @@ func (h *TargetHost) incBlockedCounter() {
 // String returns a name for this target.
 func (h *TargetHost) String() string {
 	return h.name
+}
+
+// resetLevelCache clears the per-target level cache.
+// Called when the Logr level cache is reset.
+func (h *TargetHost) resetLevelCache() {
+	h.lvlCache.clear()
 }
 
 // start accepts log records via In channel and writes to the

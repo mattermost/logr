@@ -63,10 +63,10 @@ func New(opts ...Option) (*Logr, error) {
 	lgr.quit = make(chan struct{})
 	lgr.done = make(chan struct{})
 
-	if lgr.options.useSyncMapLevelCache {
-		lgr.lvlCache = &syncMapLevelCache{}
-	} else {
+	if lgr.options.useArrayLevelCache {
 		lgr.lvlCache = &arrayLevelCache{}
+	} else {
+		lgr.lvlCache = &syncMapLevelCache{}
 	}
 	lgr.lvlCache.setup()
 
@@ -112,7 +112,7 @@ func (lgr *Logr) AddTarget(target Target, name string, filter Filter, formatter 
 
 	lgr.targetHosts = append(lgr.targetHosts, host)
 
-	lgr.ResetLevelCache()
+	lgr.resetLevelCacheLocked()
 
 	return nil
 }
@@ -223,7 +223,7 @@ func (lgr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool) 
 	}
 
 	lgr.targetHosts = hosts
-	lgr.ResetLevelCache()
+	lgr.resetLevelCacheLocked()
 
 	return errs.ErrorOrNil()
 }
@@ -231,7 +231,19 @@ func (lgr *Logr) RemoveTargets(cxt context.Context, f func(ti TargetInfo) bool) 
 // ResetLevelCache resets the cached results of `IsLevelEnabled`. This is
 // called any time a Target is added or a target's level is changed.
 func (lgr *Logr) ResetLevelCache() {
+	lgr.tmux.RLock()
+	defer lgr.tmux.RUnlock()
+	lgr.resetLevelCacheLocked()
+}
+
+// resetLevelCacheLocked is the internal version that assumes tmux is already locked.
+func (lgr *Logr) resetLevelCacheLocked() {
 	lgr.lvlCache.clear()
+
+	// Also clear per-target level caches
+	for _, host := range lgr.targetHosts {
+		host.resetLevelCache()
+	}
 }
 
 // SetMetricsCollector sets (or resets) the metrics collector to be used for gathering

@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"runtime/pprof"
 	"sync/atomic"
@@ -59,7 +59,7 @@ func main() {
 	var t logr.Target
 	filter := &logr.StdFilter{Lvl: logr.Warn, Stacktrace: logr.Error}
 	formatter := &formatters.Plain{Delim: " | "}
-	t = targets.NewWriterTarget(ioutil.Discard)
+	t = targets.NewWriterTarget(io.Discard)
 	err := lgr.AddTarget(t, "simple", filter, formatter, QSIZE)
 	if err != nil {
 		panic(err)
@@ -83,10 +83,10 @@ func main() {
 		for i := 0; i < LOOPS; i++ {
 			logger.Info("This is a message")
 		}
-		lgr.Flush()
+		_ = lgr.Flush()
 	}
 
-	fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
+	_, _ = fmt.Fprintf(os.Stdout, "Exiting normally. loops=%d, errors=%d, queueFull=%d, targetFull=%d\n",
 		LOOPS*REPEAT,
 		atomic.LoadUint32(&errorCount),
 		atomic.LoadUint32(&queueFullCount),
@@ -94,6 +94,6 @@ func main() {
 
 	if file != nil {
 		pprof.StopCPUProfile()
-		file.Close()
+		_ = file.Close()
 	}
 }

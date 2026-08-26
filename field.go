@@ -233,9 +233,7 @@ func (f Field) ValueString(w io.Writer, shouldQuote func(s string) bool) error {
 			if _, err = w.Write(Comma); err != nil {
 				break it
 			}
-
 		}
-
 	case UnknownType:
 		_, err = fmt.Fprintf(w, "%v", f.Interface)
 

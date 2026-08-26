@@ -102,7 +102,11 @@ func fileContains(t *testing.T, filename string, text string) bool {
 		t.Error(err)
 		return false
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	const bufSize = 1000 * 1024
 	scanner := bufio.NewScanner(file)

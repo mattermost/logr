@@ -53,13 +53,21 @@ func TestNewTcpTarget(t *testing.T) {
 			logger.Info(s)
 		}
 
-		err = logger.Logr().Shutdown()
+		// Flush to ensure logs are sent
+		err = logger.Logr().Flush()
 		require.NoError(t, err)
 
+		// Give time for TCP connection to be established (TCP connects asynchronously)
+		time.Sleep(500 * time.Millisecond)
+
+		// Wait for connection to be established
 		err = server.WaitForAnyConnection()
 		require.NoError(t, err)
 
-		err = server.StopServer(true)
+		err = logger.Logr().Shutdown()
+		require.NoError(t, err)
+
+		err = server.StopServer(false)
 		require.NoError(t, err)
 
 		sdata := buf.String()

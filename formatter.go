@@ -6,6 +6,7 @@ import (
 	"io"
 	"runtime"
 	"strconv"
+	"unicode/utf8"
 )
 
 // Formatter turns a LogRec into a formatted string.
@@ -28,11 +29,22 @@ const (
 	TimestampMillisFormat = "Jan _2 15:04:05.000"
 )
 
-// LimitByteSlice discards the bytes from a slice that exceeds the limit
+// LimitByteSlice discards the bytes from a slice that exceeds the limit.
+// It ensures UTF-8 characters are not split by backtracking to the last
+// complete character boundary if necessary.
 func LimitByteSlice(b []byte, limit int) []byte {
 	if limit > 0 && limit < len(b) {
-		lb := make([]byte, limit, limit+3)
-		copy(lb, b[:limit])
+		// Truncate to limit first
+		truncated := b[:limit]
+
+		// Backtrack to find the last complete UTF-8 character boundary
+		// by checking if the truncated slice ends with a valid UTF-8 sequence
+		for len(truncated) > 0 && !utf8.Valid(truncated) {
+			truncated = truncated[:len(truncated)-1]
+		}
+
+		lb := make([]byte, len(truncated), len(truncated)+3)
+		copy(lb, truncated)
 		return append(lb, []byte("...")...)
 	}
 
@@ -151,10 +163,10 @@ func writeField(ws Writer, field Field, sep []byte, color Color) error {
 // when injecting log output into an aggregator, viewer or report.
 func shouldQuote(val string) bool {
 	for _, c := range val {
-		if !((c >= '0' && c <= '9') ||
-			(c >= 'a' && c <= 'z') ||
-			(c >= 'A' && c <= 'Z') ||
-			c == '-' || c == '.' || c == '_' || c == '/' || c == '@' || c == '^' || c == '+') {
+		if (c < '0' || c > '9') &&
+			(c < 'a' || c > 'z') &&
+			(c < 'A' || c > 'Z') &&
+			c != '-' && c != '.' && c != '_' && c != '/' && c != '@' && c != '^' && c != '+' {
 			return true
 		}
 	}

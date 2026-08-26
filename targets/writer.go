@@ -2,7 +2,6 @@ package targets
 
 import (
 	"io"
-	"io/ioutil"
 
 	"github.com/mattermost/logr/v2"
 )
@@ -15,7 +14,7 @@ type Writer struct {
 // NewWriterTarget creates a target capable of outputting log records to an io.Writer.
 func NewWriterTarget(out io.Writer) *Writer {
 	if out == nil {
-		out = ioutil.Discard
+		out = io.Discard
 	}
 	w := &Writer{out: out}
 	return w

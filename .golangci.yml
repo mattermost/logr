@@ -1,0 +1,73 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - bidichk
+    - errcheck
+    - govet
+    - ineffassign
+    - makezero
+    - misspell
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+  settings:
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Exclude test files from certain checks
+      - linters:
+          - errcheck
+          - unused
+          - govet
+        path: _test\.go
+      # Exclude generated mock files
+      - linters:
+          - revive
+          - staticcheck
+        path: mock_.*\.go
+      # Exclude test helper files from errcheck
+      - linters:
+          - errcheck
+        path: test/.*\.go
+      # Exclude common revive warnings that are acceptable in this codebase
+      - linters:
+          - revive
+        text: "unused-parameter|indent-error-flow|receiver-naming|var-naming"
+      # Exclude stuttering names in test package (TestMetrics, etc)
+      - linters:
+          - revive
+        path: test/
+        text: "exported.*stutters"
+    paths:
+      - third_party$
+      - vendor$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+      # Disable interface{} -> any rewrite for now; can enable in future PR
+      # rewrite-rules:
+      #   - pattern: interface{}
+      #     replacement: any
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - vendor$
+      - mock.*
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
