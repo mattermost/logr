@@ -4,6 +4,10 @@
 package targets
 
 import (
+	"context"
+	"net"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -165,5 +169,72 @@ func TestNewTcpTarget(t *testing.T) {
 
 		err = server2.StopServer(false)
 		require.NoError(t, err)
+	})
+
+	t.Run("TCP connection errors are throttled", func(t *testing.T) {
+		var connErrCount int32
+
+		opt := logr.OnLoggerError(func(err error) {
+			if strings.Contains(err.Error(), "connection error") {
+				atomic.AddInt32(&connErrCount, 1)
+			}
+		})
+		throttleLgr, err := logr.New(opt)
+		require.NoError(t, err)
+
+		// Grab a port and immediately release it so nothing is listening on it;
+		// every dial attempt against it will fail immediately.
+		freeListener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		throttlePort := freeListener.Addr().(*net.TCPAddr).Port
+		require.NoError(t, freeListener.Close())
+
+		throttleOpts := &TcpOptions{
+			IP:   Server,
+			Port: throttlePort,
+		}
+		tcp := NewTcpTarget(throttleOpts)
+
+		// Registered here, not at the end, so the retry goroutine is stopped
+		// even if an assertion below fails and returns early. Tcp.Shutdown is
+		// idempotent, so this is safe regardless of whether ShutdownWithTimeout
+		// already reached it.
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			_ = throttleLgr.ShutdownWithTimeout(ctx)
+			_ = tcp.Shutdown()
+		})
+
+		err = throttleLgr.AddTarget(tcp, "tcp_throttle_test", filter, formatter, 1000)
+		require.NoError(t, err)
+
+		throttleLogger := throttleLgr.NewLogger().With(logr.String("name", "throttle"))
+		throttleLogger.Info("this will retry against a closed port")
+
+		// Attempt 1 is reported immediately.
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&connErrCount) == 1
+		}, time.Second, 10*time.Millisecond, "expected the first connection error to be reported")
+
+		// Attempts 2-9 are throttled; backoff (100ms, growing 1.5x per retry)
+		// reaches attempt 10 after ~7.5s cumulative sleep.
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&connErrCount) == 2
+		}, 10*time.Second, 50*time.Millisecond, "expected attempt 10 to be reported")
+
+		// Attempt 11 follows after another ~3.8s backoff; confirm it's throttled
+		// rather than just checking too early to have seen it fail.
+		time.Sleep(5 * time.Second)
+		got := atomic.LoadInt32(&connErrCount)
+		require.EqualValues(t, 2, got, "expected attempt 11 to be throttled, got %d reports", got)
+	})
+
+	t.Run("Shutdown is idempotent", func(t *testing.T) {
+		tcp := NewTcpTarget(&TcpOptions{IP: Server, Port: TestPort + 3})
+		require.NoError(t, tcp.Shutdown())
+		require.NotPanics(t, func() {
+			require.NoError(t, tcp.Shutdown())
+		})
 	})
 }

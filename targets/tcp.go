@@ -20,6 +20,7 @@ const (
 	WriteTimeoutSecs            = 30
 	RetryBackoffMillis    int64 = 100
 	MaxRetryBackoffMillis int64 = 30 * 1000 // 30 seconds
+	ConnErrorReportEvery        = 10
 )
 
 // Tcp outputs log records to raw socket server.
@@ -27,10 +28,12 @@ type Tcp struct {
 	options *TcpOptions
 	addy    string
 
-	mutex    sync.Mutex
-	conn     net.Conn
-	monitor  chan struct{}
-	shutdown chan struct{}
+	mutex        sync.Mutex
+	conn         net.Conn
+	monitor      chan struct{}
+	stop         chan struct{}
+	shutdownOnce sync.Once
+	shutdownErr  error
 }
 
 // TcpOptions provides parameters for dialing a socket server.
@@ -65,10 +68,10 @@ func (to TcpOptions) GetHost() string {
 // NewTcpTarget creates a target capable of outputting log records to a raw socket, with or without TLS.
 func NewTcpTarget(options *TcpOptions) *Tcp {
 	tcp := &Tcp{
-		options:  options,
-		addy:     fmt.Sprintf("%s:%d", options.GetHost(), options.Port),
-		monitor:  make(chan struct{}),
-		shutdown: make(chan struct{}),
+		options: options,
+		addy:    fmt.Sprintf("%s:%d", options.GetHost(), options.Port),
+		monitor: make(chan struct{}),
+		stop:    make(chan struct{}),
 	}
 	return tcp
 }
@@ -80,7 +83,7 @@ func (tcp *Tcp) Init() error {
 
 // getConn provides a net.Conn.  If a connection already exists, it is returned immediately,
 // otherwise this method blocks until a new connection is created, timeout or shutdown.
-func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
+func (tcp *Tcp) getConn() (net.Conn, error) {
 	tcp.mutex.Lock()
 	defer tcp.mutex.Unlock()
 
@@ -100,7 +103,6 @@ func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
 	go func(ctx context.Context, ch chan result) {
 		conn, err := tcp.dial(ctx)
 		if err != nil {
-			reporter(fmt.Errorf("log target %s connection error: %w", tcp.String(), err))
 			ch <- result{conn: nil, err: err}
 			return
 		}
@@ -111,7 +113,7 @@ func (tcp *Tcp) getConn(reporter func(err interface{})) (net.Conn, error) {
 	}(ctx, connChan)
 
 	select {
-	case <-tcp.shutdown:
+	case <-tcp.stop:
 		return nil, errors.New("shutdown")
 	case res := <-connChan:
 		return res.conn, res.err
@@ -168,10 +170,13 @@ func (tcp *Tcp) close() error {
 }
 
 // Shutdown stops processing log records after making best effort to flush queue.
+// Safe to call more than once; only the first call has any effect.
 func (tcp *Tcp) Shutdown() error {
-	err := tcp.close()
-	close(tcp.shutdown)
-	return err
+	tcp.shutdownOnce.Do(func() {
+		tcp.shutdownErr = tcp.close()
+		close(tcp.stop)
+	})
+	return tcp.shutdownErr
 }
 
 // Write converts the log record to bytes, via the Formatter, and outputs to the socket.
@@ -181,18 +186,28 @@ func (tcp *Tcp) Write(p []byte, rec *logr.LogRec) (int, error) {
 	backoff := RetryBackoffMillis
 	for {
 		select {
-		case <-tcp.shutdown:
+		case <-tcp.stop:
 			return 0, nil
 		default:
 		}
 
 		reporter := rec.Logger().Logr().ReportError
 
-		conn, err := tcp.getConn(reporter)
+		conn, err := tcp.getConn()
 		if err != nil {
-			reporter(fmt.Errorf("log target %s connection error: %w", tcp.String(), err))
+			// Repeated connection failures retry indefinitely; only report the first
+			// failure and then every ConnErrorReportEvery'th one so a persistently
+			// unreachable target doesn't flood the log with identical lines.
+			if try == 1 || try%ConnErrorReportEvery == 0 {
+				reporter(fmt.Errorf("log target %s connection error (attempt %d): %w", tcp.String(), try, err))
+			}
 			backoff = tcp.sleep(backoff)
+			try++
 			continue
+		}
+
+		if try > 1 {
+			reporter(fmt.Errorf("log target %s connection restored after %d attempts", tcp.String(), try))
 		}
 
 		err = conn.SetWriteDeadline(time.Now().Add(time.Second * WriteTimeoutSecs))
@@ -252,13 +267,9 @@ func (tcp *Tcp) String() string {
 
 func (tcp *Tcp) sleep(backoff int64) int64 {
 	select {
-	case <-tcp.shutdown:
+	case <-tcp.stop:
 	case <-time.After(time.Millisecond * time.Duration(backoff)):
 	}
 
-	nextBackoff := backoff + (backoff >> 1)
-	if nextBackoff > MaxRetryBackoffMillis {
-		nextBackoff = MaxRetryBackoffMillis
-	}
-	return nextBackoff
+	return min(backoff+(backoff>>1), MaxRetryBackoffMillis)
 }
