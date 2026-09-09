@@ -28,14 +28,39 @@ type SyslogOptions struct {
 	Tag      string `json:"tag"`
 }
 
-func (so SyslogOptions) CheckValid() error {
-	if so.Host == "" && so.IP == "" {
-		return errors.New("missing host")
+// GetHost returns the host to connect to, using the Host field if set,
+// otherwise falling back to the deprecated IP field. An empty result means
+// local syslog.
+func (so SyslogOptions) GetHost() string {
+	if so.Host != "" {
+		return so.Host
 	}
-	if so.Port == 0 {
+	return so.IP
+}
+
+// CheckValid returns an error if these options are not valid.
+//
+// Leaving both the host and the port unset selects local syslog, which `Init`
+// connects to with an empty address. Setting either one requires both, since a
+// remote daemon cannot be reached without them.
+func (so SyslogOptions) CheckValid() error {
+	host := so.GetHost()
+	if host != "" && so.Port == 0 {
 		return errors.New("missing port")
 	}
-	return nil
+	if host == "" && so.Port != 0 {
+		return errors.New("missing host")
+	}
+	if so.Port < 0 || so.Port > 65535 {
+		return fmt.Errorf("port is invalid (%d)", so.Port)
+	}
+	if err := logr.CheckOptionText("host", host, logr.MaxHostnameLen); err != nil {
+		return err
+	}
+	if err := logr.CheckOptionText("tag", so.Tag, logr.MaxTagLen); err != nil {
+		return err
+	}
+	return logr.CheckOptionLen("cert", so.Cert, logr.MaxCertLen)
 }
 
 // NewSyslogTarget creates a target capable of outputting log records to remote or local syslog, with or without TLS.
@@ -55,10 +80,7 @@ func (s *Syslog) Init() error {
 	network := "tcp"
 	var config *tls.Config
 
-	host := s.params.Host
-	if host == "" {
-		host = s.params.IP
-	}
+	host := s.params.GetHost()
 
 	if s.params.TLS {
 		network = "tcp+tls"

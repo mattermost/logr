@@ -46,6 +46,16 @@ type Factories struct {
 
 var removeAll = func(ti logr.TargetInfo) bool { return true }
 
+// preparedTarget is a target that has been created and validated, but not yet
+// added to a logger.
+type preparedTarget struct {
+	name      string
+	target    logr.Target
+	filter    logr.Filter
+	formatter logr.Formatter
+	qSize     int
+}
+
 // ConfigureTargets replaces the current list of log targets with a new one based on a map
 // of name->TargetCfg. The map of TargetCfg's would typically be serialized from a JSON
 // source or can be programmatically created.
@@ -53,16 +63,17 @@ var removeAll = func(ti logr.TargetInfo) bool { return true }
 // An optional set of factories can be provided which will be called to create any target
 // types or formatters not built-in.
 //
-// To append log targets to an existing config, use `(*Logr).AddTarget` or
-// `(*Logr).AddTargetFromConfig` instead.
+// Every target, formatter and filter in the config is created and validated
+// before any existing target is removed, so a config that is rejected leaves
+// the current targets untouched.
+//
+// To append a log target to an existing config, use `(*Logr).AddTarget` instead.
 func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Factories) error {
-	if err := lgr.RemoveTargets(context.Background(), removeAll); err != nil {
-		return fmt.Errorf("error removing existing log targets: %w", err)
-	}
-
 	if factories == nil {
 		factories = &Factories{nil, nil}
 	}
+
+	prepared := make([]preparedTarget, 0, len(config))
 
 	for name, tcfg := range config {
 		target, err := newTarget(tcfg.Type, tcfg.Options, factories.TargetFactory)
@@ -79,25 +90,57 @@ func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Fa
 			return fmt.Errorf("error creating formatter for log target %s: %w", name, err)
 		}
 
-		filter := newFilter(tcfg.Levels)
+		filter, err := newFilter(tcfg.Levels)
+		if err != nil {
+			return fmt.Errorf("error creating filter for log target %s: %w", name, err)
+		}
+
 		qSize := tcfg.MaxQueueSize
 		if qSize == 0 {
 			qSize = logr.DefaultMaxQueueSize
 		}
 
-		if err = lgr.AddTarget(target, name, filter, formatter, qSize); err != nil {
-			return fmt.Errorf("error adding log target %s: %w", name, err)
+		prepared = append(prepared, preparedTarget{
+			name:      name,
+			target:    target,
+			filter:    filter,
+			formatter: formatter,
+			qSize:     qSize,
+		})
+	}
+
+	if err := lgr.RemoveTargets(context.Background(), removeAll); err != nil {
+		return fmt.Errorf("error removing existing log targets: %w", err)
+	}
+
+	for _, p := range prepared {
+		if err := lgr.AddTarget(p.target, p.name, p.filter, p.formatter, p.qSize); err != nil {
+			return fmt.Errorf("error adding log target %s: %w", p.name, err)
 		}
 	}
 	return nil
 }
 
-func newFilter(levels []logr.Level) logr.Filter {
+// checkValid validates v if it can validate itself. Targets and formatters from
+// a `Factories` hook are only reachable through the `logr.Target` and
+// `logr.Formatter` interfaces, neither of which declares CheckValid, so the
+// limits apply to them only if they opt in.
+func checkValid(v any) error {
+	if val, ok := v.(logr.Validator); ok {
+		return val.CheckValid()
+	}
+	return nil
+}
+
+func newFilter(levels []logr.Level) (logr.Filter, error) {
 	filter := &logr.CustomFilter{}
 	for _, lvl := range levels {
+		if err := lvl.CheckValid(); err != nil {
+			return nil, err
+		}
 		filter.Add(lvl)
 	}
-	return filter
+	return filter, nil
 }
 
 func newTarget(targetType string, options json.RawMessage, factory TargetFactory) (logr.Target, error) {
@@ -163,6 +206,9 @@ func newTarget(targetType string, options json.RawMessage, factory TargetFactory
 			if err != nil || t == nil {
 				return nil, fmt.Errorf("error from target factory: %w", err)
 			}
+			if err := checkValid(t); err != nil {
+				return nil, fmt.Errorf("invalid options from target factory: %w", err)
+			}
 			return t, nil
 		}
 	}
@@ -210,6 +256,9 @@ func newFormatter(format string, options json.RawMessage, factory FormatterFacto
 			f, err := factory(format, options)
 			if err != nil || f == nil {
 				return nil, fmt.Errorf("error from formatter factory: %w", err)
+			}
+			if err := checkValid(f); err != nil {
+				return nil, fmt.Errorf("invalid options from formatter factory: %w", err)
 			}
 			return f, nil
 		}

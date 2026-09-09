@@ -50,10 +50,13 @@ func (to TcpOptions) CheckValid() error {
 	if to.Host == "" && to.IP == "" {
 		return errors.New("missing host")
 	}
-	if to.Port == 0 {
-		return errors.New("missing port")
+	if to.Port <= 0 || to.Port > 65535 {
+		return fmt.Errorf("port is invalid (%d)", to.Port)
 	}
-	return nil
+	if err := logr.CheckOptionText("host", to.GetHost(), logr.MaxHostnameLen); err != nil {
+		return err
+	}
+	return logr.CheckOptionLen("cert", to.Cert, logr.MaxCertLen)
 }
 
 // GetHost returns the host to connect to, using Host field if set,
