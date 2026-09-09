@@ -100,8 +100,6 @@ func file(t *testing.T, formatter logr.Formatter, filename string) {
 // TestFileBackupFilenameUsesLocalTime verifies that rotated backup filenames
 // are formatted in local time, not UTC. It forces a non-UTC timezone so the
 // assertion is meaningful regardless of where the test runs.
-//
-// Cannot be run with t.Parallel() because it mutates the global time.Local.
 func TestFileBackupFilenameUsesLocalTime(t *testing.T) {
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
