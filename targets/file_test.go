@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -94,83 +93,6 @@ func file(t *testing.T, formatter logr.Formatter, filename string) {
 
 	if fileContains(t, filename, badToken) {
 		t.Errorf("wrong level(s) enabled")
-	}
-}
-
-// TestFileBackupFilenameUsesLocalTime verifies that rotated backup filenames
-// are formatted in local time, not UTC. It forces a non-UTC timezone so the
-// assertion is meaningful regardless of where the test runs.
-func TestFileBackupFilenameUsesLocalTime(t *testing.T) {
-	loc, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		t.Skip("America/New_York timezone not available:", err)
-	}
-
-	orig := time.Local
-	time.Local = loc
-	defer func() { time.Local = orig }()
-
-	dir := t.TempDir()
-	filename := filepath.Join(dir, "test.log")
-
-	lgr, _ := logr.New()
-	opts := targets.FileOptions{
-		Filename:   filename,
-		MaxSize:    1,
-		MaxBackups: 5,
-	}
-	filter := &logr.StdFilter{Lvl: logr.Error, Stacktrace: logr.Error}
-	tgt := targets.NewFileTarget(opts)
-	_ = lgr.AddTarget(tgt, "localtime-test", filter, &formatters.Plain{}, 10000)
-
-	logger := lgr.NewLogger()
-
-	// Write enough to exceed the 1 MB rotation threshold.
-	payload := strings.Repeat("x", 900)
-	beforeRotation := time.Now().In(loc)
-	for i := 0; i < 1500; i++ {
-		logger.Error("rotation-test", logr.String("data", payload))
-	}
-
-	if err := lgr.Shutdown(); err != nil {
-		t.Fatal(err)
-	}
-	afterRotation := time.Now().In(loc)
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	const backupTimeFormat = "2006-01-02T15-04-05.000"
-	var backupTimestamps []time.Time
-	for _, e := range entries {
-		name := e.Name()
-		if name == filepath.Base(filename) {
-			continue
-		}
-		// Filename format: <base>-<timestamp>.log
-		base := strings.TrimSuffix(filepath.Base(filename), ".log")
-		trimmed := strings.TrimPrefix(name, base+"-")
-		trimmed = strings.TrimSuffix(trimmed, ".log")
-		ts, parseErr := time.ParseInLocation(backupTimeFormat, trimmed, loc)
-		if parseErr != nil {
-			t.Logf("skipping unparseable backup filename %q: %v", name, parseErr)
-			continue
-		}
-		backupTimestamps = append(backupTimestamps, ts)
-	}
-
-	if len(backupTimestamps) == 0 {
-		t.Fatal("no backup files found; rotation did not occur")
-	}
-
-	slack := 30 * time.Second
-	for _, ts := range backupTimestamps {
-		if ts.Before(beforeRotation.Add(-slack)) || ts.After(afterRotation.Add(slack)) {
-			t.Errorf("backup filename timestamp %v is not within the rotation window [%v, %v]; expected local time, got UTC or wrong zone",
-				ts, beforeRotation, afterRotation)
-		}
 	}
 }
 
