@@ -56,6 +56,7 @@ func NewFileTarget(opts FileOptions) *File {
 		MaxBackups: opts.MaxBackups,
 		MaxAge:     opts.MaxAge,
 		Compress:   opts.Compress,
+		LocalTime:  true,
 	}
 	f := &File{out: lumber}
 	return f
