@@ -30,7 +30,7 @@ func TestQueueFull_DropBehavior(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	// Very slow target to fill queue
@@ -68,7 +68,7 @@ func TestQueueFull_BlockBehavior(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	// Slow target to create backpressure
@@ -113,7 +113,7 @@ func TestTargetQueueFull_DropBehavior(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	// Very slow target with small queue
@@ -151,7 +151,7 @@ func TestTargetQueueFull_BlockBehavior(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := test.NewSlowTarget(buf, 10)                     // 10ms per record
@@ -194,7 +194,7 @@ func TestEnqueueTimeout(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	// Very slow target to ensure timeout
@@ -234,7 +234,7 @@ func TestQueueSizeOption(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-			buf := &bytes.Buffer{}
+			buf := &test.Buffer{}
 			filter := &logr.StdFilter{Lvl: logr.Error}
 			formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 			target := test.NewSlowTarget(buf, 1)
@@ -313,7 +313,7 @@ func TestConcurrentQueueOperations(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := test.NewSlowTarget(buf, 2)
@@ -356,7 +356,7 @@ func TestQueueDrain_OnShutdown(t *testing.T) {
 	lgr, err := logr.New(logr.MaxQueueSize(100))
 	require.NoError(t, err)
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := test.NewSlowTarget(buf, 5) // 5ms per record
@@ -402,7 +402,7 @@ func TestBothQueuesFull(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	// Very slow target with small queue

@@ -11,6 +11,7 @@ import (
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +86,7 @@ func TestConcurrent_NewLoggerWithLogging(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -126,7 +127,7 @@ func TestConcurrent_AddTarget(t *testing.T) {
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
 	// Initial target
-	buf1 := &bytes.Buffer{}
+	buf1 := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target1 := targets.NewWriterTarget(buf1)
@@ -159,7 +160,7 @@ func TestConcurrent_AddTarget(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			time.Sleep(10 * time.Millisecond) // Stagger additions
-			buf := &bytes.Buffer{}
+			buf := &test.Buffer{}
 			target := targets.NewWriterTarget(buf)
 			err := lgr.AddTarget(target, "dynamic"+string(rune(id)), filter, formatter, 50)
 			assert.NoError(t, err)
@@ -190,7 +191,7 @@ func TestConcurrent_RemoveTarget(t *testing.T) {
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 
 	for i := 0; i < 5; i++ {
-		buf := &bytes.Buffer{}
+		buf := &test.Buffer{}
 		target := targets.NewWriterTarget(buf)
 		err = lgr.AddTarget(target, "target"+string(rune('A'+i)), filter, formatter, 50)
 		require.NoError(t, err)
@@ -249,7 +250,7 @@ func TestConcurrent_AddAndRemoveTargets(t *testing.T) {
 
 	// Initial targets
 	for i := 0; i < 3; i++ {
-		buf := &bytes.Buffer{}
+		buf := &test.Buffer{}
 		target := targets.NewWriterTarget(buf)
 		err = lgr.AddTarget(target, "initial"+string(rune('A'+i)), filter, formatter, 50)
 		require.NoError(t, err)
@@ -285,7 +286,7 @@ func TestConcurrent_AddAndRemoveTargets(t *testing.T) {
 				case <-stopCh:
 					return
 				default:
-					buf := &bytes.Buffer{}
+					buf := &test.Buffer{}
 					target := targets.NewWriterTarget(buf)
 					targetName := "dynamic" + string(rune('A'+id*10+j))
 					err := lgr.AddTarget(target, targetName, filter, formatter, 50)
@@ -395,7 +396,7 @@ func TestConcurrent_LoggerWithFields(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -444,7 +445,7 @@ func TestConcurrent_FlushWhileLogging(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)

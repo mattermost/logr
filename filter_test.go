@@ -1,12 +1,12 @@
 package logr_test
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,7 +131,7 @@ func TestFilter_IntegrationWithLogging(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -166,7 +166,7 @@ func TestCustomFilter_IntegrationWithLogging(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	level1 := logr.Level{ID: 100, Name: "audit"}
 	level2 := logr.Level{ID: 101, Name: "security"}
@@ -201,8 +201,8 @@ func TestMixedFilters_DifferentTargets(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf1 := &bytes.Buffer{}
-	buf2 := &bytes.Buffer{}
+	buf1 := &test.Buffer{}
+	buf2 := &test.Buffer{}
 
 	// Target 1: StdFilter
 	stdFilter := &logr.StdFilter{Lvl: logr.Error}
