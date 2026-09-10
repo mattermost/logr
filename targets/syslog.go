@@ -32,10 +32,7 @@ type SyslogOptions struct {
 // otherwise falling back to the deprecated IP field. An empty result means
 // local syslog.
 func (so SyslogOptions) GetHost() string {
-	if so.Host != "" {
-		return so.Host
-	}
-	return so.IP
+	return hostOrIP(so.Host, so.IP)
 }
 
 // CheckValid returns an error if these options are not valid.

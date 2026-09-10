@@ -1,8 +1,8 @@
 package config
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -10,20 +10,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// configureFromJSON builds a single-target config from raw JSON and applies it.
-func configureFromJSON(t *testing.T, raw string) error {
+// newLgr returns a logger that is shut down when the test ends.
+func newLgr(t *testing.T) *logr.Logr {
 	t.Helper()
-
-	var cfg map[string]TargetCfg
-	require.NoError(t, json.Unmarshal([]byte(raw), &cfg))
 
 	lgr, err := logr.New()
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = lgr.Shutdown()
 	})
+	return lgr
+}
 
-	return ConfigureTargets(lgr, cfg, nil)
+// parseCfg deserializes a target config from raw JSON.
+func parseCfg(t *testing.T, raw string) map[string]TargetCfg {
+	t.Helper()
+
+	var cfg map[string]TargetCfg
+	require.NoError(t, json.Unmarshal([]byte(raw), &cfg))
+	return cfg
+}
+
+// configureFromJSON builds a single-target config from raw JSON and applies it.
+func configureFromJSON(t *testing.T, raw string) error {
+	t.Helper()
+
+	return ConfigureTargets(newLgr(t), parseCfg(t, raw), nil)
+}
+
+// fileTargetCfg returns a config for one valid file target, with formatOptions
+// spliced in so a test can make exactly one field invalid.
+func fileTargetCfg(t *testing.T, formatOptions string) string {
+	t.Helper()
+
+	opts := ""
+	if formatOptions != "" {
+		opts = `,"format_options":` + formatOptions
+	}
+	return `{"keep":{"type":"file","options":{"filename":"` +
+		filepath.ToSlash(filepath.Join(t.TempDir(), "existing.log")) +
+		`","max_size":1},"format":"plain"` + opts + `,"levels":[{"id":4,"name":"info"}]}}`
 }
 
 func TestConfigureTargetsRejectsUnsafeOptions(t *testing.T) {
@@ -61,52 +87,65 @@ func TestConfigureTargetsRejectsUnsafeOptions(t *testing.T) {
 	})
 }
 
-// TestConfigureTargetsLeavesExistingTargetsOnError pins that a rejected config
-// does not tear down the targets that are already working.
-func TestConfigureTargetsLeavesExistingTargetsOnError(t *testing.T) {
-	logFile := filepath.Join(t.TempDir(), "good.log")
-	good := `{"t":{"type":"file","options":{"filename":"` + logFile + `","max_size":1},` +
-		`"format":"plain","levels":[{"id":4,"name":"info"}]}}`
-
-	var goodCfg map[string]TargetCfg
-	require.NoError(t, json.Unmarshal([]byte(good), &goodCfg))
-
-	lgr, err := logr.New()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = lgr.Shutdown()
-	})
-
-	require.NoError(t, ConfigureTargets(lgr, goodCfg, nil))
-	require.Len(t, lgr.TargetInfos(), 1, "the good config should be applied")
-
-	bad := `{"t":{"type":"file","options":{"filename":"` + logFile + `","max_size":1},` +
-		`"format":"plain","format_options":{"line_end":"#!/bin/sh\nid\n"},"levels":[{"id":4,"name":"info"}]}}`
-
-	var badCfg map[string]TargetCfg
-	require.NoError(t, json.Unmarshal([]byte(bad), &badCfg))
-
-	require.Error(t, ConfigureTargets(lgr, badCfg, nil))
-	require.Len(t, lgr.TargetInfos(), 1, "the rejected config should leave the existing target in place")
-}
-
-// unvalidatedFormatter is a formatter from a factory that does not implement
-// logr.Validator, so it is applied without any option limits.
-type unvalidatedFormatter struct{}
-
-func (f *unvalidatedFormatter) IsStacktraceNeeded() bool { return false }
-
-func (f *unvalidatedFormatter) Format(rec *logr.LogRec, level logr.Level, buf *bytes.Buffer) (*bytes.Buffer, error) {
-	if buf == nil {
-		buf = &bytes.Buffer{}
+// TestConfigureTargetsLeavesExistingTargets pins that a config which cannot be
+// applied does not tear down the targets that are already working, whether it
+// fails validation or fails to initialize.
+func TestConfigureTargetsLeavesExistingTargets(t *testing.T) {
+	initFailFactories := &Factories{
+		TargetFactory: func(targetType string, options json.RawMessage) (logr.Target, error) {
+			return &initFailTarget{}, nil
+		},
 	}
-	buf.WriteString(rec.Msg())
-	return buf, nil
+
+	cases := []struct {
+		name      string
+		bad       func(t *testing.T) string
+		factories *Factories
+	}{
+		{
+			name: "rejected by option validation",
+			bad: func(t *testing.T) string {
+				return fileTargetCfg(t, `{"line_end":"#!/bin/sh\nid\n"}`)
+			},
+		},
+		{
+			name: "target fails to initialize",
+			bad: func(t *testing.T) string {
+				return `{"broken":{"type":"custom","format":"plain","levels":[{"id":4,"name":"info"}]}}`
+			},
+			factories: initFailFactories,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			lgr := newLgr(t)
+
+			require.NoError(t, ConfigureTargets(lgr, parseCfg(t, fileTargetCfg(t, "")), nil))
+			require.Len(t, lgr.TargetInfos(), 1, "the good config should be applied")
+
+			require.Error(t, ConfigureTargets(lgr, parseCfg(t, tc.bad(t)), tc.factories))
+			require.Len(t, lgr.TargetInfos(), 1,
+				"the working target should survive a config that cannot be applied")
+		})
+	}
 }
+
+// initFailTarget is a target whose Init fails, as a syslog target does when the
+// daemon is unreachable.
+type initFailTarget struct{}
+
+func (t *initFailTarget) Init() error { return errors.New("simulated init failure") }
+
+func (t *initFailTarget) Write(p []byte, rec *logr.LogRec) (int, error) { return len(p), nil }
+
+func (t *initFailTarget) Shutdown() error { return nil }
 
 // validatedFormatter is a formatter from a factory that opts in to validation.
+// logr.DefaultFormatter has no CheckValid, so it serves as the formatter that
+// cannot validate itself.
 type validatedFormatter struct {
-	unvalidatedFormatter
+	logr.DefaultFormatter
 	lineEnd string
 }
 
@@ -140,7 +179,7 @@ func TestConfigureTargetsValidatesFactoryResults(t *testing.T) {
 		}
 		err := ConfigureTargets(newLgr(t), cfg, factories)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid options from formatter factory")
+		require.Contains(t, err.Error(), "invalid custom formatter options")
 	})
 
 	t.Run("accepts a valid factory formatter", func(t *testing.T) {
@@ -155,7 +194,7 @@ func TestConfigureTargetsValidatesFactoryResults(t *testing.T) {
 	t.Run("accepts a factory formatter that cannot validate itself", func(t *testing.T) {
 		factories := &Factories{
 			FormatterFactory: func(format string, options json.RawMessage) (logr.Formatter, error) {
-				return &unvalidatedFormatter{}, nil
+				return &logr.DefaultFormatter{}, nil
 			},
 		}
 		require.NoError(t, ConfigureTargets(newLgr(t), cfg, factories))

@@ -90,19 +90,13 @@ func (lgr *Logr) AddTarget(target Target, name string, filter Filter, formatter 
 		return fmt.Errorf("AddTarget called after Logr shut down")
 	}
 
-	lgr.metricsMux.RLock()
-	metrics := lgr.metrics
-	lgr.metricsMux.RUnlock()
-
-	hostOpts := targetHostOptions{
-		name:         name,
-		filter:       filter,
-		formatter:    formatter,
-		maxQueueSize: maxQueueSize,
-		metrics:      metrics,
-	}
-
-	host, err := newTargetHost(target, hostOpts)
+	host, err := lgr.buildHost(TargetSpec{
+		Target:       target,
+		Name:         name,
+		Filter:       filter,
+		Formatter:    formatter,
+		MaxQueueSize: maxQueueSize,
+	})
 	if err != nil {
 		return err
 	}
@@ -170,6 +164,91 @@ func (lgr *Logr) HasTargets() bool {
 	lgr.tmux.RLock()
 	defer lgr.tmux.RUnlock()
 	return len(lgr.targetHosts) > 0
+}
+
+// TargetSpec describes a target to be added to a logger, along with the filter,
+// formatter and queue size it should be added with.
+type TargetSpec struct {
+	Target       Target
+	Name         string
+	Filter       Filter
+	Formatter    Formatter
+	MaxQueueSize int // zero means DefaultMaxQueueSize
+}
+
+// ReplaceTargets replaces every target on this logger with the supplied set.
+//
+// All the replacement targets are created and initialized before any existing
+// target is removed, so if any of them fails the logger keeps its current
+// targets and no records are lost. Targets that were already created when the
+// failure occurred are shut down, so their goroutines and connections do not
+// leak.
+//
+// Use this instead of `RemoveTargets` followed by `AddTarget` when swapping a
+// whole configuration, since that sequence drops records for as long as the
+// logger has no targets, and drops them permanently if adding one fails.
+func (lgr *Logr) ReplaceTargets(ctx context.Context, specs []TargetSpec) error {
+	if lgr.IsShutdown() {
+		return fmt.Errorf("ReplaceTargets called after Logr shut down")
+	}
+
+	hosts := make([]*TargetHost, 0, len(specs))
+
+	for _, spec := range specs {
+		if spec.MaxQueueSize == 0 {
+			spec.MaxQueueSize = DefaultMaxQueueSize
+		}
+
+		host, err := lgr.buildHost(spec)
+		if err != nil {
+			errs := merror.New()
+			errs.Append(fmt.Errorf("error adding log target %s: %w", spec.Name, err))
+			errs.Append(shutdownHosts(ctx, hosts))
+			return errs.ErrorOrNil()
+		}
+
+		hosts = append(hosts, host)
+	}
+
+	lgr.tmux.Lock()
+	replaced := lgr.targetHosts
+	lgr.targetHosts = hosts
+	// Only the aggregate cache is stale. Each new host's cache was created
+	// empty by newTargetHost, and no record could reach a host before it was
+	// published here.
+	lgr.lvlCache.clear()
+	lgr.tmux.Unlock()
+
+	// Shutting down drains each host's queue, so it must happen with the lock
+	// released or every logging goroutine blocks until the last target closes.
+	return shutdownHosts(ctx, replaced)
+}
+
+// buildHost creates and starts a target host from spec. The caller is
+// responsible for publishing it, or for shutting it down if it is discarded.
+func (lgr *Logr) buildHost(spec TargetSpec) (*TargetHost, error) {
+	lgr.metricsMux.RLock()
+	metrics := lgr.metrics
+	lgr.metricsMux.RUnlock()
+
+	return newTargetHost(spec.Target, targetHostOptions{
+		name:         spec.Name,
+		filter:       spec.Filter,
+		formatter:    spec.Formatter,
+		maxQueueSize: spec.MaxQueueSize,
+		metrics:      metrics,
+	})
+}
+
+// shutdownHosts shuts down every host, collecting any errors.
+func shutdownHosts(ctx context.Context, hosts []*TargetHost) error {
+	errs := merror.New()
+	for _, host := range hosts {
+		if err := host.Shutdown(ctx); err != nil {
+			errs.Append(err)
+		}
+	}
+	return errs.ErrorOrNil()
 }
 
 // TargetInfo provides name and type for a Target.

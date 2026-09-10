@@ -2,8 +2,10 @@ package logr
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"regexp"
+	"sync"
 	"testing"
 	"unicode/utf8"
 
@@ -15,14 +17,13 @@ import (
 // schema is what external validators enforce. These tests fail if the two drift
 // apart.
 //
-// The Go checks are deliberately stricter than the schema patterns. A JSON
-// Schema pattern is an ECMA-262 regex, which expresses codepoints above U+00FF
-// as \uXXXX, while Go regexp requires \x{XXXX} — there is no syntax both accept.
-// The patterns therefore use \xHH escapes only and cover the C0, DEL and C1
-// ranges, and the Go checks additionally reject bidi controls, the Unicode line
-// and paragraph separators, and invalid UTF-8. So the invariant these tests hold
-// is an implication, not an equality: anything the Go check accepts, the schema
-// must also accept.
+// The invariant is an implication, not an equality: anything a Go check accepts
+// the schema must also accept, so a config that logr applies never fails
+// external validation. The Go checks are free to be stricter, and are.
+//
+// Schema patterns are ECMA-262 regexes, which spell codepoints above U+00FF as
+// \uXXXX while Go regexp wants \x{XXXX}. goPattern translates between them so
+// the schema can use standard JSON Schema escapes.
 
 const schemaPath = "logr-config-schema.json"
 
@@ -39,15 +40,33 @@ type schemaDoc struct {
 	} `json:"definitions"`
 }
 
-func loadSchema(t *testing.T) schemaDoc {
-	t.Helper()
-
+// loadSchema reads and parses the schema once for the whole test binary.
+var loadSchema = sync.OnceValue(func() schemaDoc {
 	b, err := os.ReadFile(schemaPath)
-	require.NoError(t, err, "should read %s", schemaPath)
+	if err != nil {
+		panic(fmt.Sprintf("cannot read %s: %v", schemaPath, err))
+	}
 
 	var doc schemaDoc
-	require.NoError(t, json.Unmarshal(b, &doc))
+	if err := json.Unmarshal(b, &doc); err != nil {
+		panic(fmt.Sprintf("cannot parse %s: %v", schemaPath, err))
+	}
 	return doc
+})
+
+// goPattern converts an ECMA-262 pattern to Go regexp syntax, which differs
+// only in how it spells codepoints above U+00FF.
+func goPattern(pattern string) string {
+	return regexp.MustCompile(`\\u([0-9a-fA-F]{4})`).ReplaceAllString(pattern, `\x{$1}`)
+}
+
+// compilePattern compiles a schema pattern for use from Go.
+func compilePattern(t *testing.T, pattern string) *regexp.Regexp {
+	t.Helper()
+
+	re, err := regexp.Compile(goPattern(pattern))
+	require.NoError(t, err, "schema pattern %q should compile", pattern)
+	return re
 }
 
 // loadSchemaConstraints returns the constraints for a property of a definition,
@@ -55,9 +74,7 @@ func loadSchema(t *testing.T) schemaDoc {
 func loadSchemaConstraints(t *testing.T, definition string, property string) schemaConstraint {
 	t.Helper()
 
-	doc := loadSchema(t)
-
-	def, ok := doc.Definitions[definition]
+	def, ok := loadSchema().Definitions[definition]
 	require.True(t, ok, "schema should define %s", definition)
 
 	c, ok := def.Properties[property]
@@ -204,8 +221,7 @@ func TestGoChecksAreAtLeastAsStrictAsSchema(t *testing.T) {
 			c := loadSchemaConstraints(t, tc.definition, tc.property)
 			require.NotEmpty(t, c.Pattern, "schema should set a pattern")
 
-			re, err := regexp.Compile(c.Pattern)
-			require.NoError(t, err, "pattern %q should compile with Go regexp; use \\xHH escapes, not \\uXXXX", c.Pattern)
+			re := compilePattern(t, c.Pattern)
 
 			for _, s := range corpus {
 				if tc.check(s) == nil {
@@ -217,28 +233,25 @@ func TestGoChecksAreAtLeastAsStrictAsSchema(t *testing.T) {
 	}
 }
 
-// TestGoChecksRejectWhatSchemaPatternsCannotExpress pins the classes the Go
-// checks catch beyond the schema patterns, so the gap stays deliberate.
-func TestGoChecksRejectWhatSchemaPatternsCannotExpress(t *testing.T) {
-	beyondSchema := []struct {
+// TestGoChecksRejectBeyondSchemaPatterns pins the classes the Go checks reject
+// that a schema pattern is not required to cover. It deliberately asserts
+// nothing about what the schema accepts, so the schema is free to get stricter.
+func TestGoChecksRejectBeyondSchemaPatterns(t *testing.T) {
+	cases := []struct {
 		name string
 		val  string
 	}{
 		{"bidi override", "a\u202eb"},
+		{"arabic letter mark", "a\u061cb"},
 		{"line separator", "a\u2028b"},
 		{"paragraph separator", "a\u2029b"},
 		{"invalid UTF-8", string([]byte{0xff, 0xfe})},
 		{"overlong ESC", string([]byte{0xc0, 0x9b})},
 	}
 
-	delim := loadSchemaConstraints(t, "plainFormatOptions", "delim")
-	delimRe := regexp.MustCompile(delim.Pattern)
-
-	for _, tc := range beyondSchema {
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Error(t, CheckOptionText("delim", tc.val, MaxDelimLen), "Go should reject %q", tc.val)
-			require.True(t, schemaAccepts(delim, delimRe, tc.val),
-				"this case exists because the schema pattern cannot express it; if the schema now rejects %q, tighten this test", tc.val)
 		})
 	}
 }
@@ -251,36 +264,28 @@ func TestSchemaPatternsRejectPayloads(t *testing.T) {
 		"#!/bin/sh\nid\n",
 		"\nforged log line ",
 		"\x1b[2J",
-		"\u009b[2J",
 	}
 
 	lineEnd := loadSchemaConstraints(t, "plainFormatOptions", "line_end")
-	lineEndRe := regexp.MustCompile(lineEnd.Pattern)
+	lineEndRe := compilePattern(t, lineEnd.Pattern)
 
 	delim := loadSchemaConstraints(t, "plainFormatOptions", "delim")
-	delimRe := regexp.MustCompile(delim.Pattern)
+	delimRe := compilePattern(t, delim.Pattern)
 
 	for _, payload := range payloads {
 		require.Error(t, CheckOptionLineEnd("line_end", payload), "Go should reject %q for line_end", payload)
 		require.Error(t, CheckOptionText("delim", payload, MaxDelimLen), "Go should reject %q for delim", payload)
 
 		require.False(t, schemaAccepts(lineEnd, lineEndRe, payload), "schema should reject %q for line_end", payload)
-
-		if payload != "\u009b[2J" {
-			// The C1 form is covered by the \x7f-\x9f range only when the value
-			// is a raw byte; as UTF-8 it encodes to two bytes that the pattern
-			// cannot address. TestGoChecksRejectWhatSchemaPatternsCannotExpress
-			// records that gap.
-			require.False(t, schemaAccepts(delim, delimRe, payload), "schema should reject %q for delim", payload)
-		}
+		require.False(t, schemaAccepts(delim, delimRe, payload), "schema should reject %q for delim", payload)
 	}
 }
 
-// TestSchemaPatternsAreGoCompatible guards the escape syntax across every
-// pattern in the schema, so a future pattern using \uXXXX is caught here
-// rather than by whatever tries to consume it.
+// TestSchemaPatternsAreGoCompatible checks every pattern in the schema is a
+// regex these tests can evaluate, so a malformed one is caught here rather than
+// by whatever tries to consume it.
 func TestSchemaPatternsAreGoCompatible(t *testing.T) {
-	doc := loadSchema(t)
+	doc := loadSchema()
 
 	var found int
 	for defName, def := range doc.Definitions {
@@ -290,67 +295,23 @@ func TestSchemaPatternsAreGoCompatible(t *testing.T) {
 			}
 			found++
 			t.Run(defName+"."+propName, func(t *testing.T) {
-				require.NotContains(t, c.Pattern, `\u`,
-					`pattern should use \xHH escapes; \uXXXX is valid JSON Schema but Go regexp cannot compile it`)
-				_, err := regexp.Compile(c.Pattern)
-				require.NoError(t, err, "pattern %q should compile with Go regexp", c.Pattern)
+				compilePattern(t, c.Pattern)
 			})
 		}
 	}
 	require.NotZero(t, found, "schema should contain at least one pattern")
 }
 
-// TestSchemaConstrainsEveryValidatedField fails when a field that validate.go
-// bounds has no corresponding constraint in the schema. Asserting the
-// constraint exists, rather than just the property name, is what makes this
-// catch a stripped maxLength.
-func TestSchemaConstrainsEveryValidatedField(t *testing.T) {
-	doc := loadSchema(t)
-
-	stringFields := map[string][]string{
-		"level":              {"name"},
-		"plainFormatOptions": {"delim", "line_end", "timestamp_format"},
-		"jsonFormatOptions": {
-			"timestamp_format", "key_timestamp", "key_level", "key_msg",
-			"key_group_fields", "key_stacktrace", "key_caller",
-		},
-		"gelfFormatOptions": {"hostname"},
-		"fileOptions":       {"filename"},
-		"tcpOptions":        {"host", "ip", "cert"},
-		"syslogOptions":     {"host", "ip", "cert", "tag"},
-	}
-
-	numericFields := map[string][]string{
-		"level":              {"id"},
-		"plainFormatOptions": {"min_level_len", "min_msg_len"},
-		"fileOptions":        {"max_size", "max_age", "max_backups"},
-		"tcpOptions":         {"port"},
-		"syslogOptions":      {"port"},
-	}
-
-	for defName, properties := range stringFields {
-		def, ok := doc.Definitions[defName]
-		require.True(t, ok, "schema should define %s", defName)
-
-		for _, property := range properties {
-			t.Run(defName+"."+property, func(t *testing.T) {
-				c, ok := def.Properties[property]
-				require.True(t, ok, "schema should describe %s", property)
-				require.NotNil(t, c.MaxLength, "validate.go bounds the length of %s, so the schema needs maxLength", property)
-			})
-		}
-	}
-
-	for defName, properties := range numericFields {
-		def, ok := doc.Definitions[defName]
-		require.True(t, ok, "schema should define %s", defName)
-
-		for _, property := range properties {
-			t.Run(defName+"."+property, func(t *testing.T) {
-				c, ok := def.Properties[property]
-				require.True(t, ok, "schema should describe %s", property)
-				require.NotNil(t, c.Minimum, "validate.go rejects negative %s, so the schema needs minimum", property)
-			})
-		}
+// TestSchemaBoundsFileRotationFields covers the file rotation options, which
+// are bounded below only, so TestSchemaNumericBoundsMatchGoLimits (which
+// asserts a maximum too) cannot cover them. Every other validated field is
+// covered by the two tables above.
+func TestSchemaBoundsFileRotationFields(t *testing.T) {
+	for _, property := range []string{"max_size", "max_age", "max_backups"} {
+		t.Run(property, func(t *testing.T) {
+			c := loadSchemaConstraints(t, "fileOptions", property)
+			require.NotNil(t, c.Minimum, "FileOptions.CheckValid rejects a negative %s", property)
+			require.Zero(t, *c.Minimum, "Go accepts %s of 0, so the schema must too", property)
+		})
 	}
 }

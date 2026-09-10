@@ -33,10 +33,7 @@ type SyslogOptions struct {
 // GetHost returns the host to connect to, using the Host field if set,
 // otherwise falling back to the deprecated IP field.
 func (so SyslogOptions) GetHost() string {
-	if so.Host != "" {
-		return so.Host
-	}
-	return so.IP
+	return hostOrIP(so.Host, so.IP)
 }
 
 func (so SyslogOptions) CheckValid() error {

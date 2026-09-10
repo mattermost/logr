@@ -63,8 +63,8 @@ type Validator interface {
 // Control characters allow a config value to forge additional log records or
 // emit terminal escape sequences: U+001B and U+009B are both introducers for
 // ANSI escapes, and U+000A and U+0085 both start a new line for most log
-// readers. Bidirectional overrides and the Unicode line and paragraph
-// separators let a value misrepresent how the surrounding record reads.
+// readers. Bidirectional controls and the line and paragraph separators let a
+// value misrepresent how the surrounding record reads.
 //
 // Tab is permitted: it is a legitimate field delimiter and cannot terminate a
 // record or introduce an escape sequence.
@@ -72,29 +72,7 @@ func isForbiddenInText(r rune) bool {
 	if r == '\t' {
 		return false
 	}
-	if unicode.IsControl(r) {
-		// Covers C0 (U+0000-U+001F), DEL (U+007F) and C1 (U+0080-U+009F).
-		return true
-	}
-
-	switch r {
-	case '\u2028', // LINE SEPARATOR
-		'\u2029', // PARAGRAPH SEPARATOR
-		'\u200e', // LEFT-TO-RIGHT MARK
-		'\u200f', // RIGHT-TO-LEFT MARK
-		'\u202a', // LEFT-TO-RIGHT EMBEDDING
-		'\u202b', // RIGHT-TO-LEFT EMBEDDING
-		'\u202c', // POP DIRECTIONAL FORMATTING
-		'\u202d', // LEFT-TO-RIGHT OVERRIDE
-		'\u202e', // RIGHT-TO-LEFT OVERRIDE
-		'\u2066', // LEFT-TO-RIGHT ISOLATE
-		'\u2067', // RIGHT-TO-LEFT ISOLATE
-		'\u2068', // FIRST STRONG ISOLATE
-		'\u2069': // POP DIRECTIONAL ISOLATE
-		return true
-	}
-
-	return false
+	return unicode.IsControl(r) || unicode.In(r, unicode.Bidi_Control, unicode.Zl, unicode.Zp)
 }
 
 // CheckOptionLen returns an error if s is longer than maxLen characters.

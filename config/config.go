@@ -44,18 +44,6 @@ type Factories struct {
 	FormatterFactory FormatterFactory // can be nil
 }
 
-var removeAll = func(ti logr.TargetInfo) bool { return true }
-
-// preparedTarget is a target that has been created and validated, but not yet
-// added to a logger.
-type preparedTarget struct {
-	name      string
-	target    logr.Target
-	filter    logr.Filter
-	formatter logr.Formatter
-	qSize     int
-}
-
 // ConfigureTargets replaces the current list of log targets with a new one based on a map
 // of name->TargetCfg. The map of TargetCfg's would typically be serialized from a JSON
 // source or can be programmatically created.
@@ -63,9 +51,9 @@ type preparedTarget struct {
 // An optional set of factories can be provided which will be called to create any target
 // types or formatters not built-in.
 //
-// Every target, formatter and filter in the config is created and validated
-// before any existing target is removed, so a config that is rejected leaves
-// the current targets untouched.
+// Every target, formatter and filter in the config is created, validated and
+// initialized before any existing target is removed, so a config that cannot be
+// applied leaves the current targets untouched.
 //
 // To append a log target to an existing config, use `(*Logr).AddTarget` instead.
 func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Factories) error {
@@ -73,7 +61,7 @@ func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Fa
 		factories = &Factories{nil, nil}
 	}
 
-	prepared := make([]preparedTarget, 0, len(config))
+	specs := make([]logr.TargetSpec, 0, len(config))
 
 	for name, tcfg := range config {
 		target, err := newTarget(tcfg.Type, tcfg.Options, factories.TargetFactory)
@@ -95,36 +83,21 @@ func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Fa
 			return fmt.Errorf("error creating filter for log target %s: %w", name, err)
 		}
 
-		qSize := tcfg.MaxQueueSize
-		if qSize == 0 {
-			qSize = logr.DefaultMaxQueueSize
-		}
-
-		prepared = append(prepared, preparedTarget{
-			name:      name,
-			target:    target,
-			filter:    filter,
-			formatter: formatter,
-			qSize:     qSize,
+		specs = append(specs, logr.TargetSpec{
+			Target:       target,
+			Name:         name,
+			Filter:       filter,
+			Formatter:    formatter,
+			MaxQueueSize: tcfg.MaxQueueSize,
 		})
 	}
 
-	if err := lgr.RemoveTargets(context.Background(), removeAll); err != nil {
-		return fmt.Errorf("error removing existing log targets: %w", err)
-	}
-
-	for _, p := range prepared {
-		if err := lgr.AddTarget(p.target, p.name, p.filter, p.formatter, p.qSize); err != nil {
-			return fmt.Errorf("error adding log target %s: %w", p.name, err)
-		}
-	}
-	return nil
+	return lgr.ReplaceTargets(context.Background(), specs)
 }
 
-// checkValid validates v if it can validate itself. Targets and formatters from
-// a `Factories` hook are only reachable through the `logr.Target` and
-// `logr.Formatter` interfaces, neither of which declares CheckValid, so the
-// limits apply to them only if they opt in.
+// checkValid validates v if it can validate itself. `logr.Target` and
+// `logr.Formatter` do not declare CheckValid, so a factory-supplied
+// implementation is held to the option limits only if it opts in.
 func checkValid(v any) error {
 	if val, ok := v.(logr.Validator); ok {
 		return val.CheckValid()
@@ -216,52 +189,53 @@ func newTarget(targetType string, options json.RawMessage, factory TargetFactory
 }
 
 func newFormatter(format string, options json.RawMessage, factory FormatterFactory) (logr.Formatter, error) {
+	formatter, err := buildFormatter(format, options, factory)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkValid(formatter); err != nil {
+		return nil, fmt.Errorf("invalid %s formatter options: %w", format, err)
+	}
+	return formatter, nil
+}
+
+func buildFormatter(format string, options json.RawMessage, factory FormatterFactory) (logr.Formatter, error) {
 	switch strings.ToLower(format) {
 	case "json":
-		j := formatters.JSON{}
-		if len(options) != 0 {
-			if err := json.Unmarshal(options, &j); err != nil {
-				return nil, fmt.Errorf("error decoding JSON formatter options: %w", err)
-			}
-			if err := j.CheckValid(); err != nil {
-				return nil, fmt.Errorf("invalid JSON formatter options: %w", err)
-			}
+		j := &formatters.JSON{}
+		if err := decodeOptions(options, j); err != nil {
+			return nil, fmt.Errorf("error decoding JSON formatter options: %w", err)
 		}
-		return &j, nil
+		return j, nil
 	case "plain":
-		p := formatters.Plain{}
-		if len(options) != 0 {
-			if err := json.Unmarshal(options, &p); err != nil {
-				return nil, fmt.Errorf("error decoding Plain formatter options: %w", err)
-			}
-			if err := p.CheckValid(); err != nil {
-				return nil, fmt.Errorf("invalid plain formatter options: %w", err)
-			}
+		p := &formatters.Plain{}
+		if err := decodeOptions(options, p); err != nil {
+			return nil, fmt.Errorf("error decoding Plain formatter options: %w", err)
 		}
-		return &p, nil
+		return p, nil
 	case "gelf":
-		g := formatters.Gelf{}
-		if len(options) != 0 {
-			if err := json.Unmarshal(options, &g); err != nil {
-				return nil, fmt.Errorf("error decoding Gelf formatter options: %w", err)
-			}
-			if err := g.CheckValid(); err != nil {
-				return nil, fmt.Errorf("invalid GELF formatter options: %w", err)
-			}
+		g := &formatters.Gelf{}
+		if err := decodeOptions(options, g); err != nil {
+			return nil, fmt.Errorf("error decoding Gelf formatter options: %w", err)
 		}
-		return &g, nil
-
+		return g, nil
 	default:
 		if factory != nil {
 			f, err := factory(format, options)
 			if err != nil || f == nil {
 				return nil, fmt.Errorf("error from formatter factory: %w", err)
 			}
-			if err := checkValid(f); err != nil {
-				return nil, fmt.Errorf("invalid options from formatter factory: %w", err)
-			}
 			return f, nil
 		}
 	}
 	return nil, fmt.Errorf("format '%s' is unrecognized", format)
+}
+
+// decodeOptions unmarshals options into target, treating an empty value as
+// "keep the defaults".
+func decodeOptions(options json.RawMessage, target any) error {
+	if len(options) == 0 {
+		return nil
+	}
+	return json.Unmarshal(options, target)
 }

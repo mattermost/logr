@@ -55,6 +55,8 @@ type TargetHost struct {
 	done          chan struct{}        // closed when read loop exited
 	targetMetrics *targetMetrics
 
+	metricsUpdateFreqMillis int64
+
 	shutdown int32
 }
 
@@ -84,17 +86,18 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 	// Initialize the per-target level cache
 	host.lvlCache.setup()
 
-	err := host.initMetrics(options.metrics)
-	if err != nil {
+	if err := host.initMetrics(options.metrics); err != nil {
 		return nil, err
 	}
 
-	err = target.Init()
-	if err != nil {
+	if err := target.Init(); err != nil {
 		return nil, err
 	}
 
+	// Nothing below can fail, so every goroutine started here is guaranteed to
+	// be reachable by Shutdown.
 	go host.start()
+	host.startMetrics()
 
 	return host, nil
 }
@@ -131,9 +134,19 @@ func (h *TargetHost) initMetrics(metrics *metrics) error {
 	if updateFreqMillis < 250 {
 		updateFreqMillis = 250 // don't peg the CPU
 	}
+	h.metricsUpdateFreqMillis = updateFreqMillis
 
-	go h.startMetricsUpdater(updateFreqMillis)
 	return nil
+}
+
+// startMetrics starts the metrics updater, if metrics are enabled for this
+// host. It is separate from initMetrics so that no goroutine is started until
+// every step that can fail has succeeded.
+func (h *TargetHost) startMetrics() {
+	if h.targetMetrics == nil {
+		return
+	}
+	go h.startMetricsUpdater(h.metricsUpdateFreqMillis)
 }
 
 // IsLevelEnabled returns true if this target should emit logs for the specified level.

@@ -47,13 +47,14 @@ type TcpOptions struct {
 }
 
 func (to TcpOptions) CheckValid() error {
-	if to.Host == "" && to.IP == "" {
+	host := to.GetHost()
+	if host == "" {
 		return errors.New("missing host")
 	}
 	if to.Port <= 0 || to.Port > 65535 {
 		return fmt.Errorf("port is invalid (%d)", to.Port)
 	}
-	if err := logr.CheckOptionText("host", to.GetHost(), logr.MaxHostnameLen); err != nil {
+	if err := logr.CheckOptionText("host", host, logr.MaxHostnameLen); err != nil {
 		return err
 	}
 	return logr.CheckOptionLen("cert", to.Cert, logr.MaxCertLen)
@@ -62,10 +63,7 @@ func (to TcpOptions) CheckValid() error {
 // GetHost returns the host to connect to, using Host field if set,
 // otherwise falling back to the deprecated IP field.
 func (to TcpOptions) GetHost() string {
-	if to.Host != "" {
-		return to.Host
-	}
-	return to.IP
+	return hostOrIP(to.Host, to.IP)
 }
 
 // NewTcpTarget creates a target capable of outputting log records to a raw socket, with or without TLS.
