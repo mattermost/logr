@@ -85,6 +85,8 @@ func New(opts ...Option) (*Logr, error) {
 
 // AddTarget adds a target to the logger which will receive
 // log records for outputting.
+//
+// A maxQueueSize of zero or less means DefaultMaxQueueSize.
 func (lgr *Logr) AddTarget(target Target, name string, filter Filter, formatter Formatter, maxQueueSize int) error {
 	if lgr.IsShutdown() {
 		return fmt.Errorf("AddTarget called after Logr shut down")
@@ -173,7 +175,7 @@ type TargetSpec struct {
 	Name         string
 	Filter       Filter
 	Formatter    Formatter
-	MaxQueueSize int // zero means DefaultMaxQueueSize
+	MaxQueueSize int // zero or less means DefaultMaxQueueSize
 }
 
 // ReplaceTargets replaces every target on this logger with the supplied set.
@@ -195,10 +197,6 @@ func (lgr *Logr) ReplaceTargets(ctx context.Context, specs []TargetSpec) error {
 	hosts := make([]*TargetHost, 0, len(specs))
 
 	for _, spec := range specs {
-		if spec.MaxQueueSize == 0 {
-			spec.MaxQueueSize = DefaultMaxQueueSize
-		}
-
 		host, err := lgr.buildHost(spec)
 		if err != nil {
 			errs := merror.New()
@@ -235,6 +233,12 @@ func (lgr *Logr) ReplaceTargets(ctx context.Context, specs []TargetSpec) error {
 // buildHost creates and starts a target host from spec. The caller is
 // responsible for publishing it, or for shutting it down if it is discarded.
 func (lgr *Logr) buildHost(spec TargetSpec) (*TargetHost, error) {
+	if spec.MaxQueueSize <= 0 {
+		// An unset size means "use the default", and a negative one would panic
+		// in make. Applied here so every target-creation path shares the rule.
+		spec.MaxQueueSize = DefaultMaxQueueSize
+	}
+
 	lgr.metricsMux.RLock()
 	metrics := lgr.metrics
 	lgr.metricsMux.RUnlock()

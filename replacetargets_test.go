@@ -3,6 +3,7 @@ package logr_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -293,4 +294,39 @@ func (t *gatedTarget) shutdowns() int {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	return t.down
+}
+
+// TestNonPositiveMaxQueueSizeUsesDefault covers every target-creation entry
+// point. A negative size reaches make(chan *LogRec, n) and panics, and an unset
+// one would give an unbuffered queue, so both resolve to DefaultMaxQueueSize.
+// TestBuildHostQueueSize asserts the resulting capacity.
+func TestNonPositiveMaxQueueSizeUsesDefault(t *testing.T) {
+	for _, size := range []int{0, -1} {
+		t.Run(fmt.Sprintf("AddTarget %d", size), func(t *testing.T) {
+			lgr := newReplaceLogr(t)
+			target := &countingTarget{}
+
+			require.NoError(t, lgr.AddTarget(target, "queue", &logr.StdFilter{Lvl: logr.Info}, &formatters.Plain{}, size))
+			require.Len(t, lgr.TargetInfos(), 1)
+
+			lgr.NewLogger().Info("queued")
+			require.NoError(t, lgr.Flush())
+			require.NotZero(t, target.writtenBytes)
+		})
+
+		t.Run(fmt.Sprintf("ReplaceTargets %d", size), func(t *testing.T) {
+			lgr := newReplaceLogr(t)
+			target := &countingTarget{}
+
+			s := spec(target, "queue")
+			s.MaxQueueSize = size
+
+			require.NoError(t, lgr.ReplaceTargets(context.Background(), []logr.TargetSpec{s}))
+			require.Len(t, lgr.TargetInfos(), 1)
+
+			lgr.NewLogger().Info("queued")
+			require.NoError(t, lgr.Flush())
+			require.NotZero(t, target.writtenBytes)
+		})
+	}
 }
