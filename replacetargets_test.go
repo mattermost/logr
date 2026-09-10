@@ -235,3 +235,62 @@ func TestReplaceTargetsDoesNotLeakMetricsUpdaterOnInitFailure(t *testing.T) {
 	require.Equal(t, settled, gauge.count(),
 		"the metrics updater for the target that failed Init is still running")
 }
+
+// TestReplaceTargetsDoesNotPublishAfterShutdown covers the window between
+// building the replacement hosts and publishing them. ShutdownWithTimeout sets
+// the shutdown flag well before it reads targetHosts, so a replacement set
+// published after that read would keep running with nothing left to stop it.
+func TestReplaceTargetsDoesNotPublishAfterShutdown(t *testing.T) {
+	lgr, err := logr.New()
+	require.NoError(t, err)
+
+	gate := make(chan struct{})
+	blocking := &gatedTarget{ready: gate, entered: make(chan struct{})}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- lgr.ReplaceTargets(context.Background(), []logr.TargetSpec{spec(blocking, "late")})
+	}()
+
+	// Wait until the target is mid-Init, which is after ReplaceTargets has
+	// checked IsShutdown but before it publishes.
+	<-blocking.entered
+
+	require.NoError(t, lgr.Shutdown())
+	close(gate)
+
+	require.NoError(t, <-done)
+	require.Empty(t, lgr.TargetInfos(), "a target must not be published after shutdown")
+	require.Equal(t, 1, blocking.shutdowns(), "the staged target should be shut down instead of published")
+}
+
+// gatedTarget blocks in Init until its gate is closed, so a test can interleave
+// a shutdown with target creation.
+type gatedTarget struct {
+	ready   chan struct{}
+	entered chan struct{}
+
+	mux  sync.Mutex
+	down int
+}
+
+func (t *gatedTarget) Init() error {
+	close(t.entered)
+	<-t.ready
+	return nil
+}
+
+func (t *gatedTarget) Write(p []byte, rec *logr.LogRec) (int, error) { return len(p), nil }
+
+func (t *gatedTarget) Shutdown() error {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.down++
+	return nil
+}
+
+func (t *gatedTarget) shutdowns() int {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	return t.down
+}

@@ -211,6 +211,14 @@ func (lgr *Logr) ReplaceTargets(ctx context.Context, specs []TargetSpec) error {
 	}
 
 	lgr.tmux.Lock()
+	if lgr.IsShutdown() {
+		// Shutdown began while the hosts above were being created, and may
+		// already have iterated targetHosts, so publishing here would leave
+		// these hosts running with nothing left to shut them down.
+		lgr.tmux.Unlock()
+		return shutdownHosts(ctx, hosts)
+	}
+
 	replaced := lgr.targetHosts
 	lgr.targetHosts = hosts
 	// Only the aggregate cache is stale. Each new host's cache was created
