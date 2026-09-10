@@ -51,7 +51,7 @@ func (so SyslogOptions) CheckValid() error {
 	if so.Port < 0 || so.Port > 65535 {
 		return fmt.Errorf("port is invalid (%d)", so.Port)
 	}
-	if err := logr.CheckOptionText("host", host, logr.MaxHostnameLen); err != nil {
+	if err := logr.CheckOptionHost("host", host); err != nil {
 		return err
 	}
 	if err := logr.CheckOptionText("tag", so.Tag, logr.MaxTagLen); err != nil {

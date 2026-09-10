@@ -90,6 +90,32 @@ func TestCheckOptionText(t *testing.T) {
 	})
 }
 
+func TestCheckOptionHost(t *testing.T) {
+	require.NoError(t, CheckOptionHost("host", ""), "empty means local or unset")
+	require.NoError(t, CheckOptionHost("host", "logs.example.com"))
+	require.NoError(t, CheckOptionHost("host", "127.0.0.1"))
+	require.NoError(t, CheckOptionHost("host", "::1"))
+
+	t.Run("rejects whitespace", func(t *testing.T) {
+		// A host is interpolated into "host:port" and dialed, so tab and space
+		// produce an address that cannot resolve. Tab is valid for a delimiter,
+		// which is why CheckOptionText alone is not enough here.
+		for _, s := range []string{"log\tserver", "log server", "\tlogs", "logs "} {
+			err := CheckOptionHost("host", s)
+			require.Error(t, err, "%q should be rejected", s)
+			require.Contains(t, err.Error(), "whitespace")
+		}
+	})
+
+	t.Run("rejects control characters", func(t *testing.T) {
+		require.Error(t, CheckOptionHost("host", "logs\n.example.com"))
+	})
+
+	t.Run("is length limited", func(t *testing.T) {
+		require.Error(t, CheckOptionHost("host", strings.Repeat("h", MaxHostnameLen+1)))
+	})
+}
+
 func TestCheckOptionLineEnd(t *testing.T) {
 	for _, s := range []string{"", "\n", "\r\n", "\n\n", " \n", "\t\n"} {
 		require.NoError(t, CheckOptionLineEnd("line_end", s), "%q should be valid", s)

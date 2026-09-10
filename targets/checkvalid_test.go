@@ -58,6 +58,11 @@ func TestTcpOptionsCheckValid(t *testing.T) {
 		require.Error(t, to.CheckValid())
 	})
 
+	t.Run("host rejects whitespace", func(t *testing.T) {
+		require.Error(t, TcpOptions{Host: "log\tserver", Port: 12201}.CheckValid())
+		require.Error(t, TcpOptions{IP: "127.0.0.1 ", Port: 12201}.CheckValid())
+	})
+
 	t.Run("cert is length limited", func(t *testing.T) {
 		to := TcpOptions{Host: "localhost", Port: 12201, Cert: strings.Repeat("c", logr.MaxCertLen+1)}
 		require.Error(t, to.CheckValid())

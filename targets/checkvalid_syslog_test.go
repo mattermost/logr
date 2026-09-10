@@ -52,6 +52,10 @@ func TestSyslogOptionsCheckValid(t *testing.T) {
 		require.Error(t, SyslogOptions{Host: "logs\n.example.com", Port: 514}.CheckValid())
 	})
 
+	t.Run("host rejects whitespace", func(t *testing.T) {
+		require.Error(t, SyslogOptions{Host: "log\tserver", Port: 514}.CheckValid())
+	})
+
 	t.Run("tag is length limited", func(t *testing.T) {
 		so := SyslogOptions{Host: "localhost", Port: 514, Tag: strings.Repeat("t", logr.MaxTagLen+1)}
 		require.Error(t, so.CheckValid())

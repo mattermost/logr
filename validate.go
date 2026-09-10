@@ -105,6 +105,20 @@ func CheckOptionText(name string, s string, maxLen int) error {
 	return nil
 }
 
+// CheckOptionHost returns an error if s is not usable as a hostname. It is
+// stricter than CheckOptionText, which permits tab so it can serve as a field
+// delimiter: a host is interpolated into a "host:port" address and dialed, so
+// whitespace in it produces an address that cannot resolve.
+func CheckOptionHost(name string, s string) error {
+	if err := CheckOptionText(name, s, MaxHostnameLen); err != nil {
+		return err
+	}
+	if i := strings.IndexAny(s, " \t"); i >= 0 {
+		return fmt.Errorf("%s must not contain whitespace (at offset %d)", name, i)
+	}
+	return nil
+}
+
 // lineEndChars are the only characters permitted in a line terminator option.
 const lineEndChars = "\r\n\t "
 

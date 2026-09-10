@@ -54,7 +54,7 @@ func (to TcpOptions) CheckValid() error {
 	if to.Port <= 0 || to.Port > 65535 {
 		return fmt.Errorf("port is invalid (%d)", to.Port)
 	}
-	if err := logr.CheckOptionText("host", host, logr.MaxHostnameLen); err != nil {
+	if err := logr.CheckOptionHost("host", host); err != nil {
 		return err
 	}
 	return logr.CheckOptionLen("cert", to.Cert, logr.MaxCertLen)
