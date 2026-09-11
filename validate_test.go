@@ -97,10 +97,20 @@ func TestCheckOptionHost(t *testing.T) {
 	require.NoError(t, CheckOptionHost("host", "::1"))
 
 	t.Run("rejects whitespace", func(t *testing.T) {
-		// A host is interpolated into "host:port" and dialed, so tab and space
-		// produce an address that cannot resolve. Tab is valid for a delimiter,
-		// which is why CheckOptionText alone is not enough here.
-		for _, s := range []string{"log\tserver", "log server", "\tlogs", "logs "} {
+		// A host is interpolated into "host:port" and dialed, so whitespace in
+		// it produces an address that cannot resolve. Tab is valid for a
+		// delimiter, which is why CheckOptionText alone is not enough here, and
+		// the non-ASCII cases are not control characters so they reach this
+		// check too.
+		for _, s := range []string{
+			"log\tserver",
+			"log server",
+			"\tlogs",
+			"logs ",
+			"log\u00a0server", // NO-BREAK SPACE
+			"log\u2007server", // FIGURE SPACE
+			"log\u3000server", // IDEOGRAPHIC SPACE
+		} {
 			err := CheckOptionHost("host", s)
 			require.Error(t, err, "%q should be rejected", s)
 			require.Contains(t, err.Error(), "whitespace")

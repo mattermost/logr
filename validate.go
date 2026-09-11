@@ -108,13 +108,16 @@ func CheckOptionText(name string, s string, maxLen int) error {
 // CheckOptionHost returns an error if s is not usable as a hostname. It is
 // stricter than CheckOptionText, which permits tab so it can serve as a field
 // delimiter: a host is interpolated into a "host:port" address and dialed, so
-// whitespace in it produces an address that cannot resolve.
+// whitespace in it produces an address that cannot resolve. That includes
+// whitespace beyond ASCII, such as U+00A0, which is not a control character
+// and so reaches this check.
 func CheckOptionHost(name string, s string) error {
 	if err := CheckOptionText(name, s, MaxHostnameLen); err != nil {
 		return err
 	}
-	if i := strings.IndexAny(s, " \t"); i >= 0 {
-		return fmt.Errorf("%s must not contain whitespace (at offset %d)", name, i)
+	if i := strings.IndexFunc(s, unicode.IsSpace); i >= 0 {
+		r, _ := utf8.DecodeRuneInString(s[i:])
+		return fmt.Errorf("%s must not contain whitespace (%U at offset %d)", name, r, i)
 	}
 	return nil
 }
