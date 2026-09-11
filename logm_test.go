@@ -1,7 +1,6 @@
 package logr_test
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -9,6 +8,7 @@ import (
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ func TestLogM_Basic(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -50,7 +50,7 @@ func TestLogM_WithCustomFilter(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	tag1 := logr.Level{ID: 100, Name: "tag1"}
 	tag2 := logr.Level{ID: 101, Name: "tag2"}
@@ -79,7 +79,7 @@ func TestLogM_EmptyLevelSlice(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -104,7 +104,7 @@ func TestLogM_SingleLevel(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Warn}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -127,7 +127,7 @@ func TestLogM_ManyLevels(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	// Create many custom levels
 	levels := make([]logr.Level, 10)
@@ -158,8 +158,8 @@ func TestLogM_MixedFilters(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf1 := &bytes.Buffer{}
-	buf2 := &bytes.Buffer{}
+	buf1 := &test.Buffer{}
+	buf2 := &test.Buffer{}
 
 	tag1 := logr.Level{ID: 100, Name: "tag1"}
 	tag2 := logr.Level{ID: 101, Name: "tag2"}
@@ -225,7 +225,7 @@ func TestLogM_AllDisabled(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	// Create custom levels but don't add to filter
 	tag1 := logr.Level{ID: 100, Name: "tag1"}
@@ -255,7 +255,7 @@ func TestLogM_CacheBehavior(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	tag1 := logr.Level{ID: 100, Name: "tag1"}
 	tag2 := logr.Level{ID: 101, Name: "tag2"}
@@ -294,7 +294,7 @@ func TestLogM_WithFields(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	tag1 := logr.Level{ID: 100, Name: "tag1"}
 
@@ -324,7 +324,7 @@ func TestLogM_AfterRemoveTarget(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	tag1 := logr.Level{ID: 100, Name: "tag1"}
 

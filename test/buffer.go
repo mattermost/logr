@@ -18,6 +18,13 @@ func (b *Buffer) Write(data []byte) (int, error) {
 	return b.buf.Write(data)
 }
 
+// Read consumes data from the buffer, so Buffer satisfies io.Reader.
+func (b *Buffer) Read(data []byte) (int, error) {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+	return b.buf.Read(data)
+}
+
 // String returns the buffer as a string.
 func (b *Buffer) String() string {
 	b.mux.Lock()

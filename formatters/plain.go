@@ -2,7 +2,6 @@ package formatters
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 
 	"github.com/mattermost/logr/v2"
@@ -48,10 +47,19 @@ type Plain struct {
 }
 
 func (p *Plain) CheckValid() error {
-	if p.MinMessageLen < 0 || p.MinMessageLen > 1024 {
-		return fmt.Errorf("min_msg_len is invalid(%d)", p.MinMessageLen)
+	if err := logr.CheckOptionRange("min_msg_len", p.MinMessageLen, logr.MaxPadLen); err != nil {
+		return err
 	}
-	return nil
+	if err := logr.CheckOptionRange("min_level_len", p.MinLevelLen, logr.MaxPadLen); err != nil {
+		return err
+	}
+	if err := logr.CheckOptionText("delim", p.Delim, logr.MaxDelimLen); err != nil {
+		return err
+	}
+	if err := logr.CheckOptionText("timestamp_format", p.TimestampFormat, logr.MaxTimestampFormatLen); err != nil {
+		return err
+	}
+	return logr.CheckOptionLineEnd("line_end", p.LineEnd)
 }
 
 // IsStacktraceNeeded returns true if a stacktrace is needed so we can output the `Caller` field.

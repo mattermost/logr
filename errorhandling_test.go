@@ -9,6 +9,7 @@ import (
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +47,7 @@ func TestErrorHandling_TargetInitFailure(t *testing.T) {
 	assert.True(t, failTarget.initCalled, "Init should have been called")
 
 	// Logr should still be usable with other targets
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	target := targets.NewWriterTarget(buf)
 	err = lgr.AddTarget(target, "working", filter, formatter, 100)
 	assert.NoError(t, err)
@@ -183,7 +184,7 @@ func TestErrorHandling_MaxLevelIDExceeded(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	invalidLevel := logr.Level{ID: logr.MaxLevelID + 1, Name: "invalid"}
 	filter := &logr.CustomFilter{}
 	filter.Add(invalidLevel)
@@ -249,7 +250,7 @@ func TestErrorHandling_NoOnLoggerError(t *testing.T) {
 	lgr.ReportError(errors.New("test error"))
 
 	// Should still work normally
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)

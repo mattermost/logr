@@ -1,13 +1,13 @@
 package logr_test
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestLoggerWith_ChainedCalls(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.JSON{DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -47,7 +47,7 @@ func TestLoggerWith_FieldOverride(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.JSON{DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -75,7 +75,7 @@ func TestLoggerWith_DeepNesting(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -106,7 +106,7 @@ func TestLoggerWith_EmptyFields(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -131,7 +131,7 @@ func TestLoggerWith_FieldAccumulation(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.JSON{DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -174,7 +174,7 @@ func TestLoggerWith_AllFieldTypes(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.JSON{DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -209,7 +209,7 @@ func TestLoggerWith_MixedWithLogFields(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.JSON{DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -236,7 +236,7 @@ func TestLoggerWith_Independence(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.JSON{DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)

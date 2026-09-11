@@ -104,6 +104,7 @@
         "name": {
           "type": "string",
           "minLength": 1,
+          "maxLength": 64,
           "description": "Human-readable name for the log level"
         },
         "stacktrace": {
@@ -137,12 +138,13 @@
         "filename": {
           "type": "string",
           "minLength": 1,
+          "maxLength": 4096,
           "description": "Path to the log file"
         },
         "max_size": {
           "type": "integer",
-          "minimum": 1,
-          "description": "Maximum size in megabytes before rotation (default: 100)"
+          "minimum": 0,
+          "description": "Maximum size in megabytes before rotation (0 or omitted uses the default of 100)"
         },
         "max_age": {
           "type": "integer",
@@ -168,10 +170,12 @@
       "properties": {
         "ip": {
           "type": "string",
+          "maxLength": 255,
           "description": "IP address (deprecated, use 'host' instead)"
         },
         "host": {
           "type": "string",
+          "maxLength": 255,
           "description": "Hostname or IP address of the TCP server"
         },
         "port": {
@@ -187,7 +191,8 @@
         },
         "cert": {
           "type": "string",
-          "description": "Path to TLS certificate file"
+          "maxLength": 65536,
+          "description": "Path to TLS certificate file, or a base64 encoded cert"
         },
         "insecure": {
           "type": "boolean",
@@ -207,10 +212,12 @@
       "properties": {
         "ip": {
           "type": "string",
+          "maxLength": 255,
           "description": "IP address (deprecated, use 'host' instead)"
         },
         "host": {
           "type": "string",
+          "maxLength": 255,
           "description": "Hostname or IP address of the syslog server"
         },
         "port": {
@@ -226,7 +233,8 @@
         },
         "cert": {
           "type": "string",
-          "description": "Path to TLS certificate file"
+          "maxLength": 65536,
+          "description": "Path to TLS certificate file, or a base64 encoded cert"
         },
         "insecure": {
           "type": "boolean",
@@ -235,6 +243,7 @@
         },
         "tag": {
           "type": "string",
+          "maxLength": 64,
           "description": "Syslog tag identifier"
         }
       },
@@ -282,30 +291,37 @@
         },
         "timestamp_format": {
           "type": "string",
+          "maxLength": 128,
           "description": "Custom timestamp format (Go time format)"
         },
         "key_timestamp": {
           "type": "string",
+          "maxLength": 64,
           "description": "Custom key name for timestamp field"
         },
         "key_level": {
           "type": "string",
+          "maxLength": 64,
           "description": "Custom key name for level field"
         },
         "key_msg": {
           "type": "string",
+          "maxLength": 64,
           "description": "Custom key name for message field"
         },
         "key_group_fields": {
           "type": "string",
+          "maxLength": 64,
           "description": "Key name to group all context fields under"
         },
         "key_stacktrace": {
           "type": "string",
+          "maxLength": 64,
           "description": "Custom key name for stacktrace field"
         },
         "key_caller": {
           "type": "string",
+          "maxLength": 64,
           "description": "Custom key name for caller field"
         }
       },
@@ -346,11 +362,14 @@
         },
         "delim": {
           "type": "string",
-          "description": "Delimiter between log fields (default: single space)"
+          "maxLength": 32,
+          "pattern": "^[^\\x00-\\x08\\x0a-\\x1f\\x7f-\\x9f]*$",
+          "description": "Delimiter between log fields (default: single space). Control characters other than tab are not allowed"
         },
         "min_level_len": {
           "type": "integer",
           "minimum": 0,
+          "maximum": 1024,
           "description": "Minimum level name length (padded with spaces)"
         },
         "min_msg_len": {
@@ -361,11 +380,14 @@
         },
         "timestamp_format": {
           "type": "string",
+          "maxLength": 128,
           "description": "Custom timestamp format (Go time format)"
         },
         "line_end": {
           "type": "string",
-          "description": "End of line character(s) (default: '\\n')"
+          "maxLength": 16,
+          "pattern": "^[\\r\\n\\t ]*$",
+          "description": "End of line character(s) (default: '\\n'). Only whitespace is allowed"
         },
         "enable_color": {
           "type": "boolean",
@@ -380,6 +402,7 @@
       "properties": {
         "hostname": {
           "type": "string",
+          "maxLength": 255,
           "description": "Custom hostname (defaults to os.Hostname())"
         },
         "enable_caller": {

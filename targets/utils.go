@@ -11,6 +11,14 @@ const (
 	DefaultCertKey = "LOGR_DEFAULT_CERT"
 )
 
+// hostOrIP returns host if set, otherwise the deprecated ip fallback.
+func hostOrIP(host string, ip string) string {
+	if host != "" {
+		return host
+	}
+	return ip
+}
+
 // GetCertPoolOrNil returns a x509.CertPool containing the cert(s) from `cert`,
 // or from the certs specified by the env var `LOGR_DEFAULT_CERT`, either of which
 // can be a path to a .pem or .crt file, or a base64 encoded cert.

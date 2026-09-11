@@ -18,7 +18,7 @@ import (
 
 // TestTargetShutdownQueueDrain tests that all queued records are processed during shutdown
 func TestTargetShutdownQueueDrain(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
@@ -58,7 +58,7 @@ func TestTargetShutdownQueueDrain(t *testing.T) {
 
 // TestTargetShutdownRaceCondition tests prevention of race between Log() and Shutdown()
 func TestTargetShutdownRaceCondition(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 1) // 1ms delay
@@ -109,7 +109,7 @@ func TestTargetShutdownRaceCondition(t *testing.T) {
 
 // TestTargetShutdownContextTimeout tests behavior when context timeout is reached
 func TestTargetShutdownContextTimeout(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
@@ -149,8 +149,8 @@ func TestTargetShutdownContextTimeout(t *testing.T) {
 
 // TestTargetShutdownMultipleTargets tests shutdown with multiple targets
 func TestTargetShutdownMultipleTargets(t *testing.T) {
-	buf1 := &bytes.Buffer{}
-	buf2 := &bytes.Buffer{}
+	buf1 := &test.Buffer{}
+	buf2 := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
@@ -192,7 +192,7 @@ func TestTargetShutdownMultipleTargets(t *testing.T) {
 
 // TestTargetShutdownFlushRecords tests that flush records are handled during drain
 func TestTargetShutdownFlushRecords(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 5) // 5ms delay
@@ -238,7 +238,7 @@ func TestTargetShutdownFlushRecords(t *testing.T) {
 
 // TestTargetShutdownEmptyQueue tests shutdown behavior with empty queue
 func TestTargetShutdownEmptyQueue(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 1)
@@ -258,19 +258,17 @@ func TestTargetShutdownEmptyQueue(t *testing.T) {
 	duration := time.Since(start)
 
 	assert.NoError(t, err)
-	// Race detector adds significant overhead; relax timing constraint
-	maxDuration := 100 * time.Millisecond
-	if testing.Short() {
-		// -short flag is used with -race in CI
-		maxDuration = 500 * time.Millisecond
-	}
+	// Generous because the race detector instruments every memory access, and
+	// this only needs to catch a shutdown that hangs rather than one that is
+	// merely slow.
+	maxDuration := 500 * time.Millisecond
 	assert.Less(t, int64(duration), int64(maxDuration), "Empty queue shutdown took too long")
 	assert.Empty(t, buf.String(), "Buffer should be empty")
 }
 
 // TestDrainQueueRespectsTimeout specifically tests that drainQueue respects the shutdown context timeout
 func TestDrainQueueRespectsTimeout(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 
@@ -314,7 +312,7 @@ func TestDrainQueueRespectsTimeout(t *testing.T) {
 
 // TestDrainQueueWithoutTimeout tests that drainQueue processes all records when there's sufficient time
 func TestDrainQueueWithoutTimeout(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 

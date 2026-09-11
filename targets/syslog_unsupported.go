@@ -30,6 +30,12 @@ type SyslogOptions struct {
 	Tag      string `json:"tag"`
 }
 
+// GetHost returns the host to connect to, using the Host field if set,
+// otherwise falling back to the deprecated IP field.
+func (so SyslogOptions) GetHost() string {
+	return hostOrIP(so.Host, so.IP)
+}
+
 func (so SyslogOptions) CheckValid() error {
 	return errors.New(unsupported)
 }

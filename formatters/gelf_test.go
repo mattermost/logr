@@ -28,9 +28,17 @@ type gelfOutput struct {
 }
 
 func TestGelfCheckValid(t *testing.T) {
-	gelf := &formatters.Gelf{}
-	err := gelf.CheckValid()
-	require.NoError(t, err, "CheckValid should always return nil")
+	require.NoError(t, (&formatters.Gelf{}).CheckValid(), "the zero value should be valid")
+	require.NoError(t, (&formatters.Gelf{Hostname: "webapp-01"}).CheckValid())
+
+	t.Run("hostname is length limited", func(t *testing.T) {
+		g := &formatters.Gelf{Hostname: strings.Repeat("h", logr.MaxHostnameLen+1)}
+		require.Error(t, g.CheckValid())
+	})
+
+	t.Run("hostname rejects control characters", func(t *testing.T) {
+		require.Error(t, (&formatters.Gelf{Hostname: "host\nname"}).CheckValid())
+	})
 }
 
 func TestGelfIsStacktraceNeeded(t *testing.T) {
