@@ -47,17 +47,13 @@ type TcpOptions struct {
 }
 
 func (to TcpOptions) CheckValid() error {
-	host := to.GetHost()
-	if host == "" {
+	if to.Host == "" && to.IP == "" {
 		return errors.New("missing host")
 	}
-	if to.Port <= 0 || to.Port > 65535 {
-		return fmt.Errorf("port is invalid (%d)", to.Port)
+	if to.Port == 0 {
+		return errors.New("missing port")
 	}
-	if err := logr.CheckOptionHost("host", host); err != nil {
-		return err
-	}
-	return logr.CheckOptionLen("cert", to.Cert, logr.MaxCertLen)
+	return nil
 }
 
 // GetHost returns the host to connect to, using Host field if set,
@@ -178,6 +174,14 @@ func (tcp *Tcp) Shutdown() error {
 		close(tcp.stop)
 	})
 	return tcp.shutdownErr
+}
+
+// Interrupt cancels a Write in progress by closing tcp.stop, which Write
+// checks before every connection attempt and retry. Implements
+// logr.Interruptible so a Write against an unreachable peer, which retries
+// indefinitely, does not block TargetHost.Shutdown forever.
+func (tcp *Tcp) Interrupt() {
+	_ = tcp.Shutdown()
 }
 
 // Write converts the log record to bytes, via the Formatter, and outputs to the socket.

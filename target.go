@@ -23,6 +23,22 @@ type Target interface {
 	Shutdown() error
 }
 
+// Interruptible is implemented by a Target whose Write can be canceled while
+// it is still running. If the shutdown context expires before the read loop
+// exits on its own, TargetHost.Shutdown calls Interrupt so a Write that only
+// returns once the target is asked to stop (as Tcp's retry loop does)
+// cannot wedge Shutdown, or the tmux lock ReplaceTargets/RemoveTargets hold
+// while shutting a target down.
+//
+// A target that does not implement this keeps the base Target guarantee that
+// Shutdown only runs after its queue is fully drained: TargetHost.Shutdown
+// still waits for the read loop to exit before calling Shutdown either way.
+type Interruptible interface {
+	// Interrupt cancels any Write in progress, causing it to return promptly.
+	// May be called concurrently with Write, and together with Shutdown.
+	Interrupt()
+}
+
 type targetMetrics struct {
 	queueSizeGauge Gauge
 	loggedCounter  Counter
@@ -177,11 +193,21 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 	// This allows the read loop to receive the timeout context for drainQueue
 	h.quit <- ctx
 
-	// Wait for the read loop to actually exit. ctx only bounds how long
-	// drainQueue keeps processing queued records; racing it here instead of
-	// waiting on h.done could call target.Shutdown() while the read loop is
-	// still mid-write, letting the target's Write and Shutdown run concurrently.
-	<-h.done
+	select {
+	case <-h.done:
+		// The read loop drained and exited on its own.
+	case <-ctx.Done():
+		// The read loop is still running, most likely blocked in a Write that
+		// only returns once the target is asked to stop (Tcp's retry loop
+		// checks for this). Interrupt breaks that wait if the target supports
+		// it; either way, wait for the read loop to actually exit before
+		// falling through to Shutdown, so Write and Shutdown are still never
+		// called at the same time.
+		if interruptible, ok := h.target.(Interruptible); ok {
+			interruptible.Interrupt()
+		}
+		<-h.done
+	}
 
 	return h.target.Shutdown()
 }

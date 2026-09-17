@@ -330,3 +330,148 @@ func TestNonPositiveMaxQueueSizeUsesDefault(t *testing.T) {
 		})
 	}
 }
+
+// blockingUntilShutdownTarget's Write blocks until Interrupt runs, like Tcp's
+// retry loop, which only returns once told to stop. It implements
+// logr.Interruptible the same way Tcp does, so TargetHost.Shutdown is allowed
+// to unblock it before the read loop exits on its own.
+type blockingUntilShutdownTarget struct {
+	started chan struct{} // closed when Write begins
+	unblock chan struct{} // closed by Interrupt/Shutdown to release Write
+	wrote   chan struct{} // closed when Write returns
+}
+
+func (t *blockingUntilShutdownTarget) Init() error { return nil }
+
+func (t *blockingUntilShutdownTarget) Write(p []byte, rec *logr.LogRec) (int, error) {
+	close(t.started)
+	<-t.unblock
+	close(t.wrote)
+	return len(p), nil
+}
+
+func (t *blockingUntilShutdownTarget) release() {
+	select {
+	case <-t.unblock:
+	default:
+		close(t.unblock)
+	}
+}
+
+func (t *blockingUntilShutdownTarget) Interrupt() { t.release() }
+
+func (t *blockingUntilShutdownTarget) Shutdown() error {
+	t.release()
+	return nil
+}
+
+// TestReplaceTargetsUnblocksWriteOnContextTimeout is a regression test for a
+// deadlock: TargetHost.Shutdown used to wait unconditionally for the read loop
+// to exit before shutting down the target it hosts, but a target such as Tcp
+// only returns from Write once its own Shutdown runs, so the two waited on
+// each other forever and every subsequent ReplaceTargets/RemoveTargets call
+// (and all logging, since they hold tmux's write lock) hung with it. Shutdown
+// must fall back to shutting down the target on ctx timeout so a stuck Write
+// can still be interrupted.
+func TestReplaceTargetsUnblocksWriteOnContextTimeout(t *testing.T) {
+	stuck := &blockingUntilShutdownTarget{
+		started: make(chan struct{}),
+		unblock: make(chan struct{}),
+		wrote:   make(chan struct{}),
+	}
+
+	lgr := newReplaceLogr(t)
+	require.NoError(t, lgr.ReplaceTargets(context.Background(), []logr.TargetSpec{spec(stuck, "stuck")}))
+
+	lgr.NewLogger().Info("record that will never finish writing")
+
+	select {
+	case <-stuck.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("target never started writing")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	replacement := &countingTarget{}
+	done := make(chan error, 1)
+	go func() { done <- lgr.ReplaceTargets(ctx, []logr.TargetSpec{spec(replacement, "new")}) }()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ReplaceTargets deadlocked shutting down a target whose Write only returns once Shutdown runs")
+	}
+
+	select {
+	case <-stuck.wrote:
+	case <-time.After(time.Second):
+		t.Fatal("the stuck Write should have been unblocked before ReplaceTargets returned")
+	}
+}
+
+// nonInterruptibleBlockingTarget's Write blocks until the test releases it
+// directly. It does not implement logr.Interruptible, so it pins the base
+// Target contract: Shutdown must still wait for Write to return on its own,
+// even after the shutdown context expires.
+type nonInterruptibleBlockingTarget struct {
+	started        chan struct{}
+	unblock        chan struct{}
+	shutdownCalled chan struct{}
+}
+
+func (t *nonInterruptibleBlockingTarget) Init() error { return nil }
+
+func (t *nonInterruptibleBlockingTarget) Write(p []byte, rec *logr.LogRec) (int, error) {
+	close(t.started)
+	<-t.unblock
+	return len(p), nil
+}
+
+func (t *nonInterruptibleBlockingTarget) Shutdown() error {
+	close(t.shutdownCalled)
+	return nil
+}
+
+func TestReplaceTargetsDoesNotShutdownNonInterruptibleTargetBeforeWriteReturns(t *testing.T) {
+	target := &nonInterruptibleBlockingTarget{
+		started:        make(chan struct{}),
+		unblock:        make(chan struct{}),
+		shutdownCalled: make(chan struct{}),
+	}
+
+	lgr := newReplaceLogr(t)
+	require.NoError(t, lgr.ReplaceTargets(context.Background(), []logr.TargetSpec{spec(target, "blocked")}))
+
+	lgr.NewLogger().Info("in flight")
+
+	select {
+	case <-target.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("target never started writing")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- lgr.ReplaceTargets(ctx, []logr.TargetSpec{spec(&countingTarget{}, "new")}) }()
+
+	// Give ctx time to expire; Shutdown must still not touch the target since
+	// it cannot be interrupted.
+	time.Sleep(200 * time.Millisecond)
+	select {
+	case <-target.shutdownCalled:
+		t.Fatal("Shutdown ran before the in-progress Write returned")
+	default:
+	}
+
+	close(target.unblock)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ReplaceTargets did not complete after Write returned")
+	}
+}

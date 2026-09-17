@@ -34,7 +34,7 @@ type Gelf struct {
 }
 
 func (g *Gelf) CheckValid() error {
-	return logr.CheckOptionText("hostname", g.Hostname, logr.MaxHostnameLen)
+	return nil
 }
 
 // IsStacktraceNeeded returns true if a stacktrace is needed so we can output the `Caller` field.

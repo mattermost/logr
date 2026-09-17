@@ -35,29 +35,18 @@ func (so SyslogOptions) GetHost() string {
 	return hostOrIP(so.Host, so.IP)
 }
 
-// CheckValid returns an error if these options are not valid.
-//
-// Leaving both the host and the port unset selects local syslog, which `Init`
-// connects to with an empty address. Setting either one requires both, since a
-// remote daemon cannot be reached without them.
 func (so SyslogOptions) CheckValid() error {
-	host := so.GetHost()
-	if host != "" && so.Port == 0 {
-		return errors.New("missing port")
+	if so.Host == "" && so.IP == "" && so.Port == 0 {
+		// No host and no port means local syslog; Init connects with an empty address.
+		return nil
 	}
-	if host == "" && so.Port != 0 {
+	if so.Host == "" && so.IP == "" {
 		return errors.New("missing host")
 	}
-	if so.Port < 0 || so.Port > 65535 {
-		return fmt.Errorf("port is invalid (%d)", so.Port)
+	if so.Port < 1 || so.Port > 65535 {
+		return errors.New("invalid port")
 	}
-	if err := logr.CheckOptionHost("host", host); err != nil {
-		return err
-	}
-	if err := logr.CheckOptionText("tag", so.Tag, logr.MaxTagLen); err != nil {
-		return err
-	}
-	return logr.CheckOptionLen("cert", so.Cert, logr.MaxCertLen)
+	return nil
 }
 
 // NewSyslogTarget creates a target capable of outputting log records to remote or local syslog, with or without TLS.

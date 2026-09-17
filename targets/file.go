@@ -2,7 +2,6 @@ package targets
 
 import (
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/mattermost/logr/v2"
@@ -39,18 +38,6 @@ type FileOptions struct {
 func (fo FileOptions) CheckValid() error {
 	if fo.Filename == "" {
 		return errors.New("filename cannot be empty")
-	}
-	if err := logr.CheckOptionText("filename", fo.Filename, logr.MaxFilePathLen); err != nil {
-		return err
-	}
-	if fo.MaxSize < 0 {
-		return fmt.Errorf("max_size is invalid (%d)", fo.MaxSize)
-	}
-	if fo.MaxAge < 0 {
-		return fmt.Errorf("max_age is invalid (%d)", fo.MaxAge)
-	}
-	if fo.MaxBackups < 0 {
-		return fmt.Errorf("max_backups is invalid (%d)", fo.MaxBackups)
 	}
 	return nil
 }

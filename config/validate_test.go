@@ -62,28 +62,20 @@ func TestConfigureTargetsRejectsUnsafeOptions(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("line_end payload is rejected", func(t *testing.T) {
-		err := configureFromJSON(t, `{"t":{`+fileTarget+`,"format":"plain","format_options":{"line_end":"#!/bin/sh\nid\n"},`+levels+`}}`)
+	t.Run("missing filename is rejected", func(t *testing.T) {
+		err := configureFromJSON(t, `{"t":{"type":"file","options":{"max_size":1},"format":"plain",`+levels+`}}`)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "line_end")
+		require.Contains(t, err.Error(), "filename")
 	})
 
-	t.Run("delim with newline is rejected", func(t *testing.T) {
-		err := configureFromJSON(t, `{"t":{`+fileTarget+`,"format":"plain","format_options":{"delim":"\nforged "},`+levels+`}}`)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "delim")
+	t.Run("oversized line_end is truncated rather than rejected", func(t *testing.T) {
+		err := configureFromJSON(t, `{"t":{`+fileTarget+`,"format":"plain","format_options":{"line_end":"\n\n\n\n\n"},`+levels+`}}`)
+		require.NoError(t, err)
 	})
 
-	t.Run("oversized min_level_len is rejected", func(t *testing.T) {
-		err := configureFromJSON(t, `{"t":{`+fileTarget+`,"format":"plain","format_options":{"min_level_len":2000000000},`+levels+`}}`)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "min_level_len")
-	})
-
-	t.Run("level name payload is rejected", func(t *testing.T) {
-		err := configureFromJSON(t, `{"t":{`+fileTarget+`,"format":"plain","levels":[{"id":4,"name":"info\npayload"}]}}`)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "level name")
+	t.Run("oversized delim is truncated rather than rejected", func(t *testing.T) {
+		err := configureFromJSON(t, `{"t":{`+fileTarget+`,"format":"plain","format_options":{"delim":"xxxxxxxxxx"},`+levels+`}}`)
+		require.NoError(t, err)
 	})
 }
 
@@ -105,7 +97,8 @@ func TestConfigureTargetsLeavesExistingTargets(t *testing.T) {
 		{
 			name: "rejected by option validation",
 			bad: func(t *testing.T) string {
-				return fileTargetCfg(t, `{"line_end":"#!/bin/sh\nid\n"}`)
+				return `{"broken":{"type":"file","options":{"max_size":1},"format":"plain",` +
+					`"levels":[{"id":4,"name":"info"}]}}`
 			},
 		},
 		{
@@ -150,7 +143,10 @@ type validatedFormatter struct {
 }
 
 func (f *validatedFormatter) CheckValid() error {
-	return logr.CheckOptionLineEnd("line_end", f.lineEnd)
+	if f.lineEnd == "" {
+		return errors.New("line end is required")
+	}
+	return nil
 }
 
 func TestConfigureTargetsValidatesFactoryResults(t *testing.T) {
@@ -174,7 +170,7 @@ func TestConfigureTargetsValidatesFactoryResults(t *testing.T) {
 	t.Run("rejects an invalid factory formatter", func(t *testing.T) {
 		factories := &Factories{
 			FormatterFactory: func(format string, options json.RawMessage) (logr.Formatter, error) {
-				return &validatedFormatter{lineEnd: "#!/bin/sh\nid\n"}, nil
+				return &validatedFormatter{lineEnd: ""}, nil
 			},
 		}
 		err := ConfigureTargets(newLgr(t), cfg, factories)

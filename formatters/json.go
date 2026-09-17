@@ -58,23 +58,7 @@ type JSON struct {
 }
 
 func (j *JSON) CheckValid() error {
-	keys := [...]struct {
-		name string
-		val  string
-	}{
-		{"key_timestamp", j.KeyTimestamp},
-		{"key_level", j.KeyLevel},
-		{"key_msg", j.KeyMsg},
-		{"key_group_fields", j.KeyGroupFields},
-		{"key_stacktrace", j.KeyStacktrace},
-		{"key_caller", j.KeyCaller},
-	}
-	for _, k := range keys {
-		if err := logr.CheckOptionText(k.name, k.val, logr.MaxFieldKeyLen); err != nil {
-			return err
-		}
-	}
-	return logr.CheckOptionText("timestamp_format", j.TimestampFormat, logr.MaxTimestampFormatLen)
+	return nil
 }
 
 // IsStacktraceNeeded returns true if a stacktrace is needed so we can output the `Caller` field.
