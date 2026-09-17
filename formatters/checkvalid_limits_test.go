@@ -41,9 +41,4 @@ func TestPlainCheckValidLimits(t *testing.T) {
 		require.Error(t, (&formatters.Plain{MinMessageLen: -1}).CheckValid())
 		require.Error(t, (&formatters.Plain{MinMessageLen: 1025}).CheckValid())
 	})
-
-	t.Run("min_level_len is bounded", func(t *testing.T) {
-		require.Error(t, (&formatters.Plain{MinLevelLen: -1}).CheckValid())
-		require.Error(t, (&formatters.Plain{MinLevelLen: 1025}).CheckValid())
-	})
 }

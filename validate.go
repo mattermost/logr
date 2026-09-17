@@ -19,13 +19,6 @@ const MaxDelimLen = 3
 // without failing configuration that would otherwise still work.
 const MaxLineEndLen = 3
 
-// Validator is implemented by option types that can check their own values.
-// Targets and formatters supplied through `config.Factories` are validated if
-// they implement it.
-type Validator interface {
-	CheckValid() error
-}
-
 // TruncateOptionText truncates *s to maxLen characters in place and logs to
 // stderr, instead of failing validation. It is meant for options such as a
 // field delimiter or line terminator: punctuation copied verbatim into every
@@ -38,9 +31,4 @@ func TruncateOptionText(name string, s *string, maxLen int) {
 	}
 	fmt.Fprintf(os.Stderr, "%s is too long (%d characters, maximum %d), truncating\n", name, len(runes), maxLen)
 	*s = string(runes[:maxLen])
-}
-
-// CheckValid always returns nil. It exists so Level satisfies Validator.
-func (level Level) CheckValid() error {
-	return nil
 }

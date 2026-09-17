@@ -28,23 +28,12 @@ type SyslogOptions struct {
 	Tag      string `json:"tag"`
 }
 
-// GetHost returns the host to connect to, using the Host field if set,
-// otherwise falling back to the deprecated IP field. An empty result means
-// local syslog.
-func (so SyslogOptions) GetHost() string {
-	return hostOrIP(so.Host, so.IP)
-}
-
 func (so SyslogOptions) CheckValid() error {
-	if so.Host == "" && so.IP == "" && so.Port == 0 {
-		// No host and no port means local syslog; Init connects with an empty address.
-		return nil
-	}
 	if so.Host == "" && so.IP == "" {
 		return errors.New("missing host")
 	}
-	if so.Port < 1 || so.Port > 65535 {
-		return errors.New("invalid port")
+	if so.Port == 0 {
+		return errors.New("missing port")
 	}
 	return nil
 }
@@ -66,7 +55,10 @@ func (s *Syslog) Init() error {
 	network := "tcp"
 	var config *tls.Config
 
-	host := s.params.GetHost()
+	host := s.params.Host
+	if host == "" {
+		host = s.params.IP
+	}
 
 	if s.params.TLS {
 		network = "tcp+tls"

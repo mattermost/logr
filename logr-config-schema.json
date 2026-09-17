@@ -141,8 +141,8 @@
         },
         "max_size": {
           "type": "integer",
-          "minimum": 0,
-          "description": "Maximum size in megabytes before rotation (0 or omitted uses the default of 100)"
+          "minimum": 1,
+          "description": "Maximum size in megabytes before rotation (default: 100)"
         },
         "max_age": {
           "type": "integer",

@@ -23,22 +23,6 @@ type Target interface {
 	Shutdown() error
 }
 
-// Interruptible is implemented by a Target whose Write can be canceled while
-// it is still running. If the shutdown context expires before the read loop
-// exits on its own, TargetHost.Shutdown calls Interrupt so a Write that only
-// returns once the target is asked to stop (as Tcp's retry loop does)
-// cannot wedge Shutdown, or the tmux lock ReplaceTargets/RemoveTargets hold
-// while shutting a target down.
-//
-// A target that does not implement this keeps the base Target guarantee that
-// Shutdown only runs after its queue is fully drained: TargetHost.Shutdown
-// still waits for the read loop to exit before calling Shutdown either way.
-type Interruptible interface {
-	// Interrupt cancels any Write in progress, causing it to return promptly.
-	// May be called concurrently with Write, and together with Shutdown.
-	Interrupt()
-}
-
 type targetMetrics struct {
 	queueSizeGauge Gauge
 	loggedCounter  Counter
@@ -71,8 +55,6 @@ type TargetHost struct {
 	done          chan struct{}        // closed when read loop exited
 	targetMetrics *targetMetrics
 
-	metricsUpdateFreqMillis int64
-
 	shutdown int32
 }
 
@@ -102,18 +84,17 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 	// Initialize the per-target level cache
 	host.lvlCache.setup()
 
-	if err := host.initMetrics(options.metrics); err != nil {
+	err := host.initMetrics(options.metrics)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := target.Init(); err != nil {
+	err = target.Init()
+	if err != nil {
 		return nil, err
 	}
 
-	// Nothing below can fail, so every goroutine started here is guaranteed to
-	// be reachable by Shutdown.
 	go host.start()
-	host.startMetrics()
 
 	return host, nil
 }
@@ -150,19 +131,9 @@ func (h *TargetHost) initMetrics(metrics *metrics) error {
 	if updateFreqMillis < 250 {
 		updateFreqMillis = 250 // don't peg the CPU
 	}
-	h.metricsUpdateFreqMillis = updateFreqMillis
 
+	go h.startMetricsUpdater(updateFreqMillis)
 	return nil
-}
-
-// startMetrics starts the metrics updater, if metrics are enabled for this
-// host. It is separate from initMetrics so that no goroutine is started until
-// every step that can fail has succeeded.
-func (h *TargetHost) startMetrics() {
-	if h.targetMetrics == nil {
-		return
-	}
-	go h.startMetricsUpdater(h.metricsUpdateFreqMillis)
 }
 
 // IsLevelEnabled returns true if this target should emit logs for the specified level.
@@ -193,20 +164,12 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 	// This allows the read loop to receive the timeout context for drainQueue
 	h.quit <- ctx
 
+	// Wait for read loop to exit and queue to drain
 	select {
-	case <-h.done:
-		// The read loop drained and exited on its own.
 	case <-ctx.Done():
-		// The read loop is still running, most likely blocked in a Write that
-		// only returns once the target is asked to stop (Tcp's retry loop
-		// checks for this). Interrupt breaks that wait if the target supports
-		// it; either way, wait for the read loop to actually exit before
-		// falling through to Shutdown, so Write and Shutdown are still never
-		// called at the same time.
-		if interruptible, ok := h.target.(Interruptible); ok {
-			interruptible.Interrupt()
-		}
-		<-h.done
+		// Context timeout - proceed with shutdown
+	case <-h.done:
+		// Read loop exited and queue drained successfully
 	}
 
 	return h.target.Shutdown()

@@ -85,20 +85,24 @@ func New(opts ...Option) (*Logr, error) {
 
 // AddTarget adds a target to the logger which will receive
 // log records for outputting.
-//
-// A maxQueueSize of zero or less means DefaultMaxQueueSize.
 func (lgr *Logr) AddTarget(target Target, name string, filter Filter, formatter Formatter, maxQueueSize int) error {
 	if lgr.IsShutdown() {
 		return fmt.Errorf("AddTarget called after Logr shut down")
 	}
 
-	host, err := lgr.buildHost(TargetSpec{
-		Target:       target,
-		Name:         name,
-		Filter:       filter,
-		Formatter:    formatter,
-		MaxQueueSize: maxQueueSize,
-	})
+	lgr.metricsMux.RLock()
+	metrics := lgr.metrics
+	lgr.metricsMux.RUnlock()
+
+	hostOpts := targetHostOptions{
+		name:         name,
+		filter:       filter,
+		formatter:    formatter,
+		maxQueueSize: maxQueueSize,
+		metrics:      metrics,
+	}
+
+	host, err := newTargetHost(target, hostOpts)
 	if err != nil {
 		return err
 	}
@@ -166,109 +170,6 @@ func (lgr *Logr) HasTargets() bool {
 	lgr.tmux.RLock()
 	defer lgr.tmux.RUnlock()
 	return len(lgr.targetHosts) > 0
-}
-
-// TargetSpec describes a target to be added to a logger, along with the filter,
-// formatter and queue size it should be added with.
-type TargetSpec struct {
-	Target       Target
-	Name         string
-	Filter       Filter
-	Formatter    Formatter
-	MaxQueueSize int // zero or less means DefaultMaxQueueSize
-}
-
-// ReplaceTargets replaces every target on this logger with the supplied set.
-//
-// All the replacement targets are created and initialized before any existing
-// target is removed, so if any of them fails the logger keeps its current
-// targets and no records are lost. Targets that were already created when the
-// failure occurred are shut down, so their goroutines and connections do not
-// leak.
-//
-// The replaced targets are shut down before the new ones are published, and
-// both happen under the same lock, so a replaced target and its replacement
-// are never writing at the same time. That matters for targets such as
-// FileTarget, where two live writers on the same path could interleave
-// writes or race on rotation. Logging stalls for the duration, same as
-// RemoveTargets, so keep ctx's timeout short.
-//
-// Use this instead of `RemoveTargets` followed by `AddTarget` when swapping a
-// whole configuration, since that sequence drops records for as long as the
-// logger has no targets, and drops them permanently if adding one fails.
-func (lgr *Logr) ReplaceTargets(ctx context.Context, specs []TargetSpec) error {
-	if lgr.IsShutdown() {
-		return fmt.Errorf("ReplaceTargets called after Logr shut down")
-	}
-
-	hosts := make([]*TargetHost, 0, len(specs))
-
-	for _, spec := range specs {
-		host, err := lgr.buildHost(spec)
-		if err != nil {
-			errs := merror.New()
-			errs.Append(fmt.Errorf("error adding log target %s: %w", spec.Name, err))
-			errs.Append(shutdownHosts(ctx, hosts))
-			return errs.ErrorOrNil()
-		}
-
-		hosts = append(hosts, host)
-	}
-
-	lgr.tmux.Lock()
-	defer lgr.tmux.Unlock()
-
-	if lgr.IsShutdown() {
-		// Shutdown began while the hosts above were being created, and may
-		// already have iterated targetHosts, so publishing here would leave
-		// these hosts running with nothing left to shut them down.
-		return shutdownHosts(ctx, hosts)
-	}
-
-	// Shut down the replaced targets before publishing their replacements so
-	// the two are never live at the same time.
-	err := shutdownHosts(ctx, lgr.targetHosts)
-
-	lgr.targetHosts = hosts
-	// Only the aggregate cache is stale. Each new host's cache was created
-	// empty by newTargetHost, and no record could reach a host before it was
-	// published here.
-	lgr.lvlCache.clear()
-
-	return err
-}
-
-// buildHost creates and starts a target host from spec. The caller is
-// responsible for publishing it, or for shutting it down if it is discarded.
-func (lgr *Logr) buildHost(spec TargetSpec) (*TargetHost, error) {
-	if spec.MaxQueueSize <= 0 {
-		// An unset size means "use the default", and a negative one would panic
-		// in make. Applied here so every target-creation path shares the rule.
-		spec.MaxQueueSize = DefaultMaxQueueSize
-	}
-
-	lgr.metricsMux.RLock()
-	metrics := lgr.metrics
-	lgr.metricsMux.RUnlock()
-
-	return newTargetHost(spec.Target, targetHostOptions{
-		name:         spec.Name,
-		filter:       spec.Filter,
-		formatter:    spec.Formatter,
-		maxQueueSize: spec.MaxQueueSize,
-		metrics:      metrics,
-	})
-}
-
-// shutdownHosts shuts down every host, collecting any errors.
-func shutdownHosts(ctx context.Context, hosts []*TargetHost) error {
-	errs := merror.New()
-	for _, host := range hosts {
-		if err := host.Shutdown(ctx); err != nil {
-			errs.Append(err)
-		}
-	}
-	return errs.ErrorOrNil()
 }
 
 // TargetInfo provides name and type for a Target.

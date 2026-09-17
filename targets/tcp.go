@@ -59,7 +59,10 @@ func (to TcpOptions) CheckValid() error {
 // GetHost returns the host to connect to, using Host field if set,
 // otherwise falling back to the deprecated IP field.
 func (to TcpOptions) GetHost() string {
-	return hostOrIP(to.Host, to.IP)
+	if to.Host != "" {
+		return to.Host
+	}
+	return to.IP
 }
 
 // NewTcpTarget creates a target capable of outputting log records to a raw socket, with or without TLS.
@@ -174,14 +177,6 @@ func (tcp *Tcp) Shutdown() error {
 		close(tcp.stop)
 	})
 	return tcp.shutdownErr
-}
-
-// Interrupt cancels a Write in progress by closing tcp.stop, which Write
-// checks before every connection attempt and retry. Implements
-// logr.Interruptible so a Write against an unreachable peer, which retries
-// indefinitely, does not block TargetHost.Shutdown forever.
-func (tcp *Tcp) Interrupt() {
-	_ = tcp.Shutdown()
 }
 
 // Write converts the log record to bytes, via the Formatter, and outputs to the socket.
