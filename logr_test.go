@@ -2,7 +2,6 @@ package logr_test
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -17,7 +16,7 @@ import (
 )
 
 func TestFlush(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 2)
@@ -64,7 +63,7 @@ func TestFlush(t *testing.T) {
 }
 
 func TestFlushAfterShutdown(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 2)
@@ -89,7 +88,7 @@ func TestFlushAfterShutdown(t *testing.T) {
 }
 
 func TestLogAfterShutdown(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	target := test.NewSlowTarget(buf, 2)
@@ -127,12 +126,12 @@ func TestRemoveTarget(t *testing.T) {
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	lgr, _ := logr.New()
 
-	buf1 := &bytes.Buffer{}
+	buf1 := &test.Buffer{}
 	target1 := test.NewSlowTarget(buf1, 2)
 	err := lgr.AddTarget(target1, "t1", filter, formatter, 3000)
 	require.NoError(t, err)
 
-	buf2 := &bytes.Buffer{}
+	buf2 := &test.Buffer{}
 	target2 := test.NewSlowTarget(buf2, 2)
 	err = lgr.AddTarget(target2, "t2", filter, formatter, 3000)
 	require.NoError(t, err)
@@ -165,7 +164,7 @@ func TestLimitLogFields(t *testing.T) {
 	filter := &logr.StdFilter{Lvl: logr.Info, Stacktrace: logr.Error}
 	lgr, _ := logr.New(logr.MaxFieldLen(8))
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	target := test.NewSlowTarget(buf, 2)
 
 	err := lgr.AddTarget(target, "t", filter, formatter, 3000)

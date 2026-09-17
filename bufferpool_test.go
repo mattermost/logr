@@ -10,6 +10,7 @@ import (
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -169,7 +170,7 @@ func TestBufferPool_IntegrationWithLogging(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -199,7 +200,7 @@ func TestBufferPool_LargeMessages(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)
@@ -253,9 +254,9 @@ func TestBufferPool_MultipleTargets(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf1 := &bytes.Buffer{}
-	buf2 := &bytes.Buffer{}
-	buf3 := &bytes.Buffer{}
+	buf1 := &test.Buffer{}
+	buf2 := &test.Buffer{}
+	buf3 := &test.Buffer{}
 
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
@@ -284,7 +285,7 @@ func TestBufferPool_MultipleTargets(t *testing.T) {
 	require.NoError(t, err)
 
 	// All targets should have all messages
-	for idx, buf := range []*bytes.Buffer{buf1, buf2, buf3} {
+	for idx, buf := range []*test.Buffer{buf1, buf2, buf3} {
 		count := bytes.Count(buf.Bytes(), []byte("multi-target test"))
 		assert.Equal(t, messageCount, count, "Target %d should have all messages", idx+1)
 	}
@@ -300,7 +301,7 @@ func TestBufferPool_StressTest(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	filter := &logr.StdFilter{Lvl: logr.Error}
 	formatter := &formatters.Plain{Delim: " | ", DisableTimestamp: true}
 	target := targets.NewWriterTarget(buf)

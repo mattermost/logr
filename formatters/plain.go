@@ -51,6 +51,8 @@ func (p *Plain) CheckValid() error {
 	if p.MinMessageLen < 0 || p.MinMessageLen > 1024 {
 		return fmt.Errorf("min_msg_len is invalid(%d)", p.MinMessageLen)
 	}
+	logr.TruncateOptionText("delim", &p.Delim, logr.MaxDelimLen)
+	logr.TruncateOptionText("line_end", &p.LineEnd, logr.MaxLineEndLen)
 	return nil
 }
 

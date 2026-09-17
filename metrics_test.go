@@ -1,7 +1,6 @@
 package logr_test
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/mattermost/logr/v2"
@@ -32,7 +31,7 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 		}()
 
 		// Create target
-		buf := &bytes.Buffer{}
+		buf := &test.Buffer{}
 		tgt := targets.NewWriterTarget(buf)
 
 		err = lgr.AddTarget(tgt, TestTargetName, filter, formatter, 100)
@@ -109,8 +108,8 @@ func TestLogr_SetMetricsCollector(t *testing.T) {
 		}()
 
 		// Create targets
-		buf1 := &bytes.Buffer{}
-		buf2 := &bytes.Buffer{}
+		buf1 := &test.Buffer{}
+		buf2 := &test.Buffer{}
 		tgt1 := targets.NewWriterTarget(buf1)
 		tgt2 := targets.NewWriterTarget(buf2)
 
