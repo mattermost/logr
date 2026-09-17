@@ -186,6 +186,13 @@ type TargetSpec struct {
 // failure occurred are shut down, so their goroutines and connections do not
 // leak.
 //
+// The replaced targets are shut down before the new ones are published, and
+// both happen under the same lock, so a replaced target and its replacement
+// are never writing at the same time. That matters for targets such as
+// FileTarget, where two live writers on the same path could interleave
+// writes or race on rotation. Logging stalls for the duration, same as
+// RemoveTargets, so keep ctx's timeout short.
+//
 // Use this instead of `RemoveTargets` followed by `AddTarget` when swapping a
 // whole configuration, since that sequence drops records for as long as the
 // logger has no targets, and drops them permanently if adding one fails.
@@ -209,25 +216,26 @@ func (lgr *Logr) ReplaceTargets(ctx context.Context, specs []TargetSpec) error {
 	}
 
 	lgr.tmux.Lock()
+	defer lgr.tmux.Unlock()
+
 	if lgr.IsShutdown() {
 		// Shutdown began while the hosts above were being created, and may
 		// already have iterated targetHosts, so publishing here would leave
 		// these hosts running with nothing left to shut them down.
-		lgr.tmux.Unlock()
 		return shutdownHosts(ctx, hosts)
 	}
 
-	replaced := lgr.targetHosts
+	// Shut down the replaced targets before publishing their replacements so
+	// the two are never live at the same time.
+	err := shutdownHosts(ctx, lgr.targetHosts)
+
 	lgr.targetHosts = hosts
 	// Only the aggregate cache is stale. Each new host's cache was created
 	// empty by newTargetHost, and no record could reach a host before it was
 	// published here.
 	lgr.lvlCache.clear()
-	lgr.tmux.Unlock()
 
-	// Shutting down drains each host's queue, so it must happen with the lock
-	// released or every logging goroutine blocks until the last target closes.
-	return shutdownHosts(ctx, replaced)
+	return err
 }
 
 // buildHost creates and starts a target host from spec. The caller is
