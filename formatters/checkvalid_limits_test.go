@@ -25,13 +25,13 @@ func TestPlainCheckValidLimits(t *testing.T) {
 		require.NoError(t, p.CheckValid())
 	})
 
-	t.Run("line_end over length is truncated instead of rejected", func(t *testing.T) {
+	t.Run("line_end over length is truncated", func(t *testing.T) {
 		p := &formatters.Plain{LineEnd: strings.Repeat("\n", logr.MaxLineEndLen+1)}
 		require.NoError(t, p.CheckValid())
 		require.Equal(t, strings.Repeat("\n", logr.MaxLineEndLen), p.LineEnd)
 	})
 
-	t.Run("delim over length is truncated instead of rejected", func(t *testing.T) {
+	t.Run("delim over length is truncated", func(t *testing.T) {
 		p := &formatters.Plain{Delim: strings.Repeat("x", logr.MaxDelimLen+1)}
 		require.NoError(t, p.CheckValid())
 		require.Equal(t, strings.Repeat("x", logr.MaxDelimLen), p.Delim)
