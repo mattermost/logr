@@ -177,13 +177,11 @@ func (h *TargetHost) Shutdown(ctx context.Context) error {
 	// This allows the read loop to receive the timeout context for drainQueue
 	h.quit <- ctx
 
-	// Wait for read loop to exit and queue to drain
-	select {
-	case <-ctx.Done():
-		// Context timeout - proceed with shutdown
-	case <-h.done:
-		// Read loop exited and queue drained successfully
-	}
+	// Wait for the read loop to actually exit. ctx only bounds how long
+	// drainQueue keeps processing queued records; racing it here instead of
+	// waiting on h.done could call target.Shutdown() while the read loop is
+	// still mid-write, letting the target's Write and Shutdown run concurrently.
+	<-h.done
 
 	return h.target.Shutdown()
 }
