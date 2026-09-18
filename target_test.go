@@ -142,7 +142,10 @@ func TestTargetShutdownContextTimeout(t *testing.T) {
 	assert.Less(t, int64(duration), int64(200*time.Millisecond), "Shutdown took too long")
 
 	// Some records might be processed, but not all due to timeout
-	recordCount := bytes.Count(buf.Bytes(), []byte("Timeout test record"))
+	var recordCount int
+	target.WithOutputLock(func() {
+		recordCount = bytes.Count(buf.Bytes(), []byte("Timeout test record"))
+	})
 	t.Logf("Records processed before timeout: %d/20", recordCount)
 	assert.LessOrEqual(t, recordCount, 20)
 }
@@ -307,7 +310,10 @@ func TestDrainQueueRespectsTimeout(t *testing.T) {
 	assert.Less(t, int64(duration), int64(100*time.Millisecond), "drainQueue did not respect timeout")
 
 	// Should have processed very few or no records due to timeout
-	recordCount := bytes.Count(buf.Bytes(), []byte("Drain timeout test"))
+	var recordCount int
+	target.WithOutputLock(func() {
+		recordCount = bytes.Count(buf.Bytes(), []byte("Drain timeout test"))
+	})
 	t.Logf("Records processed before drainQueue timeout: %d/3", recordCount)
 	assert.LessOrEqual(t, recordCount, 1, "Too many records processed, drainQueue may not be respecting timeout")
 }

@@ -7,9 +7,9 @@ This document outlines the design for replacing the current hierarchical log lev
 ## Prerequisites
 
 This design assumes the optimizations described in `OPTIMIZATIONS.md` have been implemented first:
-- ✅ syncMapLevelCache is the default
+- ✅ A lock-free atomic level cache is used for both the Logr and per-target caches
 - ✅ Per-target caching exists and is proven (via `TargetHost.lvlCache`)
-- ✅ Performance baseline established (~640ns per log call with 4 levels, 4 targets)
+- ✅ Performance baseline established (see `OPTIMIZATIONS.md`)
 
 The tag system adapts this proven caching pattern by using **hybrid string-to-integer interning with COW per-tag array caching** internally while maintaining a string-based API. Instead of caching tag combinations (which requires key generation and sorting), we cache the status of individual tags in arrays indexed by TagID, using copy-on-write (COW) for lock-free reads.
 
@@ -606,6 +606,14 @@ func (f *TagFilter) IsEnabled(logTags []string) bool {
 ## Performance Analysis
 
 ### Baseline Performance (From OPTIMIZATIONS.md Implementation)
+
+> **Note:** the 640ns baseline below is an estimate from the first round of optimization
+> work, built on a 40ns top-level cache check and a 30ns per-target filter check. Neither
+> figure still holds. With the atomic level cache, a cached `IsLevelEnabled` check
+> measures 2.4ns, and `BenchmarkLogM_4Tags_4Targets` (4 tags, 4 targets, `StdFilter`)
+> measures 21ns per call. Every projection in this section is relative to the old
+> estimate and needs re-deriving against measured numbers before it is used to justify
+> the design.
 
 After implementing optimizations, integer-based levels achieve:
 - **Typical case (4 levels, 4 targets): ~640ns per log call**
