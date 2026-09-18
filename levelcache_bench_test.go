@@ -139,8 +139,8 @@ func BenchmarkLevelCacheGetSpreadParallel(b *testing.B) {
 	})
 }
 
-// BenchmarkLevelCacheReadWriteParallel mixes one put per 100 gets, simulating
-// cache refills after a reset.
+// BenchmarkLevelCacheReadWriteParallel measures a mixed workload of one put per
+// 100 gets.
 func BenchmarkLevelCacheReadWriteParallel(b *testing.B) {
 	c := newBenchLevelCache(b)
 	primeLevelCache(b, c, Error.ID)
