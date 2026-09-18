@@ -54,7 +54,7 @@ no-ops so existing callers keep compiling.
 **Real-world level distribution from Mattermost:**
 
 - 32 levels in use, with IDs 0-7, 10-11, 100-103, 130-132, 140-144, 200-204, 300-304.
-- Sparse, with large gaps (204 to 65,535 unused).
+- Sparse, with large gaps (205-299 and 305-65,535 unused).
 
 A cache read therefore has to be fast under concurrency above all else, and invalidation
 has to be cheap because it happens on every `AddTarget` and every `ResetLevelCache`.

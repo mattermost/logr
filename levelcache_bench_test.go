@@ -152,7 +152,7 @@ func BenchmarkLevelCacheReadWriteParallel(b *testing.B) {
 		i := 0
 		for pb.Next() {
 			i++
-			if i%100 == 0 {
+			if i%101 == 0 {
 				if err := c.put(Error.ID, status); err != nil {
 					b.Error(err)
 					return

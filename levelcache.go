@@ -117,8 +117,20 @@ func (c *atomicLevelCache) put(id LevelID, status LevelStatus) error {
 	}
 
 	c.arr[id].Store(value)
+	c.discardIfStale(id, value, generation)
 
 	return nil
+}
+
+// discardIfStale drops an entry written against a generation that is no longer
+// current. A rollover reset can zero the array and publish generation 1 between
+// the generation load in put and its store, and such an entry would read as
+// valid again after the next wrap. The compare and swap leaves a newer entry
+// from another writer alone.
+func (c *atomicLevelCache) discardIfStale(id LevelID, value, generation uint32) {
+	if c.generation.Load() != generation {
+		c.arr[id].CompareAndSwap(value, 0)
+	}
 }
 
 func (c *atomicLevelCache) clear() {

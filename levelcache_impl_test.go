@@ -2,6 +2,7 @@ package logr
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -111,4 +112,69 @@ func TestAtomicLevelCacheGenerationRollover(t *testing.T) {
 
 	_, ok = c.get(Error.ID)
 	require.False(t, ok)
+}
+
+// TestAtomicLevelCacheRolloverDiscardsRacingPut verifies that a put racing with
+// a generation rollover cannot leave an entry stamped with the pre-reset
+// generation, which would read as valid again after the next wrap.
+func TestAtomicLevelCacheRolloverDiscardsRacingPut(t *testing.T) {
+	c := &atomicLevelCache{}
+	c.setup()
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for w := 0; w < 4; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; ; i++ {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if err := c.put(LevelID(i%256), LevelStatus{Enabled: true}); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}()
+	}
+
+	for i := 0; i < 200; i++ {
+		c.generation.Store(atomicLevelMaxGeneration)
+		c.clear()
+	}
+
+	close(stop)
+	wg.Wait()
+
+	for id := 0; id <= MaxLevelID; id++ {
+		if c.arr[id].Load()>>atomicLevelGenerationShift == atomicLevelMaxGeneration {
+			t.Fatalf("level id %d survived the rollover reset with the old generation", id)
+		}
+	}
+}
+
+// TestAtomicLevelCacheDiscardsStalePut replays the exact interleaving where a
+// put's store lands after a rollover reset has zeroed the array and restarted
+// generations, so the entry would otherwise read as valid at the next wrap.
+func TestAtomicLevelCacheDiscardsStalePut(t *testing.T) {
+	c := &atomicLevelCache{}
+	c.setup()
+	c.generation.Store(atomicLevelMaxGeneration)
+
+	require.NoError(t, c.put(Warn.ID, LevelStatus{Enabled: true}))
+	stale := c.arr[Warn.ID].Load()
+
+	c.clear()
+	require.Equal(t, uint32(1), c.generation.Load())
+
+	c.arr[Warn.ID].Store(stale)
+	c.discardIfStale(Warn.ID, stale, atomicLevelMaxGeneration)
+
+	c.generation.Store(atomicLevelMaxGeneration)
+	_, ok := c.get(Warn.ID)
+	require.False(t, ok, "entry from before the rollover became valid again")
 }

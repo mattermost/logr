@@ -1,5 +1,14 @@
 # Tagging Design for Logr
 
+> **Status of the performance numbers in this document:** every figure here,
+> including the ~485ns target, the 640ns integer baseline, and the "24% faster"
+> claim derived from them, is a pre-implementation estimate from the first round
+> of optimization work. The level cache has since been replaced (see
+> `OPTIMIZATIONS.md`) and those inputs no longer hold: a cached `IsLevelEnabled`
+> check now measures 2.4ns rather than the 40ns assumed here. Treat every
+> projection below as historical. They need re-deriving against measured numbers
+> before they are used to justify the design.
+
 ## Overview
 
 This document outlines the design for replacing the current hierarchical log level system with a flexible tag-based filtering system. Tags provide more granular control over log output while maintaining full backward compatibility.
@@ -607,13 +616,11 @@ func (f *TagFilter) IsEnabled(logTags []string) bool {
 
 ### Baseline Performance (From OPTIMIZATIONS.md Implementation)
 
-> **Note:** the 640ns baseline below is an estimate from the first round of optimization
-> work, built on a 40ns top-level cache check and a 30ns per-target filter check. Neither
-> figure still holds. With the atomic level cache, a cached `IsLevelEnabled` check
-> measures 2.4ns, and `BenchmarkLogM_4Tags_4Targets` (4 tags, 4 targets, `StdFilter`)
-> measures 21ns per call. Every projection in this section is relative to the old
-> estimate and needs re-deriving against measured numbers before it is used to justify
-> the design.
+> **Historical estimate.** The 640ns baseline below assumed a 40ns top-level cache
+> check and a 30ns per-target filter check. Measured today, a cached
+> `IsLevelEnabled` check is 2.4ns and `BenchmarkLogM_4Tags_4Targets` (4 tags, 4
+> targets, `StdFilter`) is 21ns per call. Everything derived from the 640ns figure
+> in the rest of this section is historical.
 
 After implementing optimizations, integer-based levels achieve:
 - **Typical case (4 levels, 4 targets): ~640ns per log call**
