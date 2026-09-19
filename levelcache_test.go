@@ -159,10 +159,9 @@ func TestPerTargetCacheWithCustomFilter(t *testing.T) {
 	assert.False(t, lgr.IsLevelEnabled(customLevel2).Enabled)
 }
 
-// TestCacheOptionsBackwardCompatibility tests that the old and new cache
-// options work correctly.
+// TestCacheOptionsBackwardCompatibility tests that the deprecated cache options
+// are accepted and have no effect.
 func TestCacheOptionsBackwardCompatibility(t *testing.T) {
-	// Test default (should be syncMap)
 	lgr1, err := logr.New()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr1.Shutdown()) }()
@@ -177,7 +176,6 @@ func TestCacheOptionsBackwardCompatibility(t *testing.T) {
 	status := lgr1.IsLevelEnabled(logr.Error)
 	assert.True(t, status.Enabled)
 
-	// Test explicit array cache
 	lgr2, err := logr.New(logr.UseArrayLevelCache(true))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr2.Shutdown()) }()
@@ -189,7 +187,6 @@ func TestCacheOptionsBackwardCompatibility(t *testing.T) {
 	status = lgr2.IsLevelEnabled(logr.Error)
 	assert.True(t, status.Enabled)
 
-	// Test deprecated UseSyncMapLevelCache(true) - should use syncMap
 	lgr3, err := logr.New(logr.UseSyncMapLevelCache(true))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr3.Shutdown()) }()
@@ -201,7 +198,6 @@ func TestCacheOptionsBackwardCompatibility(t *testing.T) {
 	status = lgr3.IsLevelEnabled(logr.Error)
 	assert.True(t, status.Enabled)
 
-	// Test deprecated UseSyncMapLevelCache(false) - should use array
 	lgr4, err := logr.New(logr.UseSyncMapLevelCache(false))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, lgr4.Shutdown()) }()

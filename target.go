@@ -64,7 +64,7 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 		name:      options.name,
 		filter:    options.filter,
 		formatter: options.formatter,
-		lvlCache:  &syncMapLevelCache{}, // always use syncMap for per-target cache
+		lvlCache:  &atomicLevelCache{},
 		in:        make(chan *LogRec, options.maxQueueSize),
 		quit:      make(chan context.Context, 1),
 		done:      make(chan struct{}),

@@ -2,7 +2,7 @@ package logr
 
 import (
 	"fmt"
-	"sync"
+	"sync/atomic"
 )
 
 // LevelStatus represents whether a level is enabled and
@@ -10,7 +10,6 @@ import (
 type LevelStatus struct {
 	Enabled    bool
 	Stacktrace bool
-	empty      bool
 }
 
 type levelCache interface {
@@ -20,82 +19,155 @@ type levelCache interface {
 	clear()
 }
 
-// syncMapLevelCache uses sync.Map which may better handle large concurrency
-// scenarios.
-type syncMapLevelCache struct {
-	m sync.Map
+const (
+	atomicLevelEnabledBit uint32 = 1 << iota
+	atomicLevelStacktraceBit
+
+	atomicLevelGenerationShift = 2
+
+	// Two bits are used for status, leaving 30 bits for generation.
+	atomicLevelMaxGeneration uint32 = (1 << (32 - atomicLevelGenerationShift)) - 1
+
+	// Generation value used while performing the extremely rare rollover reset.
+	atomicLevelResetting uint32 = ^uint32(0)
+)
+
+// atomicLevelCache is a lock-free level cache.
+//
+// Each entry contains:
+//
+//	31                              2 1 0
+//	+--------------------------------+-+-+
+//	|          generation            |S|E|
+//	+--------------------------------+-+-+
+//
+// E = Enabled
+// S = Stacktrace
+//
+// A generation mismatch means that the entry is empty/stale.
+//
+// The normal clear path is O(1): increment the generation.
+// No entries need to be touched.
+type atomicLevelCache struct {
+	arr        [MaxLevelID + 1]atomic.Uint32
+	generation atomic.Uint32
 }
 
-func (c *syncMapLevelCache) setup() {
-	c.clear()
+func (c *atomicLevelCache) setup() {
+	// Generation zero represents an uninitialized cache.
+	c.generation.CompareAndSwap(0, 1)
 }
 
-func (c *syncMapLevelCache) get(id LevelID) (LevelStatus, bool) {
+func (c *atomicLevelCache) get(id LevelID) (LevelStatus, bool) {
 	if id > MaxLevelID {
 		return LevelStatus{}, false
 	}
-	s, ok := c.m.Load(id)
-	if !ok {
+
+	generation := c.generation.Load()
+	if generation == 0 || generation == atomicLevelResetting {
 		return LevelStatus{}, false
 	}
-	status := s.(LevelStatus)
-	return status, !status.empty
+
+	value := c.arr[id].Load()
+
+	if value>>atomicLevelGenerationShift != generation {
+		return LevelStatus{}, false
+	}
+
+	return LevelStatus{
+		Enabled:    value&atomicLevelEnabledBit != 0,
+		Stacktrace: value&atomicLevelStacktraceBit != 0,
+	}, true
 }
 
-func (c *syncMapLevelCache) put(id LevelID, status LevelStatus) error {
+func (c *atomicLevelCache) put(id LevelID, status LevelStatus) error {
 	if id > MaxLevelID {
 		return fmt.Errorf("level id cannot exceed MaxLevelID (%d)", MaxLevelID)
 	}
-	c.m.Store(id, status)
+
+	var generation uint32
+
+	for {
+		generation = c.generation.Load()
+
+		switch generation {
+		case 0:
+			// Allow the zero value to work even if setup() was not called.
+			if c.generation.CompareAndSwap(0, 1) {
+				generation = 1
+			} else {
+				continue
+			}
+
+		case atomicLevelResetting:
+			continue
+		}
+
+		break
+	}
+
+	value := generation << atomicLevelGenerationShift
+
+	if status.Enabled {
+		value |= atomicLevelEnabledBit
+	}
+
+	if status.Stacktrace {
+		value |= atomicLevelStacktraceBit
+	}
+
+	c.arr[id].Store(value)
+	c.discardIfStale(id, value, generation)
+
 	return nil
 }
 
-func (c *syncMapLevelCache) clear() {
-	var i LevelID
-	for i = 0; i < MaxLevelID; i++ {
-		c.m.Store(i, LevelStatus{empty: true})
+// discardIfStale drops an entry written against a generation that is no longer
+// current. A rollover reset can zero the array and publish generation 1 between
+// the generation load in put and its store, and such an entry would read as
+// valid again after the next wrap. The compare and swap leaves a newer entry
+// from another writer alone.
+func (c *atomicLevelCache) discardIfStale(id LevelID, value, generation uint32) {
+	if c.generation.Load() != generation {
+		c.arr[id].CompareAndSwap(value, 0)
 	}
 }
 
-// arrayLevelCache using array and a mutex.
-type arrayLevelCache struct {
-	arr [MaxLevelID + 1]LevelStatus
-	mux sync.RWMutex
-}
+func (c *atomicLevelCache) clear() {
+	for {
+		generation := c.generation.Load()
 
-func (c *arrayLevelCache) setup() {
-	c.clear()
-}
+		switch {
+		case generation == 0:
+			if c.generation.CompareAndSwap(0, 1) {
+				return
+			}
 
-//var dummy = LevelStatus{}
+		case generation == atomicLevelResetting:
+			continue
 
-func (c *arrayLevelCache) get(id LevelID) (LevelStatus, bool) {
-	if id > MaxLevelID {
-		return LevelStatus{}, false
-	}
-	c.mux.RLock()
-	status := c.arr[id]
-	ok := !status.empty
-	c.mux.RUnlock()
-	return status, ok
-}
+		case generation < atomicLevelMaxGeneration:
+			if c.generation.CompareAndSwap(generation, generation+1) {
+				return
+			}
 
-func (c *arrayLevelCache) put(id LevelID, status LevelStatus) error {
-	if id > MaxLevelID {
-		return fmt.Errorf("level id cannot exceed MaxLevelID (%d)", MaxLevelID)
-	}
-	c.mux.Lock()
-	defer c.mux.Unlock()
+		default:
+			if !c.generation.CompareAndSwap(
+				atomicLevelMaxGeneration,
+				atomicLevelResetting,
+			) {
+				continue
+			}
 
-	c.arr[id] = status
-	return nil
-}
+			// Generation rollover is reached only after ~1 billion clears.
+			// Physically clear the array so no old generation can become
+			// valid when generations restart at 1.
+			for i := range c.arr {
+				c.arr[i].Store(0)
+			}
 
-func (c *arrayLevelCache) clear() {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-
-	for i := range c.arr {
-		c.arr[i] = LevelStatus{empty: true}
+			c.generation.Store(1)
+			return
+		}
 	}
 }

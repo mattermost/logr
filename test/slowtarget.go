@@ -42,3 +42,12 @@ func (st *SlowTarget) Write(p []byte, rec *logr.LogRec) (int, error) {
 func (st *SlowTarget) Shutdown() error {
 	return nil
 }
+
+// WithOutputLock calls f while holding the lock used by Write. A target whose
+// shutdown timed out keeps writing, so tests must read its output via this method.
+func (st *SlowTarget) WithOutputLock(f func()) {
+	st.mux.Lock()
+	defer st.mux.Unlock()
+
+	f()
+}
