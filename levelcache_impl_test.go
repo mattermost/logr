@@ -178,3 +178,17 @@ func TestAtomicLevelCacheDiscardsStalePut(t *testing.T) {
 	_, ok := c.get(Warn.ID)
 	require.False(t, ok, "entry from before the rollover became valid again")
 }
+
+// TestAtomicLevelCacheZeroValueClear covers clearing a cache that never had
+// setup() called, where the generation still has to be initialized.
+func TestAtomicLevelCacheZeroValueClear(t *testing.T) {
+	c := &atomicLevelCache{}
+
+	c.clear()
+	require.Equal(t, uint32(1), c.generation.Load())
+
+	require.NoError(t, c.put(Info.ID, LevelStatus{Enabled: true}))
+	status, ok := c.get(Info.ID)
+	require.True(t, ok)
+	require.True(t, status.Enabled)
+}
