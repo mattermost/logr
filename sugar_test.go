@@ -1,19 +1,19 @@
 package logr_test
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSugarLogger(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	sugar, shutdown, err := makeSugar(buf)
 	require.NoError(t, err)
 
@@ -100,7 +100,7 @@ func TestSugar_argsToFields(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buf := &bytes.Buffer{}
+			buf := &test.Buffer{}
 			sugar, shutdown, err := makeSugar(buf)
 			require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestSugar_argsToFields(t *testing.T) {
 	}
 }
 
-func makeSugar(buf *bytes.Buffer) (logr.Sugar, func() error, error) {
+func makeSugar(buf *test.Buffer) (logr.Sugar, func() error, error) {
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Debug, Stacktrace: logr.Error}
 	target := targets.NewWriterTarget(buf)
@@ -142,7 +142,7 @@ func TestSugar_AllLogLevels(t *testing.T) {
 	// Use Trace level to capture all logs
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Trace}
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	target := targets.NewWriterTarget(buf)
 	lgr, _ := logr.New()
 	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
@@ -173,7 +173,7 @@ func TestSugar_AllLogLevels(t *testing.T) {
 func TestSugar_PrintfStyleMethods(t *testing.T) {
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Trace}
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	target := targets.NewWriterTarget(buf)
 	lgr, _ := logr.New()
 	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
@@ -204,7 +204,7 @@ func TestSugar_PrintfStyleMethods(t *testing.T) {
 func TestSugar_StructuredMethods(t *testing.T) {
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Trace}
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	target := targets.NewWriterTarget(buf)
 	lgr, _ := logr.New()
 	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
@@ -235,7 +235,7 @@ func TestSugar_StructuredMethods(t *testing.T) {
 func TestSugar_LogfWithoutFormat(t *testing.T) {
 	formatter := &formatters.Plain{DisableTimestamp: true, Delim: " | "}
 	filter := &logr.StdFilter{Lvl: logr.Info}
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 	target := targets.NewWriterTarget(buf)
 	lgr, _ := logr.New()
 	err := lgr.AddTarget(target, "sugarTest", filter, formatter, 3000)
@@ -243,8 +243,11 @@ func TestSugar_LogfWithoutFormat(t *testing.T) {
 
 	sugar := lgr.NewLogger().Sugar()
 
-	// Empty format string should use Sprint instead of Sprintf
-	sugar.Logf(logr.Info, "", "arg1", "arg2", "arg3")
+	// Logf falls back to Sprint when the format is empty. The format is held
+	// in a variable because `go vet` reads a literal "" with arguments as a
+	// mistake, which is the case this test is covering on purpose.
+	var emptyFormat string
+	sugar.Logf(logr.Info, emptyFormat, "arg1", "arg2", "arg3")
 
 	err = lgr.Shutdown()
 	require.NoError(t, err)

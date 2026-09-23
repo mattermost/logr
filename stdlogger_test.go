@@ -1,7 +1,6 @@
 package logr_test
 
 import (
-	"bytes"
 	"log"
 	"os"
 	"testing"
@@ -9,11 +8,12 @@ import (
 	"github.com/mattermost/logr/v2"
 	"github.com/mattermost/logr/v2/formatters"
 	"github.com/mattermost/logr/v2/targets"
+	"github.com/mattermost/logr/v2/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewStdLogger(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	lgr, err := logr.New(logr.StackFilter("log"))
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestNewStdLogger(t *testing.T) {
 }
 
 func TestRedirectStdLog(t *testing.T) {
-	buf := &bytes.Buffer{}
+	buf := &test.Buffer{}
 
 	lgr, err := logr.New(logr.StackFilter("log"))
 	require.NoError(t, err)
