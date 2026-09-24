@@ -135,6 +135,7 @@ func UseArrayLevelCache(_ bool) Option {
 }
 
 // UseSyncMapLevelCache does nothing. A lock-free atomic level cache is always used.
+//
 // Deprecated: This option is retained for backward compatibility and has no effect.
 func UseSyncMapLevelCache(_ bool) Option {
 	return func(_ *Logr) error {
