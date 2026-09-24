@@ -1,5 +1,14 @@
 # Tagging Design for Logr
 
+> **Status of the performance numbers in this document:** every figure here,
+> including the ~485ns target, the 640ns integer baseline, and the "24% faster"
+> claim derived from them, is a pre-implementation estimate from the first round
+> of optimization work. The level cache has since been replaced (see
+> `OPTIMIZATIONS.md`) and those inputs no longer hold: a cached `IsLevelEnabled`
+> check now measures 2.4ns rather than the 40ns assumed here. Treat every
+> projection below as historical. They need re-deriving against measured numbers
+> before they are used to justify the design.
+
 ## Overview
 
 This document outlines the design for replacing the current hierarchical log level system with a flexible tag-based filtering system. Tags provide more granular control over log output while maintaining full backward compatibility.
@@ -7,9 +16,9 @@ This document outlines the design for replacing the current hierarchical log lev
 ## Prerequisites
 
 This design assumes the optimizations described in `OPTIMIZATIONS.md` have been implemented first:
-- ✅ syncMapLevelCache is the default
+- ✅ A lock-free atomic level cache is used for both the Logr and per-target caches
 - ✅ Per-target caching exists and is proven (via `TargetHost.lvlCache`)
-- ✅ Performance baseline established (~640ns per log call with 4 levels, 4 targets)
+- ✅ Performance baseline established (see `OPTIMIZATIONS.md`)
 
 The tag system adapts this proven caching pattern by using **hybrid string-to-integer interning with COW per-tag array caching** internally while maintaining a string-based API. Instead of caching tag combinations (which requires key generation and sorting), we cache the status of individual tags in arrays indexed by TagID, using copy-on-write (COW) for lock-free reads.
 
@@ -606,6 +615,12 @@ func (f *TagFilter) IsEnabled(logTags []string) bool {
 ## Performance Analysis
 
 ### Baseline Performance (From OPTIMIZATIONS.md Implementation)
+
+> **Historical estimate.** The 640ns baseline below assumed a 40ns top-level cache
+> check and a 30ns per-target filter check. Measured today, a cached
+> `IsLevelEnabled` check is 2.4ns and `BenchmarkLogM_4Tags_4Targets` (4 tags, 4
+> targets, `StdFilter`) is 21ns per call. Everything derived from the 640ns figure
+> in the rest of this section is historical.
 
 After implementing optimizations, integer-based levels achieve:
 - **Typical case (4 levels, 4 targets): ~640ns per log call**

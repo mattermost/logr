@@ -63,11 +63,7 @@ func New(opts ...Option) (*Logr, error) {
 	lgr.quit = make(chan struct{})
 	lgr.done = make(chan struct{})
 
-	if lgr.options.useArrayLevelCache {
-		lgr.lvlCache = &arrayLevelCache{}
-	} else {
-		lgr.lvlCache = &syncMapLevelCache{}
-	}
+	lgr.lvlCache = &atomicLevelCache{}
 	lgr.lvlCache.setup()
 
 	lgr.bufferPool = sync.Pool{
