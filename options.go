@@ -126,6 +126,7 @@ func FlushTimeout(dur time.Duration) Option {
 }
 
 // UseArrayLevelCache does nothing. A lock-free atomic level cache is always used.
+//
 // Deprecated: This option is retained for backward compatibility and has no effect.
 func UseArrayLevelCache(_ bool) Option {
 	return func(_ *Logr) error {
