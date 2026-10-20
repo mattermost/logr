@@ -16,10 +16,14 @@ func TestTruncateOptionText(t *testing.T) {
 	TruncateOptionText("opt", &s, 4)
 	require.Equal(t, "abcd", s)
 
-	t.Run("counts characters not bytes", func(t *testing.T) {
-		s := "üüüüü"
-		TruncateOptionText("opt", &s, 4)
-		require.Equal(t, "üüüü", s)
+	t.Run("counts bytes and never splits a character", func(t *testing.T) {
+		s := "üüü"
+		TruncateOptionText("opt", &s, 5)
+		require.Equal(t, "üü", s)
+
+		s = "ü"
+		TruncateOptionText("opt", &s, 1)
+		require.Equal(t, "", s)
 	})
 
 	t.Run("reports through TruncateWriter instead of a hardcoded stream", func(t *testing.T) {

@@ -29,7 +29,8 @@ type Plain struct {
 	Delim string `json:"delim"`
 
 	// MinLevelLen sets the minimum level name length. If the level name is less
-	// than the minimum it will be padded with spaces.
+	// than the minimum it will be padded with spaces. Values over
+	// logr.MaxLevelNameLen are clamped to it.
 	MinLevelLen int `json:"min_level_len"`
 
 	// MinMessageLen sets the minimum msg length. If the msg text is less
@@ -37,7 +38,8 @@ type Plain struct {
 	MinMessageLen int `json:"min_msg_len"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
-	// then DefTimestampFormat is used.
+	// then DefTimestampFormat is used. Values longer than
+	// logr.MaxTimestampFormatLen bytes are truncated.
 	TimestampFormat string `json:"timestamp_format"`
 
 	// LineEnd sets the end of line character(s). Defaults to '\n'.
@@ -53,6 +55,13 @@ func (p *Plain) CheckValid() error {
 	}
 	logr.TruncateOptionText("delim", &p.Delim, logr.MaxDelimLen)
 	logr.TruncateOptionText("line_end", &p.LineEnd, logr.MaxLineEndLen)
+	logr.TruncateOptionText("timestamp_format", &p.TimestampFormat, logr.MaxTimestampFormatLen)
+	if p.MinLevelLen > logr.MaxLevelNameLen {
+		if logr.TruncateWriter != nil {
+			fmt.Fprintf(logr.TruncateWriter, "min_level_len is too large (%d, maximum %d), clamping\n", p.MinLevelLen, logr.MaxLevelNameLen)
+		}
+		p.MinLevelLen = logr.MaxLevelNameLen
+	}
 	return nil
 }
 
