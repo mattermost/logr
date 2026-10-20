@@ -95,6 +95,7 @@ func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Fa
 func newFilter(levels []logr.Level) logr.Filter {
 	filter := &logr.CustomFilter{}
 	for _, lvl := range levels {
+		logr.TruncateOptionText("level name", &lvl.Name, logr.MaxLevelNameLen)
 		filter.Add(lvl)
 	}
 	return filter

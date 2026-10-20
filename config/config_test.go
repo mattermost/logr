@@ -1,10 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,4 +132,32 @@ func customFormatFactory(format string, options json.RawMessage) (logr.Formatter
 		return nil, fmt.Errorf("unknown format %s", format)
 	}
 	return &formatters.Plain{Delim: " / "}, nil
+}
+
+func TestConfigureTargetsTruncatesLevelName(t *testing.T) {
+	name := strings.Repeat("L", logr.MaxLevelNameLen+1)
+	str := fmt.Sprintf(`{"long-level": {
+        "type": "my_custom_target",
+        "format": "plain",
+        "levels": [{"id": 5, "name": %q}]
+    }}`, name)
+
+	var cfg map[string]TargetCfg
+	require.NoError(t, json.Unmarshal([]byte(str), &cfg))
+
+	orig := logr.TruncateWriter
+	t.Cleanup(func() { logr.TruncateWriter = orig })
+	warn := &bytes.Buffer{}
+	logr.TruncateWriter = warn
+
+	buf := &test.Buffer{}
+	lgr, err := logr.New()
+	require.NoError(t, err)
+	require.NoError(t, ConfigureTargets(lgr, cfg, &Factories{TargetFactory: makeCustomTargetFactory(buf)}))
+
+	lgr.NewLogger().Log(logr.Level{ID: 5}, "hello")
+	require.NoError(t, lgr.Shutdown())
+
+	assert.True(t, strings.HasPrefix(buf.String(), name[:logr.MaxLevelNameLen]+" "), buf.String())
+	assert.Equal(t, 1, strings.Count(warn.String(), "level name is too long"))
 }
