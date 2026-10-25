@@ -51,6 +51,11 @@ func TestPlainCheckValidLimits(t *testing.T) {
 		require.Equal(t, 1, strings.Count(buf.String(), "\n"))
 	})
 
+	t.Run("timestamp_format with control characters is rejected", func(t *testing.T) {
+		require.Error(t, (&formatters.Plain{TimestampFormat: "2006]\nERROR [2006-01-02] fake\n["}).CheckValid())
+		require.Error(t, (&formatters.Plain{TimestampFormat: "\x1b[31m2006"}).CheckValid())
+	})
+
 	t.Run("min_level_len over cap is clamped with one warning", func(t *testing.T) {
 		buf := captureTruncateWriter(t)
 		p := &formatters.Plain{MinLevelLen: logr.MaxLevelNameLen + 1}

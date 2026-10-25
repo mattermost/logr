@@ -39,7 +39,8 @@ type Plain struct {
 
 	// TimestampFormat is an optional format for timestamps. If empty
 	// then DefTimestampFormat is used. Values longer than
-	// logr.MaxTimestampFormatLen bytes are truncated.
+	// logr.MaxTimestampFormatLen bytes are truncated, and values containing
+	// control characters are rejected.
 	TimestampFormat string `json:"timestamp_format"`
 
 	// LineEnd sets the end of line character(s). Defaults to '\n'.
@@ -52,6 +53,9 @@ type Plain struct {
 func (p *Plain) CheckValid() error {
 	if p.MinMessageLen < 0 || p.MinMessageLen > 1024 {
 		return fmt.Errorf("min_msg_len is invalid(%d)", p.MinMessageLen)
+	}
+	if err := logr.CheckOptionText("timestamp_format", p.TimestampFormat); err != nil {
+		return err
 	}
 	logr.TruncateOptionText("delim", &p.Delim, logr.MaxDelimLen)
 	logr.TruncateOptionText("line_end", &p.LineEnd, logr.MaxLineEndLen)

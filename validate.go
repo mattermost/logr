@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -61,4 +62,15 @@ func TruncateOptionText(name string, s *string, maxLen int) {
 		cut--
 	}
 	*s = (*s)[:cut]
+}
+
+// CheckOptionText returns an error if s contains a control character, which
+// would let configuration split a record into forged lines or emit terminal escapes.
+func CheckOptionText(name string, s string) error {
+	for _, r := range s {
+		if unicode.IsControl(r) {
+			return fmt.Errorf("%s contains a control character (%U)", name, r)
+		}
+	}
+	return nil
 }

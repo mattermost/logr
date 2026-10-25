@@ -161,3 +161,22 @@ func TestConfigureTargetsTruncatesLevelName(t *testing.T) {
 	assert.True(t, strings.HasPrefix(buf.String(), name[:logr.MaxLevelNameLen]+" "), buf.String())
 	assert.Equal(t, 1, strings.Count(warn.String(), "level name is too long"))
 }
+
+func TestConfigureTargetsRejectsLevelNameControlCharacters(t *testing.T) {
+	str := `{"bad-level": {
+        "type": "my_custom_target",
+        "format": "plain",
+        "levels": [{"id": 5, "name": "\n2026-10-24 fake [x] admin login ok\n"}]
+    }}`
+
+	var cfg map[string]TargetCfg
+	require.NoError(t, json.Unmarshal([]byte(str), &cfg))
+
+	lgr, err := logr.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = lgr.Shutdown() })
+
+	err = ConfigureTargets(lgr, cfg, &Factories{TargetFactory: makeCustomTargetFactory(&test.Buffer{})})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "level name contains a control character")
+}
