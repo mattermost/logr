@@ -12,13 +12,6 @@ type LevelStatus struct {
 	Stacktrace bool
 }
 
-type levelCache interface {
-	setup()
-	get(id LevelID) (LevelStatus, bool)
-	put(id LevelID, status LevelStatus) error
-	clear()
-}
-
 const (
 	atomicLevelEnabledBit uint32 = 1 << iota
 	atomicLevelStacktraceBit
@@ -48,14 +41,11 @@ const (
 //
 // The normal clear path is O(1): increment the generation.
 // No entries need to be touched.
+//
+// The zero value is ready to use; generation 0 means nothing has been cached.
 type atomicLevelCache struct {
 	arr        [MaxLevelID + 1]atomic.Uint32
 	generation atomic.Uint32
-}
-
-func (c *atomicLevelCache) setup() {
-	// Generation zero represents an uninitialized cache.
-	c.generation.CompareAndSwap(0, 1)
 }
 
 func (c *atomicLevelCache) get(id LevelID) (LevelStatus, bool) {
@@ -92,7 +82,6 @@ func (c *atomicLevelCache) put(id LevelID, status LevelStatus) error {
 
 		switch generation {
 		case 0:
-			// Allow the zero value to work even if setup() was not called.
 			if c.generation.CompareAndSwap(0, 1) {
 				generation = 1
 			} else {

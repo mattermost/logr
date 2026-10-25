@@ -1,50 +1,16 @@
 package logr
 
 import (
-	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TestLevelCacheAlwaysAtomic verifies the atomic cache is used for the Logr and
-// per-target caches, including when the deprecated cache options are supplied.
-func TestLevelCacheAlwaysAtomic(t *testing.T) {
-	tests := []struct {
-		name string
-		opts []Option
-	}{
-		{name: "default"},
-		{name: "array option true", opts: []Option{UseArrayLevelCache(true)}},
-		{name: "array option false", opts: []Option{UseArrayLevelCache(false)}},
-		{name: "syncMap option true", opts: []Option{UseSyncMapLevelCache(true)}},
-		{name: "syncMap option false", opts: []Option{UseSyncMapLevelCache(false)}},
-	}
-
-	const want = "*logr.atomicLevelCache"
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			lgr, err := New(tc.opts...)
-			require.NoError(t, err)
-			defer func() { require.NoError(t, lgr.Shutdown()) }()
-
-			require.Equal(t, want, fmt.Sprintf("%T", lgr.lvlCache))
-
-			err = lgr.AddTarget(discardTarget{}, "test", &StdFilter{Lvl: Error}, &DefaultFormatter{}, 100)
-			require.NoError(t, err)
-			require.Equal(t, want, fmt.Sprintf("%T", lgr.targetHosts[0].lvlCache))
-
-			require.True(t, lgr.IsLevelEnabled(Error).Enabled)
-			require.False(t, lgr.IsLevelEnabled(Debug).Enabled)
-		})
-	}
-}
-
 func TestAtomicLevelCache(t *testing.T) {
 	c := &atomicLevelCache{}
-	c.setup()
 
 	_, ok := c.get(Info.ID)
 	require.False(t, ok)
@@ -76,22 +42,8 @@ func TestAtomicLevelCache(t *testing.T) {
 	require.False(t, ok)
 }
 
-// TestAtomicLevelCacheZeroValue verifies the cache works without setup().
-func TestAtomicLevelCacheZeroValue(t *testing.T) {
-	c := &atomicLevelCache{}
-
-	_, ok := c.get(Error.ID)
-	require.False(t, ok)
-
-	require.NoError(t, c.put(Error.ID, LevelStatus{Enabled: true}))
-	status, ok := c.get(Error.ID)
-	require.True(t, ok)
-	require.True(t, status.Enabled)
-}
-
 func TestAtomicLevelCacheGenerationRollover(t *testing.T) {
 	c := &atomicLevelCache{}
-	c.setup()
 	c.generation.Store(atomicLevelMaxGeneration)
 
 	require.NoError(t, c.put(Error.ID, LevelStatus{Enabled: true}))
@@ -119,7 +71,6 @@ func TestAtomicLevelCacheGenerationRollover(t *testing.T) {
 // generation, which would read as valid again after the next wrap.
 func TestAtomicLevelCacheRolloverDiscardsRacingPut(t *testing.T) {
 	c := &atomicLevelCache{}
-	c.setup()
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
@@ -162,7 +113,6 @@ func TestAtomicLevelCacheRolloverDiscardsRacingPut(t *testing.T) {
 // generations, so the entry would otherwise read as valid at the next wrap.
 func TestAtomicLevelCacheDiscardsStalePut(t *testing.T) {
 	c := &atomicLevelCache{}
-	c.setup()
 	c.generation.Store(atomicLevelMaxGeneration)
 
 	require.NoError(t, c.put(Warn.ID, LevelStatus{Enabled: true}))
@@ -179,8 +129,8 @@ func TestAtomicLevelCacheDiscardsStalePut(t *testing.T) {
 	require.False(t, ok, "entry from before the rollover became valid again")
 }
 
-// TestAtomicLevelCacheZeroValueClear covers clearing a cache that never had
-// setup() called, where the generation still has to be initialized.
+// TestAtomicLevelCacheZeroValueClear covers clearing a cache before anything
+// has been cached, where the generation still has to be initialized.
 func TestAtomicLevelCacheZeroValueClear(t *testing.T) {
 	c := &atomicLevelCache{}
 
@@ -191,4 +141,160 @@ func TestAtomicLevelCacheZeroValueClear(t *testing.T) {
 	status, ok := c.get(Info.ID)
 	require.True(t, ok)
 	require.True(t, status.Enabled)
+}
+
+// TestAtomicLevelCacheConcurrentClearsAcrossRollover verifies that concurrent
+// clears crossing the rollover each advance the generation exactly once.
+func TestAtomicLevelCacheConcurrentClearsAcrossRollover(t *testing.T) {
+	const (
+		clearsBeforeMax = 50
+		workers         = 8
+		clearsPerWorker = 25
+	)
+
+	c := &atomicLevelCache{}
+	c.generation.Store(atomicLevelMaxGeneration - clearsBeforeMax)
+	require.NoError(t, c.put(Error.ID, LevelStatus{Enabled: true}))
+
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < clearsPerWorker; i++ {
+				c.clear()
+			}
+		}()
+	}
+	wg.Wait()
+
+	// The clear that reaches past the maximum lands on generation 1, so the
+	// remaining clears count up from there.
+	require.Equal(t, uint32(workers*clearsPerWorker-clearsBeforeMax), c.generation.Load())
+	require.Zero(t, c.arr[Error.ID].Load(), "rollover did not zero the array")
+	_, ok := c.get(Error.ID)
+	require.False(t, ok)
+}
+
+// TestAtomicLevelCacheDuringRolloverReset verifies the cache behaves while
+// another goroutine is in the middle of a rollover reset.
+func TestAtomicLevelCacheDuringRolloverReset(t *testing.T) {
+	t.Run("get misses", func(t *testing.T) {
+		c := &atomicLevelCache{}
+		c.arr[Error.ID].Store(atomicLevelMaxGeneration<<atomicLevelGenerationShift | atomicLevelEnabledBit)
+		c.generation.Store(atomicLevelResetting)
+
+		_, ok := c.get(Error.ID)
+		require.False(t, ok)
+	})
+
+	t.Run("put waits for the new generation", func(t *testing.T) {
+		c := &atomicLevelCache{}
+		c.generation.Store(atomicLevelResetting)
+
+		done := make(chan error, 1)
+		go func() { done <- c.put(Warn.ID, LevelStatus{Enabled: true}) }()
+
+		c.generation.Store(1)
+		require.NoError(t, <-done)
+
+		status, ok := c.get(Warn.ID)
+		require.True(t, ok)
+		require.True(t, status.Enabled)
+	})
+
+	t.Run("clear waits for the new generation", func(t *testing.T) {
+		c := &atomicLevelCache{}
+		c.generation.Store(atomicLevelResetting)
+
+		done := make(chan struct{})
+		go func() {
+			c.clear()
+			close(done)
+		}()
+
+		c.generation.Store(1)
+		<-done
+		require.Equal(t, uint32(2), c.generation.Load())
+	})
+}
+
+// TestTargetLevelCacheKeepsStacktrace verifies a per-target cache hit reports
+// the filter's stack trace setting, including when only the top-level cache is
+// cold.
+func TestTargetLevelCacheKeepsStacktrace(t *testing.T) {
+	lgr, err := New()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, lgr.Shutdown()) }()
+
+	filter := &StdFilter{Lvl: Error, Stacktrace: Error}
+	err = lgr.AddTarget(discardTarget{}, "test", filter, &DefaultFormatter{}, 100)
+	require.NoError(t, err)
+	host := lgr.targetHosts[0]
+
+	enabled, level := host.IsLevelEnabled(Error)
+	require.True(t, enabled)
+	require.True(t, level.Stacktrace, "cache miss")
+
+	enabled, level = host.IsLevelEnabled(Error)
+	require.True(t, enabled)
+	require.True(t, level.Stacktrace, "cache hit")
+
+	lgr.lvlCache.clear()
+	require.True(t, lgr.IsLevelEnabled(Error).Stacktrace)
+}
+
+// gatedFilter blocks its first GetEnabledLevel call until released, after it
+// has read the enabled setting.
+type gatedFilter struct {
+	enabled atomic.Bool
+	gate    atomic.Bool
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (f *gatedFilter) GetEnabledLevel(level Level) (Level, bool) {
+	enabled := f.enabled.Load()
+	if f.gate.CompareAndSwap(true, false) {
+		close(f.entered)
+		<-f.release
+	}
+	return level, enabled
+}
+
+// TestResetLevelCacheDuringCacheMiss verifies that a cache miss which read the
+// filter before a ResetLevelCache cannot leave its result cached afterwards.
+func TestResetLevelCacheDuringCacheMiss(t *testing.T) {
+	filter := &gatedFilter{entered: make(chan struct{}), release: make(chan struct{})}
+	filter.enabled.Store(true)
+	filter.gate.Store(true)
+
+	lgr, err := New()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, lgr.Shutdown()) }()
+	require.NoError(t, lgr.AddTarget(discardTarget{}, "test", filter, &DefaultFormatter{}, 100))
+
+	lookup := make(chan LevelStatus, 1)
+	go func() { lookup <- lgr.IsLevelEnabled(Error) }()
+	<-filter.entered
+
+	filter.enabled.Store(false)
+	resetDone := make(chan struct{})
+	go func() {
+		lgr.ResetLevelCache()
+		close(resetDone)
+	}()
+
+	// Give an unsynchronized reset time to finish before the lookup stores its result.
+	select {
+	case <-resetDone:
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(filter.release)
+
+	require.True(t, (<-lookup).Enabled)
+	<-resetDone
+	require.False(t, lgr.IsLevelEnabled(Error).Enabled, "stale entry survived ResetLevelCache")
+	enabled, _ := lgr.targetHosts[0].IsLevelEnabled(Error)
+	require.False(t, enabled, "stale per-target entry survived ResetLevelCache")
 }

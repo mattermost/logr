@@ -76,8 +76,8 @@ every measured axis. The comparison below is the measurement that decided it.
 ## Measured Performance
 
 Medians of 6 runs, `go1.26.3 linux/amd64`, 13th Gen Intel Core i9-13900K (32 threads).
-All three implementations were measured through the `levelCache` interface, so the
-numbers are directly comparable.
+All three implementations were measured through a common interface, so the numbers
+are directly comparable.
 
 | Benchmark | GOMAXPROCS | syncMap | array | atomic |
 |---|---|---|---|---|
@@ -105,19 +105,6 @@ Benchmarks for the surviving implementation live in `levelcache_bench_test.go`:
 ```
 go test -vet=off -run '^$' -bench 'LevelCache|IsLevelEnabledCached' -benchmem -cpu 1,32 -count 6 .
 ```
-
-## Known Gaps
-
-- The `levelCache` interface now has a single implementer, and the indirect call is
-  measurable: making `Logr.lvlCache` and `TargetHost.lvlCache` concrete takes
-  `IsLevelEnabled` from 2.25 ns to 1.84 ns serial and 0.17 ns to 0.12 ns at 32 threads.
-  The interface is kept as the seam for the per-tag cache described in
-  `TAGGING-DESIGN.md`.
-- `TargetHost.IsLevelEnabled` caches only `Enabled`, and on a cache hit it returns the
-  caller's `Level` rather than the filter-resolved one (`target.go:141`). A caller that
-  reaches the per-target cache while the top-level cache is cold can therefore record
-  `Stacktrace: false` for a level whose filter asks for a stack trace. Fanout
-  (`logr.go:464`) discards the returned level, so only `Logr.IsLevelEnabled` is affected.
 
 ## Notes
 

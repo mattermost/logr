@@ -16,7 +16,6 @@ var benchSink atomic.Uint64
 
 func newBenchLevelCache(b *testing.B) *atomicLevelCache {
 	c := &atomicLevelCache{}
-	c.setup()
 	b.ReportAllocs()
 	return c
 }

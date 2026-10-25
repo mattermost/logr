@@ -48,7 +48,7 @@ type TargetHost struct {
 
 	filter    Filter
 	formatter Formatter
-	lvlCache  levelCache // per-target level cache for faster filtering
+	lvlCache  *atomicLevelCache // per-target level cache for faster filtering
 
 	in            chan *LogRec
 	quit          chan context.Context // receives shutdown context to exit read loop
@@ -80,9 +80,6 @@ func newTargetHost(target Target, options targetHostOptions) (*TargetHost, error
 	if host.formatter == nil {
 		host.formatter = &DefaultFormatter{}
 	}
-
-	// Initialize the per-target level cache
-	host.lvlCache.setup()
 
 	err := host.initMetrics(options.metrics)
 	if err != nil {
@@ -141,6 +138,7 @@ func (h *TargetHost) initMetrics(metrics *metrics) error {
 func (h *TargetHost) IsLevelEnabled(lvl Level) (enabled bool, level Level) {
 	// Check cache first
 	if status, ok := h.lvlCache.get(lvl.ID); ok {
+		lvl.Stacktrace = status.Stacktrace
 		return status.Enabled, lvl
 	}
 
@@ -148,7 +146,7 @@ func (h *TargetHost) IsLevelEnabled(lvl Level) (enabled bool, level Level) {
 	level, enabled = h.filter.GetEnabledLevel(lvl)
 
 	// Cache the result (ignore error since it only fails for invalid level IDs)
-	_ = h.lvlCache.put(lvl.ID, LevelStatus{Enabled: enabled})
+	_ = h.lvlCache.put(lvl.ID, LevelStatus{Enabled: enabled, Stacktrace: level.Stacktrace})
 
 	return enabled, level
 }
