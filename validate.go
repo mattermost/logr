@@ -64,12 +64,16 @@ func TruncateOptionText(name string, s *string, maxLen int) {
 	*s = (*s)[:cut]
 }
 
-// CheckOptionText returns an error if s contains a control character, which
-// would let configuration split a record into forged lines or emit terminal escapes.
+// CheckOptionText returns an error if s contains a control character or a
+// Unicode line or paragraph separator, which would let configuration split a
+// record into forged lines or emit terminal escapes.
 func CheckOptionText(name string, s string) error {
 	for _, r := range s {
 		if unicode.IsControl(r) {
 			return fmt.Errorf("%s contains a control character (%U)", name, r)
+		}
+		if r == ' ' || r == ' ' {
+			return fmt.Errorf("%s contains a line separator (%U)", name, r)
 		}
 	}
 	return nil

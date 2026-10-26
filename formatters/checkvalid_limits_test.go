@@ -54,6 +54,7 @@ func TestPlainCheckValidLimits(t *testing.T) {
 	t.Run("timestamp_format with control characters is rejected", func(t *testing.T) {
 		require.Error(t, (&formatters.Plain{TimestampFormat: "2006]\nERROR [2006-01-02] fake\n["}).CheckValid())
 		require.Error(t, (&formatters.Plain{TimestampFormat: "\x1b[31m2006"}).CheckValid())
+		require.Error(t, (&formatters.Plain{TimestampFormat: "2006 fake"}).CheckValid())
 	})
 
 	t.Run("min_level_len over cap is clamped with one warning", func(t *testing.T) {
@@ -82,6 +83,12 @@ func TestJSONCheckValidLimits(t *testing.T) {
 		require.NoError(t, j.CheckValid())
 		require.Equal(t, strings.Repeat("x", logr.MaxTimestampFormatLen), j.TimestampFormat)
 		require.Equal(t, 1, strings.Count(buf.String(), "\n"))
+	})
+
+	t.Run("timestamp_format that would break JSON output is rejected", func(t *testing.T) {
+		for _, ts := range []string{"2006\n01", "\x1b[31m2006", "2006 fake", `2006","level":"fake`, `2006\`} {
+			require.Error(t, (&formatters.JSON{TimestampFormat: ts}).CheckValid(), "%q should be rejected", ts)
+		}
 	})
 
 	t.Run("default timestamp format is unchanged without a warning", func(t *testing.T) {

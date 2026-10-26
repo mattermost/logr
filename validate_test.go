@@ -55,7 +55,7 @@ func TestCheckOptionText(t *testing.T) {
 	require.NoError(t, CheckOptionText("opt", "2006-01-02 15:04:05.000 Z07:00"))
 	require.NoError(t, CheckOptionText("opt", "ünïcode"))
 
-	for _, s := range []string{"a\nb", "a\rb", "a\tb", "\x1b[31m", "a\x00b", "a\x7fb", "a\u0085b"} {
+	for _, s := range []string{"a\nb", "a\rb", "a\tb", "\x1b[31m", "a\x00b", "a\x7fb", "a\u0085b", "a b", "a b"} {
 		require.Error(t, CheckOptionText("opt", s), "%q should be rejected", s)
 	}
 }

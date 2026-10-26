@@ -180,3 +180,22 @@ func TestConfigureTargetsRejectsLevelNameControlCharacters(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "level name contains a control character")
 }
+
+func TestConfigureTargetsRejectsLevelNameLineSeparator(t *testing.T) {
+	str := `{"bad-level": {
+        "type": "my_custom_target",
+        "format": "plain",
+        "levels": [{"id": 5, "name": "info 2026-10-24 fake [x] admin login ok"}]
+    }}`
+
+	var cfg map[string]TargetCfg
+	require.NoError(t, json.Unmarshal([]byte(str), &cfg))
+
+	lgr, err := logr.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = lgr.Shutdown() })
+
+	err = ConfigureTargets(lgr, cfg, &Factories{TargetFactory: makeCustomTargetFactory(&test.Buffer{})})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "level name contains a line separator")
+}
