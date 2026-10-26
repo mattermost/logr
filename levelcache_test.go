@@ -159,59 +159,35 @@ func TestPerTargetCacheWithCustomFilter(t *testing.T) {
 	assert.False(t, lgr.IsLevelEnabled(customLevel2).Enabled)
 }
 
-// TestCacheOptionsBackwardCompatibility tests that the old and new cache
-// options work correctly.
+// TestCacheOptionsBackwardCompatibility tests that the deprecated cache options
+// are accepted and have no effect.
 func TestCacheOptionsBackwardCompatibility(t *testing.T) {
-	// Test default (should be syncMap)
-	lgr1, err := logr.New()
-	require.NoError(t, err)
-	defer func() { require.NoError(t, lgr1.Shutdown()) }()
+	tests := []struct {
+		name string
+		opts []logr.Option
+	}{
+		{name: "default"},
+		{name: "array option true", opts: []logr.Option{logr.UseArrayLevelCache(true)}},
+		{name: "array option false", opts: []logr.Option{logr.UseArrayLevelCache(false)}},
+		{name: "syncMap option true", opts: []logr.Option{logr.UseSyncMapLevelCache(true)}},
+		{name: "syncMap option false", opts: []logr.Option{logr.UseSyncMapLevelCache(false)}},
+	}
 
-	filter := &logr.StdFilter{Lvl: logr.Error}
-	formatter := &formatters.Plain{Delim: " | "}
-	target := targets.NewWriterTarget(nil)
-	err = lgr1.AddTarget(target, "test", filter, formatter, 100)
-	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lgr, err := logr.New(tc.opts...)
+			require.NoError(t, err)
+			defer func() { require.NoError(t, lgr.Shutdown()) }()
 
-	// Should work fine with default cache
-	status := lgr1.IsLevelEnabled(logr.Error)
-	assert.True(t, status.Enabled)
+			filter := &logr.StdFilter{Lvl: logr.Error}
+			formatter := &formatters.Plain{Delim: " | "}
+			err = lgr.AddTarget(targets.NewWriterTarget(nil), "test", filter, formatter, 100)
+			require.NoError(t, err)
 
-	// Test explicit array cache
-	lgr2, err := logr.New(logr.UseArrayLevelCache(true))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, lgr2.Shutdown()) }()
-
-	target2 := targets.NewWriterTarget(nil)
-	err = lgr2.AddTarget(target2, "test", filter, formatter, 100)
-	require.NoError(t, err)
-
-	status = lgr2.IsLevelEnabled(logr.Error)
-	assert.True(t, status.Enabled)
-
-	// Test deprecated UseSyncMapLevelCache(true) - should use syncMap
-	lgr3, err := logr.New(logr.UseSyncMapLevelCache(true))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, lgr3.Shutdown()) }()
-
-	target3 := targets.NewWriterTarget(nil)
-	err = lgr3.AddTarget(target3, "test", filter, formatter, 100)
-	require.NoError(t, err)
-
-	status = lgr3.IsLevelEnabled(logr.Error)
-	assert.True(t, status.Enabled)
-
-	// Test deprecated UseSyncMapLevelCache(false) - should use array
-	lgr4, err := logr.New(logr.UseSyncMapLevelCache(false))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, lgr4.Shutdown()) }()
-
-	target4 := targets.NewWriterTarget(nil)
-	err = lgr4.AddTarget(target4, "test", filter, formatter, 100)
-	require.NoError(t, err)
-
-	status = lgr4.IsLevelEnabled(logr.Error)
-	assert.True(t, status.Enabled)
+			assert.True(t, lgr.IsLevelEnabled(logr.Error).Enabled)
+			assert.False(t, lgr.IsLevelEnabled(logr.Debug).Enabled)
+		})
+	}
 }
 
 // TestMultipleTargetsCacheInvalidation tests that per-target caches are

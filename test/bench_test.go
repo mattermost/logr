@@ -140,34 +140,9 @@ func BenchmarkLogger(b *testing.B) {
 	require.NoError(b, err)
 }
 
-// BenchmarkIsLevelEnabled_SyncMap benchmarks top-level cache with syncMapLevelCache (default).
-func BenchmarkIsLevelEnabled_SyncMap(b *testing.B) {
-	lgr, _ := logr.New() // Uses syncMapLevelCache by default
-	for i := 0; i < 5; i++ {
-		filter := &logr.StdFilter{Lvl: logr.Error}
-		formatter := &formatters.Plain{Delim: " | "}
-		target := targets.NewWriterTarget(io.Discard)
-		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
-		require.NoError(b, err)
-	}
-
-	// Prime the cache
-	lgr.IsLevelEnabled(logr.Error)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		status := lgr.IsLevelEnabled(logr.Error)
-		Enabled = status.Enabled
-		Stacktrace = status.Stacktrace
-	}
-	b.StopTimer()
-	err := lgr.Shutdown()
-	require.NoError(b, err)
-}
-
-// BenchmarkIsLevelEnabled_Array benchmarks top-level cache with arrayLevelCache (legacy).
-func BenchmarkIsLevelEnabled_Array(b *testing.B) {
-	lgr, _ := logr.New(logr.UseArrayLevelCache(true))
+// BenchmarkIsLevelEnabled benchmarks the top-level level cache.
+func BenchmarkIsLevelEnabled(b *testing.B) {
+	lgr, _ := logr.New()
 	for i := 0; i < 5; i++ {
 		filter := &logr.StdFilter{Lvl: logr.Error}
 		formatter := &formatters.Plain{Delim: " | "}
@@ -277,37 +252,6 @@ func BenchmarkLogM_5Tags_5Targets(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logger.LogM([]logr.Level{tag1, tag2, tag3, tag4, tag5}, "log entry with 5 tags")
-	}
-	b.StopTimer()
-	err := lgr.Shutdown()
-	require.NoError(b, err)
-}
-
-// BenchmarkLogM_4Tags_4Targets_Array benchmarks multi-tag logging with arrayLevelCache (legacy).
-func BenchmarkLogM_4Tags_4Targets_Array(b *testing.B) {
-	lgr, _ := logr.New(logr.UseArrayLevelCache(true))
-	for i := 0; i < 4; i++ {
-		filter := &logr.StdFilter{Lvl: logr.Warn}
-		formatter := &formatters.Plain{Delim: " | "}
-		target := targets.NewWriterTarget(io.Discard)
-		err := lgr.AddTarget(target, "test"+strconv.Itoa(i), filter, formatter, 1000)
-		require.NoError(b, err)
-	}
-
-	// Create custom levels to simulate tags
-	tag1 := logr.Level{ID: 100, Name: "tag1"}
-	tag2 := logr.Level{ID: 101, Name: "tag2"}
-	tag3 := logr.Level{ID: 102, Name: "tag3"}
-	tag4 := logr.Level{ID: 103, Name: "tag4"}
-
-	logger := lgr.NewLogger()
-
-	// Prime the caches
-	logger.LogM([]logr.Level{tag1, tag2, tag3, tag4}, "cache primer")
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		logger.LogM([]logr.Level{tag1, tag2, tag3, tag4}, "log entry with 4 tags")
 	}
 	b.StopTimer()
 	err := lgr.Shutdown()
