@@ -72,7 +72,7 @@ func CheckOptionText(name string, s string) error {
 		if unicode.IsControl(r) {
 			return fmt.Errorf("%s contains a control character (%U)", name, r)
 		}
-		if r == ' ' || r == ' ' {
+		if r == '\u2028' || r == '\u2029' {
 			return fmt.Errorf("%s contains a line separator (%U)", name, r)
 		}
 	}
