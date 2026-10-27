@@ -79,7 +79,11 @@ func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Fa
 			return fmt.Errorf("error creating formatter for log target %s: %w", name, err)
 		}
 
-		filter := newFilter(tcfg.Levels)
+		filter, err := newFilter(tcfg.Levels)
+		if err != nil {
+			return fmt.Errorf("error creating filter for log target %s: %w", name, err)
+		}
+
 		qSize := tcfg.MaxQueueSize
 		if qSize == 0 {
 			qSize = logr.DefaultMaxQueueSize
@@ -92,12 +96,16 @@ func ConfigureTargets(lgr *logr.Logr, config map[string]TargetCfg, factories *Fa
 	return nil
 }
 
-func newFilter(levels []logr.Level) logr.Filter {
+func newFilter(levels []logr.Level) (logr.Filter, error) {
 	filter := &logr.CustomFilter{}
 	for _, lvl := range levels {
+		if err := logr.CheckOptionText("level name", lvl.Name); err != nil {
+			return nil, err
+		}
+		logr.TruncateOptionText("level name", &lvl.Name, logr.MaxLevelNameLen)
 		filter.Add(lvl)
 	}
-	return filter
+	return filter, nil
 }
 
 func newTarget(targetType string, options json.RawMessage, factory TargetFactory) (logr.Target, error) {

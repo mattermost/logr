@@ -28,7 +28,9 @@ type JSON struct {
 	EnableCaller bool `json:"enable_caller"`
 
 	// TimestampFormat is an optional format for timestamps. If empty
-	// then DefTimestampFormat is used.
+	// then DefTimestampFormat is used. Values longer than
+	// logr.MaxTimestampFormatLen bytes are truncated, and values containing
+	// control characters, '"' or '\' are rejected.
 	TimestampFormat string `json:"timestamp_format"`
 
 	// KeyTimestamp overrides the timestamp field key name.
@@ -58,6 +60,14 @@ type JSON struct {
 }
 
 func (j *JSON) CheckValid() error {
+	if err := logr.CheckOptionText("timestamp_format", j.TimestampFormat); err != nil {
+		return err
+	}
+	// gojay writes the formatted timestamp between quotes without escaping it.
+	if i := strings.IndexAny(j.TimestampFormat, `"\`); i >= 0 {
+		return fmt.Errorf("timestamp_format contains %q, which is not allowed in JSON output", j.TimestampFormat[i])
+	}
+	logr.TruncateOptionText("timestamp_format", &j.TimestampFormat, logr.MaxTimestampFormatLen)
 	return nil
 }
 
