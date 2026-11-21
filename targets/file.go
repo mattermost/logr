@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/mattermost/logr/v2"
-	"gopkg.in/natefinch/lumberjack.v2"
+	"github.com/mattermost/logr/v2/internal/lumberjack"
 )
 
 type FileOptions struct {
@@ -43,7 +43,7 @@ func (fo FileOptions) CheckValid() error {
 }
 
 // File outputs log records to a file which can be log rotated based on size or age.
-// Uses `https://github.com/natefinch/lumberjack` for rotation.
+// Uses a fork of `https://github.com/natefinch/lumberjack` for rotation.
 type File struct {
 	out io.WriteCloser
 }

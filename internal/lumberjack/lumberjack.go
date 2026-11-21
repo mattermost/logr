@@ -1,12 +1,12 @@
 // Package lumberjack provides a rolling logger.
 //
-// Note that this is v2.0 of lumberjack, and should be imported using gopkg.in
-// thusly:
-//
-//   import "gopkg.in/natefinch/lumberjack.v2"
-//
-// The package name remains simply lumberjack, and the code resides at
-// https://github.com/natefinch/lumberjack under the v2.0 branch.
+// This is a fork of gopkg.in/natefinch/lumberjack.v2 v2.2.1 (MIT, see LICENSE).
+// It differs from upstream as follows (MM-72165):
+//   - Compression writes to a temp file and renames it into place, never deletes
+//     the final .gz on error, and treats an already removed source as success.
+//   - chown no longer creates or truncates the target file.
+//   - Mills for the same file are serialized across Logger instances in the
+//     process, and the mill goroutine exits when idle instead of leaking.
 //
 // Lumberjack is intended to be one part of a logging infrastructure.
 // It is not an all-in-one solution, but instead is a pluggable
@@ -39,6 +39,8 @@ const (
 	backupTimeFormat = "2006-01-02T15-04-05.000"
 	compressSuffix   = ".gz"
 	defaultMaxSize   = 100
+	tempInfix        = ".tmp"
+	staleTempAge     = time.Hour
 )
 
 // ensure we always implement io.WriteCloser
@@ -66,7 +68,7 @@ var _ io.WriteCloser = (*Logger)(nil)
 // `/var/log/foo/server.log`, a backup created at 6:30pm on Nov 11 2016 would
 // use the filename `/var/log/foo/server-2016-11-04T18-30-00.000.log`
 //
-// Cleaning Up Old Log Files
+// # Cleaning Up Old Log Files
 //
 // Whenever a new logfile gets created, old log files may be deleted.  The most
 // recent files according to the encoded timestamp will be retained, up to a
@@ -111,8 +113,9 @@ type Logger struct {
 	file *os.File
 	mu   sync.Mutex
 
-	millCh    chan bool
-	startMill sync.Once
+	milling     bool
+	millPending bool
+	millWG      sync.WaitGroup
 }
 
 var (
@@ -222,11 +225,6 @@ func (l *Logger) openNew() error {
 		if err := os.Rename(name, newname); err != nil {
 			return fmt.Errorf("can't rename log file: %s", err)
 		}
-
-		// this is a no-op anywhere but linux
-		if err := chown(name, info); err != nil {
-			return err
-		}
 	}
 
 	// we use truncate here because this should only get called when we've moved
@@ -235,6 +233,13 @@ func (l *Logger) openNew() error {
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("can't open new logfile: %s", err)
+	}
+	if info != nil {
+		// this is a no-op anywhere but linux
+		if err := chown(name, info); err != nil {
+			f.Close()
+			return err
+		}
 	}
 	l.file = f
 	l.size = 0
@@ -349,6 +354,7 @@ func (l *Logger) millRunOnce() error {
 	}
 
 	if l.Compress {
+		l.removeStaleTemps()
 		for _, f := range files {
 			if !strings.HasSuffix(f.Name(), compressSuffix) {
 				compress = append(compress, f)
@@ -373,26 +379,51 @@ func (l *Logger) millRunOnce() error {
 	return err
 }
 
+// millLocks maps an absolute log file path to the mutex that serializes mills
+// for that file across all Logger instances in the process.
+var millLocks sync.Map
+
+func millLock(filename string) *sync.Mutex {
+	key, err := filepath.Abs(filename)
+	if err != nil {
+		key = filepath.Clean(filename)
+	}
+	mu, _ := millLocks.LoadOrStore(key, &sync.Mutex{})
+	return mu.(*sync.Mutex)
+}
+
 // millRun runs in a goroutine to manage post-rotation compression and removal
-// of old log files.
+// of old log files. It exits once no further mill has been requested.
 func (l *Logger) millRun() {
-	for range l.millCh {
+	defer l.millWG.Done()
+	lock := millLock(l.filename())
+	for {
+		lock.Lock()
 		// what am I going to do, log this?
 		_ = l.millRunOnce()
+		lock.Unlock()
+
+		l.mu.Lock()
+		if !l.millPending {
+			l.milling = false
+			l.mu.Unlock()
+			return
+		}
+		l.millPending = false
+		l.mu.Unlock()
 	}
 }
 
 // mill performs post-rotation compression and removal of stale log files,
-// starting the mill goroutine if necessary.
+// starting the mill goroutine if necessary. Must be called with l.mu held.
 func (l *Logger) mill() {
-	l.startMill.Do(func() {
-		l.millCh = make(chan bool, 1)
-		go l.millRun()
-	})
-	select {
-	case l.millCh <- true:
-	default:
+	if l.milling {
+		l.millPending = true
+		return
 	}
+	l.milling = true
+	l.millWG.Add(1)
+	go l.millRun()
 }
 
 // oldLogFiles returns the list of backup log files stored in the same
@@ -465,57 +496,95 @@ func (l *Logger) prefixAndExt() (prefix, ext string) {
 
 // compressLogFile compresses the given log file, removing the
 // uncompressed log file if successful.
+//
+// Another process may be compressing the same src concurrently, so dst is
+// only ever created by rename and must never be removed here.
 func compressLogFile(src, dst string) (err error) {
 	f, err := os.Open(src)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to open log file: %v", err)
 	}
 	defer f.Close()
 
 	fi, err := osStat(src)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to stat log file: %v", err)
 	}
 
-	if err := chown(dst, fi); err != nil {
-		return fmt.Errorf("failed to chown compressed log file: %v", err)
-	}
-
-	// If this file already exists, we presume it was created by
-	// a previous attempt to compress the log file.
-	gzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
+	gzf, err := os.CreateTemp(filepath.Dir(dst), filepath.Base(dst)+tempInfix+"*")
 	if err != nil {
-		return fmt.Errorf("failed to open compressed log file: %v", err)
+		return fmt.Errorf("failed to create temp compressed log file: %v", err)
 	}
+	tmpName := gzf.Name()
 	defer gzf.Close()
-
-	gz := gzip.NewWriter(gzf)
 
 	defer func() {
 		if err != nil {
-			os.Remove(dst)
+			os.Remove(tmpName)
 			err = fmt.Errorf("failed to compress log file: %v", err)
 		}
 	}()
 
+	if err := gzf.Chmod(fi.Mode().Perm()); err != nil {
+		return err
+	}
+	if err := chown(tmpName, fi); err != nil {
+		return err
+	}
+
+	gz := gzip.NewWriter(gzf)
 	if _, err := io.Copy(gz, f); err != nil {
 		return err
 	}
 	if err := gz.Close(); err != nil {
 		return err
 	}
+	if err := gzf.Sync(); err != nil {
+		return err
+	}
 	if err := gzf.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, dst); err != nil {
 		return err
 	}
 
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Remove(src); err != nil {
+	if err := os.Remove(src); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
 	return nil
+}
+
+// removeStaleTemps deletes temp files left by compressions that never finished.
+// Recent ones are kept since another process may still be writing them.
+func (l *Logger) removeStaleTemps() {
+	entries, err := os.ReadDir(l.dir())
+	if err != nil {
+		return
+	}
+	prefix, _ := l.prefixAndExt()
+	cutoff := time.Now().Add(-staleTempAge)
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, prefix) || !strings.Contains(name, compressSuffix+tempInfix) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			continue
+		}
+		_ = os.Remove(filepath.Join(l.dir(), name))
+	}
 }
 
 // logInfo is a convenience struct to return the filename and its embedded

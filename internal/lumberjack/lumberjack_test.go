@@ -35,7 +35,7 @@ func TestNewFile(t *testing.T) {
 	l := &Logger{
 		Filename: logFile(dir),
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -58,7 +58,7 @@ func TestOpenExisting(t *testing.T) {
 	l := &Logger{
 		Filename: filename,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -80,7 +80,7 @@ func TestWriteTooLong(t *testing.T) {
 		Filename: logFile(dir),
 		MaxSize:  5,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("booooooooooooooo!")
 	n, err := l.Write(b)
 	notNil(err, t)
@@ -100,7 +100,7 @@ func TestMakeLogDir(t *testing.T) {
 	l := &Logger{
 		Filename: filename,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -115,7 +115,7 @@ func TestDefaultFilename(t *testing.T) {
 	filename := filepath.Join(dir, filepath.Base(os.Args[0])+"-lumberjack.log")
 	defer os.Remove(filename)
 	l := &Logger{}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 
@@ -136,7 +136,7 @@ func TestAutoRotate(t *testing.T) {
 		Filename: filename,
 		MaxSize:  10,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -173,7 +173,7 @@ func TestFirstWriteRotate(t *testing.T) {
 		Filename: filename,
 		MaxSize:  10,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 
 	start := []byte("boooooo!")
 	err := ioutil.WriteFile(filename, start, 0600)
@@ -205,7 +205,7 @@ func TestMaxBackups(t *testing.T) {
 		MaxSize:    10,
 		MaxBackups: 1,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -247,7 +247,7 @@ func TestMaxBackups(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(time.Millisecond * 10)
+	waitMill(l)
 
 	// should only have two files in the dir still
 	fileCount(dir, 2, t)
@@ -297,7 +297,7 @@ func TestMaxBackups(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(time.Millisecond * 10)
+	waitMill(l)
 
 	// We should have four things in the directory now - the 2 log files, the
 	// not log file, and the directory
@@ -357,7 +357,7 @@ func TestCleanupExistingBackups(t *testing.T) {
 		MaxSize:    10,
 		MaxBackups: 1,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 
 	newFakeTime()
 
@@ -368,7 +368,7 @@ func TestCleanupExistingBackups(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(time.Millisecond * 10)
+	waitMill(l)
 
 	// now we should only have 2 files left - the primary and one backup
 	fileCount(dir, 2, t)
@@ -387,7 +387,7 @@ func TestMaxAge(t *testing.T) {
 		MaxSize:  10,
 		MaxAge:   1,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -395,6 +395,8 @@ func TestMaxAge(t *testing.T) {
 
 	existsWithContent(filename, b, t)
 	fileCount(dir, 1, t)
+
+	waitMill(l)
 
 	// two days later
 	newFakeTime()
@@ -407,7 +409,7 @@ func TestMaxAge(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	waitMill(l)
 
 	// We should still have 2 log files, since the most recent backup was just
 	// created.
@@ -429,7 +431,7 @@ func TestMaxAge(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	waitMill(l)
 
 	// We should have 2 log files - the main log file, and the most recent
 	// backup.  The earlier backup is past the cutoff and should be gone.
@@ -515,7 +517,7 @@ func TestLocalTime(t *testing.T) {
 		MaxSize:   10,
 		LocalTime: true,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -542,7 +544,7 @@ func TestRotate(t *testing.T) {
 		MaxBackups: 1,
 		MaxSize:    100, // megabytes
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -558,7 +560,7 @@ func TestRotate(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	waitMill(l)
 
 	filename2 := backupFile(dir)
 	existsWithContent(filename2, b, t)
@@ -571,7 +573,7 @@ func TestRotate(t *testing.T) {
 
 	// we need to wait a little bit since the files get deleted on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	waitMill(l)
 
 	filename3 := backupFile(dir)
 	existsWithContent(filename3, []byte{}, t)
@@ -600,7 +602,7 @@ func TestCompressOnRotate(t *testing.T) {
 		Filename: filename,
 		MaxSize:  10,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -620,7 +622,7 @@ func TestCompressOnRotate(t *testing.T) {
 
 	// we need to wait a little bit since the files get compressed on a different
 	// goroutine.
-	<-time.After(300 * time.Millisecond)
+	waitMill(l)
 
 	// a compressed version of the log file should now exist and the original
 	// should have been removed.
@@ -649,7 +651,7 @@ func TestCompressOnResume(t *testing.T) {
 		Filename: filename,
 		MaxSize:  10,
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 
 	// Create a backup file and empty "compressed" file.
 	filename2 := backupFile(dir)
@@ -669,7 +671,7 @@ func TestCompressOnResume(t *testing.T) {
 
 	// we need to wait a little bit since the files get compressed on a different
 	// goroutine.
-	<-time.After(300 * time.Millisecond)
+	waitMill(l)
 
 	// The write should have started the compression - a compressed version of
 	// the log file should now exist and the original should have been removed.

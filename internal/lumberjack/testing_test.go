@@ -9,31 +9,31 @@ import (
 )
 
 // assert will log the given message if condition is false.
-func assert(condition bool, t testing.TB, msg string, v ...interface{}) {
+func assert(condition bool, t testing.TB, msg string, v ...any) {
 	assertUp(condition, t, 1, msg, v...)
 }
 
 // assertUp is like assert, but used inside helper functions, to ensure that
 // the file and line number reported by failures corresponds to one or more
 // levels up the stack.
-func assertUp(condition bool, t testing.TB, caller int, msg string, v ...interface{}) {
+func assertUp(condition bool, t testing.TB, caller int, msg string, v ...any) {
 	if !condition {
 		_, file, line, _ := runtime.Caller(caller + 1)
-		v = append([]interface{}{filepath.Base(file), line}, v...)
+		v = append([]any{filepath.Base(file), line}, v...)
 		fmt.Printf("%s:%d: "+msg+"\n", v...)
 		t.FailNow()
 	}
 }
 
 // equals tests that the two values are equal according to reflect.DeepEqual.
-func equals(exp, act interface{}, t testing.TB) {
+func equals(exp, act any, t testing.TB) {
 	equalsUp(exp, act, t, 1)
 }
 
 // equalsUp is like equals, but used inside helper functions, to ensure that the
 // file and line number reported by failures corresponds to one or more levels
 // up the stack.
-func equalsUp(exp, act interface{}, t testing.TB, caller int) {
+func equalsUp(exp, act any, t testing.TB, caller int) {
 	if !reflect.DeepEqual(exp, act) {
 		_, file, line, _ := runtime.Caller(caller + 1)
 		fmt.Printf("%s:%d: exp: %v (%T), got: %v (%T)\n",
@@ -44,14 +44,14 @@ func equalsUp(exp, act interface{}, t testing.TB, caller int) {
 
 // isNil reports a failure if the given value is not nil.  Note that values
 // which cannot be nil will always fail this check.
-func isNil(obtained interface{}, t testing.TB) {
+func isNil(obtained any, t testing.TB) {
 	isNilUp(obtained, t, 1)
 }
 
 // isNilUp is like isNil, but used inside helper functions, to ensure that the
 // file and line number reported by failures corresponds to one or more levels
 // up the stack.
-func isNilUp(obtained interface{}, t testing.TB, caller int) {
+func isNilUp(obtained any, t testing.TB, caller int) {
 	if !_isNil(obtained) {
 		_, file, line, _ := runtime.Caller(caller + 1)
 		fmt.Printf("%s:%d: expected nil, got: %v\n", filepath.Base(file), line, obtained)
@@ -60,14 +60,14 @@ func isNilUp(obtained interface{}, t testing.TB, caller int) {
 }
 
 // notNil reports a failure if the given value is nil.
-func notNil(obtained interface{}, t testing.TB) {
+func notNil(obtained any, t testing.TB) {
 	notNilUp(obtained, t, 1)
 }
 
 // notNilUp is like notNil, but used inside helper functions, to ensure that the
 // file and line number reported by failures corresponds to one or more levels
 // up the stack.
-func notNilUp(obtained interface{}, t testing.TB, caller int) {
+func notNilUp(obtained any, t testing.TB, caller int) {
 	if _isNil(obtained) {
 		_, file, line, _ := runtime.Caller(caller + 1)
 		fmt.Printf("%s:%d: expected non-nil, got: %v\n", filepath.Base(file), line, obtained)
@@ -77,7 +77,7 @@ func notNilUp(obtained interface{}, t testing.TB, caller int) {
 
 // _isNil is a helper function for isNil and notNil, and should not be used
 // directly.
-func _isNil(obtained interface{}) bool {
+func _isNil(obtained any) bool {
 	if obtained == nil {
 		return true
 	}
@@ -88,4 +88,14 @@ func _isNil(obtained interface{}) bool {
 	}
 
 	return false
+}
+
+// waitMill blocks until any mill goroutine started by l has exited.
+func waitMill(l *Logger) {
+	l.millWG.Wait()
+}
+
+func closeAndWait(l *Logger) {
+	l.Close()
+	waitMill(l)
 }

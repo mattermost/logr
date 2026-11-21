@@ -1,12 +1,12 @@
-// +build linux
+//go:build linux
 
 package lumberjack
 
 import (
 	"os"
+	"sync"
 	"syscall"
 	"testing"
-	"time"
 )
 
 func TestMaintainMode(t *testing.T) {
@@ -26,7 +26,7 @@ func TestMaintainMode(t *testing.T) {
 		MaxBackups: 1,
 		MaxSize:    100, // megabytes
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -69,7 +69,7 @@ func TestMaintainOwner(t *testing.T) {
 		MaxBackups: 1,
 		MaxSize:    100, // megabytes
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -80,8 +80,7 @@ func TestMaintainOwner(t *testing.T) {
 	err = l.Rotate()
 	isNil(err, t)
 
-	equals(555, fakeFS.files[filename].uid, t)
-	equals(666, fakeFS.files[filename].gid, t)
+	equals(fakeFile{uid: 555, gid: 666}, fakeFS.owner(filename, t), t)
 }
 
 func TestCompressMaintainMode(t *testing.T) {
@@ -103,7 +102,7 @@ func TestCompressMaintainMode(t *testing.T) {
 		MaxBackups: 1,
 		MaxSize:    100, // megabytes
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -116,7 +115,7 @@ func TestCompressMaintainMode(t *testing.T) {
 
 	// we need to wait a little bit since the files get compressed on a different
 	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	waitMill(l)
 
 	// a compressed version of the log file should now exist with the correct
 	// mode.
@@ -153,7 +152,7 @@ func TestCompressMaintainOwner(t *testing.T) {
 		MaxBackups: 1,
 		MaxSize:    100, // megabytes
 	}
-	defer l.Close()
+	defer closeAndWait(l)
 	b := []byte("boo!")
 	n, err := l.Write(b)
 	isNil(err, t)
@@ -164,15 +163,12 @@ func TestCompressMaintainOwner(t *testing.T) {
 	err = l.Rotate()
 	isNil(err, t)
 
-	// we need to wait a little bit since the files get compressed on a different
-	// goroutine.
-	<-time.After(10 * time.Millisecond)
+	waitMill(l)
 
 	// a compressed version of the log file should now exist with the correct
 	// owner.
 	filename2 := backupFile(dir)
-	equals(555, fakeFS.files[filename2+compressSuffix].uid, t)
-	equals(666, fakeFS.files[filename2+compressSuffix].gid, t)
+	equals(fakeFile{uid: 555, gid: 666}, fakeFS.owner(filename2+compressSuffix, t), t)
 }
 
 type fakeFile struct {
@@ -180,17 +176,33 @@ type fakeFile struct {
 	gid int
 }
 
+// fakeFS records chowns by inode so they follow a file across renames.
 type fakeFS struct {
-	files map[string]fakeFile
+	mu    sync.Mutex
+	files map[uint64]fakeFile
 }
 
 func newFakeFS() *fakeFS {
-	return &fakeFS{files: make(map[string]fakeFile)}
+	return &fakeFS{files: make(map[uint64]fakeFile)}
 }
 
 func (fs *fakeFS) Chown(name string, uid, gid int) error {
-	fs.files[name] = fakeFile{uid: uid, gid: gid}
+	info, err := os.Stat(name)
+	if err != nil {
+		return err
+	}
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	fs.files[info.Sys().(*syscall.Stat_t).Ino] = fakeFile{uid: uid, gid: gid}
 	return nil
+}
+
+func (fs *fakeFS) owner(name string, t testing.TB) fakeFile {
+	info, err := os.Stat(name)
+	isNilUp(err, t, 1)
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	return fs.files[info.Sys().(*syscall.Stat_t).Ino]
 }
 
 func (fs *fakeFS) Stat(name string) (os.FileInfo, error) {
