@@ -522,10 +522,11 @@ func compressLogFile(src, dst string) (err error) {
 		return fmt.Errorf("failed to create temp compressed log file: %v", err)
 	}
 	tmpName := gzf.Name()
-	defer gzf.Close()
 
 	defer func() {
 		if err != nil {
+			// Close first: Windows cannot remove a file that is still open.
+			gzf.Close()
 			os.Remove(tmpName)
 			err = fmt.Errorf("failed to compress log file: %v", err)
 		}
@@ -572,11 +573,11 @@ func (l *Logger) removeStaleTemps() {
 	if err != nil {
 		return
 	}
-	prefix, _ := l.prefixAndExt()
+	prefix, ext := l.prefixAndExt()
 	cutoff := time.Now().Add(-staleTempAge)
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() || !strings.HasPrefix(name, prefix) || !strings.Contains(name, compressSuffix+tempInfix) {
+		if e.IsDir() || !l.isTempName(name, prefix, ext) {
 			continue
 		}
 		info, err := e.Info()
@@ -585,6 +586,29 @@ func (l *Logger) removeStaleTemps() {
 		}
 		_ = os.Remove(filepath.Join(l.dir(), name))
 	}
+}
+
+// isTempName reports whether name is exactly a compressLogFile temp file for
+// this Logger: a backup name, then compressSuffix+tempInfix, then the digits
+// os.CreateTemp substitutes for "*".
+func (l *Logger) isTempName(name, prefix, ext string) bool {
+	i := strings.LastIndex(name, compressSuffix+tempInfix)
+	if i < 0 {
+		return false
+	}
+	if _, err := l.timeFromName(name[:i], prefix, ext); err != nil {
+		return false
+	}
+	rnd := name[i+len(compressSuffix+tempInfix):]
+	if rnd == "" {
+		return false
+	}
+	for _, c := range rnd {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // logInfo is a convenience struct to return the filename and its embedded

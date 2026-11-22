@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -85,7 +86,9 @@ func TestCompressConcurrentSameSource(t *testing.T) {
 		wg.Wait()
 
 		for j, err := range errs {
-			if err != nil {
+			// On Windows the first to finish cannot remove src while the other
+			// still has it open; the other removes it, so only the result matters.
+			if err != nil && runtime.GOOS != "windows" {
 				t.Errorf("trial %d: compressor %d: %v", i, j, err)
 			}
 		}
@@ -138,6 +141,50 @@ func TestRemoveStaleTemps(t *testing.T) {
 	notExist(stale, t)
 	exists(fresh, t)
 	exists(other, t)
+}
+
+func TestRemoveStaleTempsKeepsBackupsWithTempLikeFilename(t *testing.T) {
+	dir := t.TempDir()
+	l := &Logger{Filename: filepath.Join(dir, "foo.gz.tmp.log"), Compress: true}
+
+	backup := filepath.Join(dir, "foo.gz.tmp-2026-01-01T00-00-00.000.log")
+	backupGz := backup + compressSuffix
+	stale := backupGz + tempInfix + "123"
+	for _, name := range []string{backup, backupGz, stale} {
+		if err := os.WriteFile(name, []byte("data"), 0640); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * staleTempAge)
+	for _, name := range []string{backup, backupGz, stale} {
+		if err := os.Chtimes(name, old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	l.removeStaleTemps()
+
+	exists(backup, t)
+	exists(backupGz, t)
+	notExist(stale, t)
+}
+
+func TestIsTempName(t *testing.T) {
+	l := &Logger{Filename: "foo.log"}
+	prefix, ext := l.prefixAndExt()
+	for name, want := range map[string]bool{
+		"foo-2026-01-01T00-00-00.000.log.gz.tmp123": true,
+		"foo-2026-01-01T00-00-00.000.log.gz.tmp":    false,
+		"foo-2026-01-01T00-00-00.000.log.gz.tmpabc": false,
+		"foo-2026-01-01T00-00-00.000.log.gz":        false,
+		"foo-2026-01-01T00-00-00.000.log":           false,
+		"foo-notatime.log.gz.tmp123":                false,
+		"bar-2026-01-01T00-00-00.000.log.gz.tmp123": false,
+	} {
+		if got := l.isTempName(name, prefix, ext); got != want {
+			t.Errorf("isTempName(%q) = %v, want %v", name, got, want)
+		}
+	}
 }
 
 // TestReconfigureDuringCompress is the MM-72165 scenario: a second Logger for

@@ -54,23 +54,27 @@ func TestReconfigureDuringCompressKeepsBackup(t *testing.T) {
 	logger.Info("second configure")
 	require.NoError(t, lgr.Shutdown())
 
-	var names []string
-	require.Eventually(t, func() bool {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			return false
-		}
-		names = names[:0]
-		for _, e := range entries {
-			names = append(names, e.Name())
-		}
+	compressionDone := func(names []string) bool {
 		for _, name := range names {
 			if name != "app.log" && !strings.HasSuffix(name, ".gz") {
 				return false
 			}
 		}
 		return true
-	}, 10*time.Second, 20*time.Millisecond, "compression did not finish: %v", names)
+	}
+	var names []string
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		names = names[:0]
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		if compressionDone(names) {
+			break
+		}
+		require.True(t, time.Now().Before(deadline), "compression did not finish: %v", names)
+	}
 
 	var gzName string
 	for _, name := range names {
