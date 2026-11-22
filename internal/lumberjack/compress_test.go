@@ -169,6 +169,17 @@ func TestRemoveStaleTempsKeepsBackupsWithTempLikeFilename(t *testing.T) {
 	notExist(stale, t)
 }
 
+func TestTimeFromNameOverlappingPrefixAndExt(t *testing.T) {
+	l := &Logger{Filename: ".x.x-"}
+	prefix, ext := l.prefixAndExt()
+	equals(".x-", prefix, t)
+	equals(".x-", ext, t)
+
+	_, err := l.timeFromName(".x-", prefix, ext)
+	notNil(err, t)
+	equals(false, l.isTempName(".x-.gz.tmp123", prefix, ext), t)
+}
+
 func TestIsTempName(t *testing.T) {
 	l := &Logger{Filename: "foo.log"}
 	prefix, ext := l.prefixAndExt()
