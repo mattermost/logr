@@ -40,6 +40,7 @@ test-reports
 test/cmd/testapp1/testapp1
 test/cmd/simple/simple
 test/cmd/gelf/gelf
+test/cmd/metrics/metrics
 
 # tools
 .aider*
