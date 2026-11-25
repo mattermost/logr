@@ -198,6 +198,40 @@ func TestIsTempName(t *testing.T) {
 	}
 }
 
+func TestMaxAgeLocalTime(t *testing.T) {
+	origLocal, origTime := time.Local, currentTime
+	t.Cleanup(func() { time.Local, currentTime = origLocal, origTime })
+
+	for _, offset := range []int{-5, 5} {
+		time.Local = time.FixedZone(fmt.Sprintf("UTC%+d", offset), offset*3600)
+		now := time.Date(2026, 1, 10, 12, 0, 0, 0, time.Local)
+		currentTime = func() time.Time { return now }
+
+		dir := t.TempDir()
+		l := &Logger{Filename: filepath.Join(dir, "foobar.log"), MaxAge: 1, LocalTime: true}
+		backup := func(age time.Duration) string {
+			return filepath.Join(dir, "foobar-"+now.Add(-age).Format(backupTimeFormat)+".log")
+		}
+		keep, expired := backup(22*time.Hour), backup(26*time.Hour)
+		for _, name := range []string{keep, expired} {
+			if err := os.WriteFile(name, []byte("data"), 0640); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if err := l.millRunOnce(); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := os.Stat(keep); err != nil {
+			t.Errorf("offset %+d: backup within MaxAge was removed: %v", offset, err)
+		}
+		if _, err := os.Stat(expired); !os.IsNotExist(err) {
+			t.Errorf("offset %+d: backup past MaxAge was kept", offset)
+		}
+	}
+}
+
 // TestReconfigureDuringCompress is the MM-72165 scenario: a second Logger for
 // the same file starts milling while the first is still compressing a backup.
 func TestReconfigureDuringCompress(t *testing.T) {

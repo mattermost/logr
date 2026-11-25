@@ -472,6 +472,9 @@ func (l *Logger) timeFromName(filename, prefix, ext string) (time.Time, error) {
 		return time.Time{}, errors.New("mismatched extension")
 	}
 	ts := filename[len(prefix) : len(filename)-len(ext)]
+	if l.LocalTime {
+		return time.ParseInLocation(backupTimeFormat, ts, time.Local)
+	}
 	return time.Parse(backupTimeFormat, ts)
 }
 
